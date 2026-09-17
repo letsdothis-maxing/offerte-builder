@@ -118,13 +118,35 @@
   .btn-danger:hover{background:#fecaca;}
   .btn-ghost{background:var(--bg);color:var(--ink);}
 
+  /* ---------- gyproc drawer (reuses .field/.actions/.btn from above) ---------- */
+  #gyproc-backdrop{
+    position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:49;
+    opacity:0;pointer-events:none;transition:opacity .18s;
+  }
+  #gyproc-backdrop.open{opacity:1;pointer-events:auto;}
+  #gyproc-panel{
+    position:fixed;top:0;right:0;height:100%;width:340px;max-width:88vw;
+    background:var(--panel);box-shadow:-8px 0 30px rgba(0,0,0,.18);
+    transform:translateX(100%);transition:transform .22s ease;z-index:50;
+    display:flex;flex-direction:column;padding:20px;overflow-y:auto;
+  }
+  #gyproc-panel.open{transform:translateX(0);}
+  #gyproc-panel h2{font-size:16px;margin:0 0 4px;}
+  #gyproc-panel .sub{font-size:12px;color:var(--muted);margin-bottom:18px;}
+  #gyproc-result{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;display:none;}
+  #gyproc-result.show{display:block;}
+  #gyproc-result .row{display:flex;justify-content:space-between;padding:4px 0;}
+  #gyproc-result .row .k{color:var(--muted);}
+  #gyproc-result .row .v{font-weight:600;}
+  #gyproc-result .big{font-size:26px;font-weight:800;margin-bottom:8px;color:var(--blue);}
+
   @media (prefers-color-scheme: dark){
     :root{
       --ink:#e5e7eb;--bg:#0f1420;--panel:#161d2b;--line:#28324a;--muted:#8993a8;
       --room-fill:rgba(96,165,250,.10);--room-fill-2:rgba(245,158,11,.12);
     }
     #stage{background:#0b0f18;}
-    select.tb-select,#opening-panel .field input{background:#0f1420;color:#e5e7eb;}
+    select.tb-select,#opening-panel .field input,#gyproc-panel .field input{background:#0f1420;color:#e5e7eb;}
     .btn-danger{background:#3b1418;color:#fca5a5;}
   }
 </style>
@@ -160,6 +182,8 @@
       </select>
     </div>
     <div class="sep"></div>
+    <button class="tbtn" id="gyproc-btn"><span class="ic">🧱</span>Gyproc berekenen</button>
+    <div class="sep"></div>
     <button class="tbtn" id="clear-btn"><span class="ic">🗑</span>Wis alles</button>
     <div class="spacer"></div>
     <span id="hint">Klik om muurpunten te plaatsen. Klik dicht bij het startpunt om een ruimte te sluiten.</span>
@@ -190,6 +214,28 @@
     <button class="btn btn-danger" id="op-delete">Verwijderen</button>
     <button class="btn btn-primary" id="op-save">Opslaan</button>
   </div>
+</div>
+
+<div id="gyproc-backdrop"></div>
+<div id="gyproc-panel">
+  <h2>Gyproc berekening</h2>
+  <div class="sub" id="gyproc-wall-info">Geen muur geselecteerd.</div>
+  <div class="field">
+    <label>Plaatformaat</label>
+    <select class="tb-select" id="gyproc-size" style="width:100%">
+      <option value="2600x1200">2600 x 1200 mm</option>
+      <option value="3000x1200">3000 x 1200 mm</option>
+      <option value="2600x600">2600 x 600 mm</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Dikte</label>
+    <div class="row"><input type="number" id="gyproc-thickness" min="1" step="0.5" value="12.5"><span class="unit">mm</span></div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" id="gyproc-calc" style="flex:1">Bereken</button>
+  </div>
+  <div id="gyproc-result"></div>
 </div>
 
 <script>
@@ -815,6 +861,15 @@
   /* =====================================================================
      SUMMARY
   ===================================================================== */
+  // wall height is always derived from the room(s) it belongs to - there is
+  // no per-wall override; a wall touching zones of different heights uses
+  // the tallest one (the riser above the lower zone is counted as ceiling
+  // area, not wall area). Shared by the summary widget and the gyproc calc.
+  function getWallHeight(w, zones){
+    var adj = zones.filter(function(z){ return z.wallIds.indexOf(w.id) !== -1; });
+    return adj.length ? Math.max.apply(null, adj.map(function(z){return z.height;})) : state.defaultRoomHeight;
+  }
+
   function updateSummary(zones, resolvedCuts){
     var floorArea = 0, ceilingArea = 0, wallArea = 0;
     zones.forEach(function(z){ floorArea += z.area; ceilingArea += z.area; });
@@ -829,14 +884,9 @@
       if(hDiff > 0) ceilingArea += hDiff * rc.length;
     });
 
-    // wall height is always derived from the room(s) it belongs to - there
-    // is no per-wall override; a wall touching zones of different heights
-    // uses the tallest one (the riser above the lower zone is counted as
-    // ceiling area above, not wall area).
     state.walls.forEach(function(w){
       var len = Math.hypot(w.x2-w.x1, w.y2-w.y1);
-      var adj = zones.filter(function(z){ return z.wallIds.indexOf(w.id) !== -1; });
-      var h = adj.length ? Math.max.apply(null, adj.map(function(z){return z.height;})) : state.defaultRoomHeight;
+      var h = getWallHeight(w, zones);
       var grossArea = len*h;
       var openingsArea = 0;
       state.openings.filter(function(o){ return o.wallId===w.id; }).forEach(function(o){
@@ -1342,6 +1392,110 @@
     }
     closeOpeningDrawer();
     render();
+  });
+
+  /* =====================================================================
+     GYPROC CALCULATOR ("Automatische gyproc berekening")
+     Given a selected wall + a chosen standard panel size, computes how many
+     panels are needed to cover it. Tries both panel orientations (a simple
+     but genuine cutting-stock choice: keep whichever needs fewer sheets),
+     tiles the wall in a floor-up grid, and skips any grid cell a door/window
+     opening fully covers - a conservative heuristic (never under-orders
+     material) rather than a full optimal rectangle-packing solver.
+  ===================================================================== */
+  var gyprocBackdrop = document.getElementById("gyproc-backdrop");
+  var gyprocPanel = document.getElementById("gyproc-panel");
+  var gyprocWallId = null;
+
+  document.getElementById("gyproc-btn").addEventListener("click", function(){
+    if(!state.selection || state.selection.type !== "wall"){
+      alert("Selecteer eerst een muur (Selecteer-tool) om de gyproc-berekening te starten.");
+      return;
+    }
+    openGyprocDrawer(state.selection.id);
+  });
+
+  function openGyprocDrawer(wallId){
+    gyprocWallId = wallId;
+    var w = state.walls.find(function(ww){ return ww.id===wallId; });
+    if(!w) return;
+    var len = wallLength(w);
+    var h = getWallHeight(w, state._lastZones);
+    document.getElementById("gyproc-wall-info").textContent =
+      "Muur: "+fmtM(len)+" breed x "+fmtM(h)+" hoog ("+fmtM2(len*h)+" m²)";
+    document.getElementById("gyproc-result").classList.remove("show");
+    gyprocBackdrop.classList.add("open");
+    gyprocPanel.classList.add("open");
+  }
+  function closeGyprocDrawer(){
+    gyprocBackdrop.classList.remove("open");
+    gyprocPanel.classList.remove("open");
+  }
+  gyprocBackdrop.addEventListener("click", closeGyprocDrawer);
+
+  function getOpeningLocalRect(o, wallLenMm){
+    var halfW = o.width/2;
+    var distMm = o.t*wallLenMm;
+    var y1 = o.type==="window" ? o.sill : 0;
+    return { x1: distMm-halfW, x2: distMm+halfW, y1: y1, y2: y1+o.height };
+  }
+
+  function tileWall(wallLenMm, wallHeightMm, panelW, panelH){
+    return { across: Math.ceil(wallLenMm/panelW), up: Math.ceil(wallHeightMm/panelH), panelW: panelW, panelH: panelH };
+  }
+
+  document.getElementById("gyproc-calc").addEventListener("click", function(){
+    var w = state.walls.find(function(ww){ return ww.id===gyprocWallId; });
+    if(!w) return;
+    var wallLenMm = wallLength(w);
+    var wallHeightMm = getWallHeight(w, state._lastZones);
+    var sizeParts = document.getElementById("gyproc-size").value.split("x");
+    var baseW = parseInt(sizeParts[0],10), baseH = parseInt(sizeParts[1],10);
+    var thicknessMm = parseFloat(document.getElementById("gyproc-thickness").value) || 12.5;
+
+    // 2D cutting-stock choice: try the panel in both orientations, keep
+    // whichever tiles the wall with fewer total sheets
+    var optA = tileWall(wallLenMm, wallHeightMm, baseW, baseH);
+    var optB = tileWall(wallLenMm, wallHeightMm, baseH, baseW);
+    var chosen = (optB.across*optB.up) < (optA.across*optA.up) ? optB : optA;
+    var orientationLabel = chosen===optB ? "staand (90° gedraaid)" : "liggend (zoals opgegeven)";
+
+    var openingRects = state.openings.filter(function(o){ return o.wallId===w.id; })
+      .map(function(o){ return getOpeningLocalRect(o, wallLenMm); });
+
+    var grossPanels = chosen.across*chosen.up;
+    var skipped = 0;
+    for(var r=0;r<chosen.up;r++){
+      for(var c=0;c<chosen.across;c++){
+        var cx1=c*chosen.panelW, cx2=(c+1)*chosen.panelW;
+        var cy1=r*chosen.panelH, cy2=(r+1)*chosen.panelH;
+        var fullyCovered = openingRects.some(function(o){
+          return o.x1<=cx1 && o.x2>=cx2 && o.y1<=cy1 && o.y2>=cy2;
+        });
+        if(fullyCovered) skipped++;
+      }
+    }
+    var netPanels = Math.max(grossPanels-skipped, grossPanels>0 ? 1 : 0);
+
+    var grossAreaM2 = (wallLenMm*wallHeightMm)/1000000;
+    var openingsAreaM2 = openingRects.reduce(function(sum,o){ return sum+(o.x2-o.x1)*(o.y2-o.y1); },0)/1000000;
+    var neededAreaM2 = Math.max(0, grossAreaM2-openingsAreaM2);
+    var panelAreaM2 = (chosen.panelW*chosen.panelH)/1000000;
+    var coveredAreaM2 = netPanels*panelAreaM2;
+    var wastePct = coveredAreaM2>0 ? Math.max(0,(coveredAreaM2-neededAreaM2)/coveredAreaM2*100) : 0;
+
+    var html = ''
+      + '<div class="big">'+netPanels+' '+(netPanels===1?'plaat':'platen')+'</div>'
+      + '<div class="row"><span class="k">Indeling</span><span class="v">'+chosen.across+' x '+chosen.up+' ('+orientationLabel+')</span></div>'
+      + '<div class="row"><span class="k">Plaatformaat</span><span class="v">'+chosen.panelW+' x '+chosen.panelH+' mm, '+thicknessMm+' mm dik</span></div>'
+      + '<div class="row"><span class="k">Muuroppervlak (bruto)</span><span class="v">'+grossAreaM2.toFixed(2)+' m²</span></div>'
+      + (openingsAreaM2>0 ? '<div class="row"><span class="k">Netto (excl. deuren/ramen)</span><span class="v">'+neededAreaM2.toFixed(2)+' m²</span></div>' : '')
+      + (skipped>0 ? '<div class="row"><span class="k">Platen overgeslagen (volledig raam/deur)</span><span class="v">'+skipped+'</span></div>' : '')
+      + '<div class="row"><span class="k">Gedekt oppervlak</span><span class="v">'+coveredAreaM2.toFixed(2)+' m²</span></div>'
+      + '<div class="row"><span class="k">Snijverlies</span><span class="v">'+wastePct.toFixed(0)+'%</span></div>';
+    var resultEl = document.getElementById("gyproc-result");
+    resultEl.innerHTML = html;
+    resultEl.classList.add("show");
   });
 
   /* =====================================================================
