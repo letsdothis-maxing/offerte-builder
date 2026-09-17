@@ -208,7 +208,7 @@
     gridStep: 100, // mm
     wallThickness: 150, // mm, fixed for all new walls (v1)
     defaultRoomHeight: 2500, // mm
-    walls: [],      // {id,x1,y1,x2,y2,thickness,heightOverride|null}
+    walls: [],      // {id,x1,y1,x2,y2,thickness} - height always derives from the room(s) it belongs to
     openings: [],   // {id,wallId,type:'door'|'window',t,width,height,sill}
     zoneCuts: [],   // {id,x1,y1,x2,y2}
     roomHeights: {},// key -> heightMm override
@@ -437,41 +437,55 @@
   }
 
   // Compute final render/summary zones: wall-detected faces, each further
-  // split by any zoneCuts whose midpoint falls inside them.
+  // split by any zoneCuts. A cut's stored x1/y1/x2/y2 only fix the CUT
+  // LINE's direction/rough placement - the actual chord used for splitting
+  // is always re-clipped fresh against the CURRENT polygon boundary, so the
+  // line keeps running wall-to-wall (and gets longer/shorter) if a wall is
+  // later dragged, instead of drifting away from stale stored endpoints.
   function computeZones(){
     var faces = detectFaces(state.walls);
     var zones = [];
+    var resolvedCuts = []; // {id, p1, p2, length, zoneA, zoneB} - for rendering + ceiling riser calc
     faces.forEach(function(face){
-      var polys = [face.polygon];
       var baseKey = faceKey(face);
-      var cutsInFace = state.zoneCuts.filter(function(cut){
-        var mid = { x:(cut.x1+cut.x2)/2, y:(cut.y1+cut.y2)/2 };
-        return pointInPoly(mid, face.polygon);
-      });
-      cutsInFace.forEach(function(cut){
+      var polyList = [face.polygon];
+      var cutRecords = []; // {cutId, chord, polyA, polyB} captured at split time (reference-based)
+      state.zoneCuts.forEach(function(cut){
         var next = [];
-        polys.forEach(function(poly){
-          if(pointInPoly({x:(cut.x1+cut.x2)/2,y:(cut.y1+cut.y2)/2}, poly)){
-            var parts = splitPolygonByLine(poly, {x:cut.x1,y:cut.y1}, {x:cut.x2,y:cut.y2});
-            parts.forEach(function(p){ next.push(p); });
-          } else {
-            next.push(poly);
+        polyList.forEach(function(poly){
+          var localChord = clipLineToPolygon({x:cut.x1,y:cut.y1}, {x:cut.x2,y:cut.y2}, poly);
+          if(localChord){
+            var parts = splitPolygonByLine(poly, localChord[0], localChord[1]);
+            if(parts.length === 2){
+              cutRecords.push({ cutId: cut.id, chord: localChord, polyA: parts[0], polyB: parts[1] });
+              parts.forEach(function(p){ next.push(p); });
+              return;
+            }
           }
+          next.push(poly);
         });
-        polys = next;
+        polyList = next;
       });
-      polys.forEach(function(poly, idx){
-        var key = polys.length > 1 ? baseKey+":z"+idx : baseKey;
-        zones.push({
+      var faceZones = polyList.map(function(poly, idx){
+        var key = polyList.length > 1 ? baseKey+":z"+idx : baseKey;
+        return {
           key: key,
           polygon: poly,
           area: Math.abs(shoelaceArea(poly)),
           wallIds: face.wallIds,
           height: state.roomHeights[key] != null ? state.roomHeights[key] : state.defaultRoomHeight
-        });
+        };
+      });
+      faceZones.forEach(function(z){ zones.push(z); });
+      cutRecords.forEach(function(cr){
+        var zA = faceZones.find(function(z){ return z.polygon === cr.polyA; });
+        var zB = faceZones.find(function(z){ return z.polygon === cr.polyB; });
+        if(zA && zB){
+          resolvedCuts.push({ id: cr.cutId, p1: cr.chord[0], p2: cr.chord[1], length: dist(cr.chord[0],cr.chord[1]), zoneA: zA, zoneB: zB });
+        }
       });
     });
-    return zones;
+    return { zones: zones, resolvedCuts: resolvedCuts };
   }
 
   /* =====================================================================
@@ -515,10 +529,11 @@
 
     drawGrid(W,H,dark);
 
-    var zones = computeZones();
+    var computed = computeZones();
+    var zones = computed.zones, resolvedCuts = computed.resolvedCuts;
     state._lastZones = zones;
     drawZones(zones, dark);
-    drawZoneCuts(dark);
+    drawZoneCuts(resolvedCuts, dark);
     drawWalls(dark);
     drawOpenings(dark);
     drawVertexHandles(dark);
@@ -529,7 +544,7 @@
     drawWallDrawPreview(dark);
     drawZoneDrawPreview(dark);
 
-    updateSummary(zones);
+    updateSummary(zones, resolvedCuts);
   }
 
   function drawGrid(W,H,dark){
@@ -575,9 +590,11 @@
     });
   }
 
-  function drawZoneCuts(dark){
-    state.zoneCuts.forEach(function(c){
-      var a = worldToScreen(c.x1,c.y1), b = worldToScreen(c.x2,c.y2);
+  function drawZoneCuts(resolvedCuts, dark){
+    // always drawn from the freshly re-clipped chord (see computeZones), so
+    // the dashed line keeps running wall-to-wall even after a wall moves
+    resolvedCuts.forEach(function(rc){
+      var a = worldToScreen(rc.p1.x,rc.p1.y), b = worldToScreen(rc.p2.x,rc.p2.y);
       ctx.save();
       ctx.setLineDash([8,6]);
       ctx.strokeStyle = dark ? "#f59e0b" : "#b45309";
@@ -658,6 +675,14 @@
         ctx.beginPath();
         ctx.moveTo(s1.x-nx*off, s1.y-ny*off); ctx.lineTo(s2.x-nx*off, s2.y-ny*off); ctx.stroke();
       }
+
+      // distance from each edge of the opening to the wall's own end points
+      // (i.e. to the neighboring walls it junctions with there)
+      var wallStart = { x:g.wall.x1, y:g.wall.y1 }, wallEnd = { x:g.wall.x2, y:g.wall.y2 };
+      var distStart = Math.hypot(p1.x-wallStart.x, p1.y-wallStart.y);
+      var distEnd = Math.hypot(p2.x-wallEnd.x, p2.y-wallEnd.y);
+      if(distStart > 20) drawFloatingLabel({ x:(wallStart.x+p1.x)/2, y:(wallStart.y+p1.y)/2 }, fmtM(distStart), dark);
+      if(distEnd > 20) drawFloatingLabel({ x:(p2.x+wallEnd.x)/2, y:(p2.y+wallEnd.y)/2 }, fmtM(distEnd), dark);
     });
   }
   function drawVertexHandles(dark){
@@ -713,13 +738,6 @@
       var offset = (Math.max(2,w.thickness*state.camera.scale)/2 + 14) / state.camera.scale;
       var labelPos = { x: mx+nx*offset, y: my+ny*offset };
       drawPillLabel(labelPos, fmtM(len), "wall-length", w.id, null, dark, false);
-
-      if(state.tool === "select"){
-        var hOffset = -offset - 18/state.camera.scale;
-        var hPos = { x: mx+nx*hOffset, y: my+ny*hOffset };
-        var h = w.heightOverride != null ? w.heightOverride : state.defaultRoomHeight;
-        drawPillLabel(hPos, "⬍ "+fmtM(h), "wall-height", w.id, null, dark, w.heightOverride!=null);
-      }
     });
   }
 
@@ -797,18 +815,28 @@
   /* =====================================================================
      SUMMARY
   ===================================================================== */
-  function updateSummary(zones){
+  function updateSummary(zones, resolvedCuts){
     var floorArea = 0, ceilingArea = 0, wallArea = 0;
     zones.forEach(function(z){ floorArea += z.area; ceilingArea += z.area; });
 
-    // wall height = explicit override, else max height of adjoining zones, else default
+    // A split room whose two zones have different heights has a vertical
+    // "riser" strip where the ceiling steps up, running the full length of
+    // the split line - that strip is drywalled as part of the ceiling
+    // system, so its area (height difference x cut length) is added to the
+    // ceiling total, not the wall total.
+    resolvedCuts.forEach(function(rc){
+      var hDiff = Math.abs(rc.zoneA.height - rc.zoneB.height);
+      if(hDiff > 0) ceilingArea += hDiff * rc.length;
+    });
+
+    // wall height is always derived from the room(s) it belongs to - there
+    // is no per-wall override; a wall touching zones of different heights
+    // uses the tallest one (the riser above the lower zone is counted as
+    // ceiling area above, not wall area).
     state.walls.forEach(function(w){
       var len = Math.hypot(w.x2-w.x1, w.y2-w.y1);
-      var h = w.heightOverride;
-      if(h == null){
-        var adj = zones.filter(function(z){ return z.wallIds.indexOf(w.id) !== -1; });
-        h = adj.length ? Math.max.apply(null, adj.map(function(z){return z.height;})) : state.defaultRoomHeight;
-      }
+      var adj = zones.filter(function(z){ return z.wallIds.indexOf(w.id) !== -1; });
+      var h = adj.length ? Math.max.apply(null, adj.map(function(z){return z.height;})) : state.defaultRoomHeight;
       var grossArea = len*h;
       var openingsArea = 0;
       state.openings.filter(function(o){ return o.wallId===w.id; }).forEach(function(o){
@@ -1024,18 +1052,27 @@
         state.dragState = { type:"vertex", vertex: {x:vtx.x,y:vtx.y} };
         return;
       }
-      var wHit = findWallHit(world);
-      if(wHit){
-        state.selection = { type:"wall", id: wHit.wall.id };
-        state.dragState = { type:"wall", wallId: wHit.wall.id, startWorld: world,
-          orig: { x1:wHit.wall.x1,y1:wHit.wall.y1,x2:wHit.wall.x2,y2:wHit.wall.y2 } };
-        render();
-        return;
-      }
+      // openings are checked before the plain wall hit-test: an opening
+      // sits on top of (and within) its wall's own segment, so without this
+      // ordering a click on a door/window would always resolve to the wall
+      // underneath it and the opening could never be selected/dragged
       var oHit = findOpeningHit(world);
       if(oHit){
         state.selection = { type:"opening", id: oHit.id };
-        openOpeningDrawer(oHit, null);
+        // click-vs-drag: a plain click (no movement) opens the edit drawer,
+        // a drag repositions the opening along its wall (see pointerup)
+        state.dragState = { type:"opening", openingId: oHit.id, startWorld: world, moved:false };
+        render();
+        return;
+      }
+      var wHit = findWallHit(world);
+      if(wHit){
+        state.selection = { type:"wall", id: wHit.wall.id };
+        // track both endpoints so a whole-wall drag can pull along every
+        // OTHER wall attached at each end, instead of detaching from them
+        state.dragState = { type:"wall", wallId: wHit.wall.id, startWorld: world,
+          origV1: { x:wHit.wall.x1, y:wHit.wall.y1 }, origV2: { x:wHit.wall.x2, y:wHit.wall.y2 },
+          curV1: { x:wHit.wall.x1, y:wHit.wall.y1 }, curV2: { x:wHit.wall.x2, y:wHit.wall.y2 } };
         render();
         return;
       }
@@ -1062,23 +1099,44 @@
       if(state.dragState.type === "vertex"){
         var v = state.dragState.vertex;
         var np = state.snap ? snapToGridPoint(world) : world;
-        state.walls.forEach(function(w){
-          if(Math.round(w.x1)===Math.round(v.x) && Math.round(w.y1)===Math.round(v.y)){ w.x1=np.x; w.y1=np.y; }
-          if(Math.round(w.x2)===Math.round(v.x) && Math.round(w.y2)===Math.round(v.y)){ w.x2=np.x; w.y2=np.y; }
-        });
+        moveVertexAndConnected(v, np);
         state.dragState.vertex = np;
         render();
         return;
       }
       if(state.dragState.type === "wall"){
-        var w2 = state.walls.find(function(ww){return ww.id===state.dragState.wallId;});
-        if(w2){
-          var dxw = world.x-state.dragState.startWorld.x, dyw = world.y-state.dragState.startWorld.y;
-          var o = state.dragState.orig;
-          var np1 = state.snap ? snapToGridPoint({x:o.x1+dxw,y:o.y1+dyw}) : {x:o.x1+dxw,y:o.y1+dyw};
-          var shiftX = np1.x-o.x1, shiftY = np1.y-o.y1;
-          w2.x1 = o.x1+shiftX; w2.y1 = o.y1+shiftY;
-          w2.x2 = o.x2+shiftX; w2.y2 = o.y2+shiftY;
+        var ds = state.dragState;
+        var dxw = world.x-ds.startWorld.x, dyw = world.y-ds.startWorld.y;
+        var rawV1 = { x: ds.origV1.x+dxw, y: ds.origV1.y+dyw };
+        var newV1 = state.snap ? snapToGridPoint(rawV1) : rawV1;
+        // the wall itself stays rigid (pure translation) - v2 follows the
+        // same shift as v1, it is not independently re-snapped
+        var shiftX = newV1.x-ds.origV1.x, shiftY = newV1.y-ds.origV1.y;
+        var newV2 = { x: ds.origV2.x+shiftX, y: ds.origV2.y+shiftY };
+        // moving each endpoint also pulls along every OTHER wall sharing
+        // that endpoint, so connected walls stretch instead of detaching
+        moveVertexAndConnected(ds.curV1, newV1);
+        moveVertexAndConnected(ds.curV2, newV2);
+        ds.curV1 = newV1; ds.curV2 = newV2;
+        render();
+        return;
+      }
+      if(state.dragState.type === "opening"){
+        var op = state.openings.find(function(oo){return oo.id===state.dragState.openingId;});
+        var ow = op ? state.walls.find(function(ww){return ww.id===op.wallId;}) : null;
+        if(op && ow){
+          var proj = pointSegDist(world, {x:ow.x1,y:ow.y1}, {x:ow.x2,y:ow.y2});
+          var owLen = wallLength(ow);
+          var half = op.width/2/(owLen||1);
+          var t = half >= 0.5 ? 0.5 : Math.min(1-half, Math.max(half, proj.t));
+          if(state.snap){
+            var distMm = t*owLen;
+            var snappedDist = Math.round(distMm/state.gridStep)*state.gridStep;
+            var snappedT = snappedDist/(owLen||1);
+            if(half < 0.5) t = Math.min(1-half, Math.max(half, snappedT));
+          }
+          op.t = t;
+          if(Math.hypot(world.x-state.dragState.startWorld.x, world.y-state.dragState.startWorld.y) > 3/state.camera.scale) state.dragState.moved = true;
           render();
         }
         return;
@@ -1092,7 +1150,13 @@
 
   window.addEventListener("pointerup", function(e){
     if(state.panState){ state.panState=null; canvas.classList.remove("panning"); }
-    if(state.dragState){ state.dragState=null; scheduleSave(); render(); }
+    if(state.dragState){
+      if(state.dragState.type === "opening" && !state.dragState.moved){
+        var op = state.openings.find(function(oo){return oo.id===state.dragState.openingId;});
+        if(op) openOpeningDrawer(op, null);
+      }
+      state.dragState=null; scheduleSave(); render();
+    }
     isPrimaryDown = false;
   });
 
@@ -1133,7 +1197,17 @@
 
   function addWall(p1,p2){
     if(dist(p1,p2) < 1) return;
-    state.walls.push({ id: uid("w"), x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y, thickness: state.wallThickness, heightOverride: null });
+    state.walls.push({ id: uid("w"), x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y, thickness: state.wallThickness });
+  }
+
+  // Move a wall endpoint AND every other wall's endpoint that was coincident
+  // with it, so neighboring walls stay attached (and stretch) instead of
+  // detaching whenever one wall's endpoint is edited/dragged.
+  function moveVertexAndConnected(oldPt, newPt){
+    state.walls.forEach(function(w){
+      if(Math.round(w.x1)===Math.round(oldPt.x) && Math.round(w.y1)===Math.round(oldPt.y)){ w.x1=newPt.x; w.y1=newPt.y; }
+      if(Math.round(w.x2)===Math.round(oldPt.x) && Math.round(w.y2)===Math.round(oldPt.y)){ w.x2=newPt.x; w.y2=newPt.y; }
+    });
   }
 
   /* =====================================================================
@@ -1153,9 +1227,6 @@
     if(pill.type === "wall-length"){
       var w = state.walls.find(function(ww){return ww.id===pill.id;});
       currentMm = wallLength(w);
-    } else if(pill.type === "wall-height"){
-      var w2 = state.walls.find(function(ww){return ww.id===pill.id;});
-      currentMm = w2.heightOverride != null ? w2.heightOverride : state.defaultRoomHeight;
     } else if(pill.type === "zone-height"){
       currentMm = state.roomHeights[pill.id] != null ? state.roomHeights[pill.id] : state.defaultRoomHeight;
     }
@@ -1171,10 +1242,9 @@
           var w3 = state.walls.find(function(ww){return ww.id===pill.id;});
           var dx=w3.x2-w3.x1, dy=w3.y2-w3.y1, len=Math.hypot(dx,dy)||1;
           var ux=dx/len, uy=dy/len;
-          w3.x2 = w3.x1+ux*mm; w3.y2 = w3.y1+uy*mm;
-        } else if(pill.type === "wall-height"){
-          var w4 = state.walls.find(function(ww){return ww.id===pill.id;});
-          w4.heightOverride = mm;
+          var oldEnd = { x:w3.x2, y:w3.y2 };
+          var newEnd = { x:w3.x1+ux*mm, y:w3.y1+uy*mm };
+          moveVertexAndConnected(oldEnd, newEnd);
         } else if(pill.type === "zone-height"){
           state.roomHeights[pill.id] = mm;
         }
