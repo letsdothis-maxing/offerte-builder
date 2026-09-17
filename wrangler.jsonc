@@ -1,0 +1,15 @@
+{
+  "$schema": "https://developers.cloudflare.com/workers/wrangler/configuration/",
+  "name": "offerte-builder",
+  "main": "./src/worker.js",
+  "compatibility_date": "2026-09-17",
+  // run_worker_first: without this Cloudflare serves an existing static file
+  // directly without ever running src/worker.js, so future /api/* routes
+  // would never reach the fetch() handler (same reasoning as the sibling
+  // WayGo/Stackly Workers).
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  }
+}

@@ -1,0 +1,1286 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Offerte Builder — Ontwerpmodule</title>
+<style>
+  :root{
+    --blue:#2f6feb;
+    --blue-dark:#1f4fb8;
+    --amber:#f59e0b;
+    --ink:#1f2937;
+    --line:#d7dee7;
+    --bg:#f4f6f8;
+    --panel:#ffffff;
+    --muted:#6b7280;
+    --room-fill:rgba(47,111,235,.08);
+    --room-fill-2:rgba(245,158,11,.10);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);}
+  #app{display:flex;flex-direction:column;height:100%;}
+
+  /* ---------- top bar ---------- */
+  #topbar{
+    display:flex;align-items:center;gap:18px;
+    padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);
+    flex-shrink:0;z-index:20;flex-wrap:wrap;
+  }
+  #topbar h1{font-size:15px;font-weight:700;margin:0;white-space:nowrap;}
+  #topbar h1 span{color:var(--blue);}
+  #summary{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap;}
+  .stat-pill{
+    display:flex;flex-direction:column;align-items:flex-start;
+    background:var(--bg);border:1px solid var(--line);border-radius:10px;
+    padding:6px 12px;min-width:96px;
+  }
+  .stat-pill .label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+  .stat-pill .value{font-size:15px;font-weight:700;}
+  .stat-pill .value small{font-weight:500;font-size:11px;color:var(--muted);}
+
+  /* ---------- toolbar ---------- */
+  #toolbar{
+    display:flex;align-items:center;gap:6px;padding:8px 16px;
+    background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;z-index:20;
+    flex-wrap:wrap;
+  }
+  .tbtn{
+    display:flex;align-items:center;gap:6px;
+    border:1px solid var(--line);background:var(--panel);color:var(--ink);
+    padding:7px 12px;border-radius:8px;font-size:13px;cursor:pointer;user-select:none;
+    transition:background .12s,border-color .12s;
+  }
+  .tbtn:hover{background:#eef2f7;}
+  .tbtn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .tbtn .ic{font-size:15px;line-height:1;}
+  .sep{width:1px;height:24px;background:var(--line);margin:0 4px;}
+  .tb-group{display:flex;align-items:center;gap:6px;}
+  .tb-label{font-size:11px;color:var(--muted);margin-right:2px;}
+  select.tb-select{
+    border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px;background:#fff;color:var(--ink);
+  }
+  #toolbar .spacer{flex:1;}
+  #hint{
+    font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;min-width:0;max-width:340px;
+  }
+
+  /* ---------- canvas ---------- */
+  #stage{position:relative;flex:1;overflow:hidden;background:#fff;}
+  #canvas{position:absolute;inset:0;touch-action:none;cursor:crosshair;}
+  #canvas.tool-select{cursor:default;}
+  #canvas.tool-door,#canvas.tool-window{cursor:cell;}
+  #canvas.panning{cursor:grabbing;}
+
+  /* inline pill editor (dimension / height) */
+  .pill-editor{
+    position:absolute;z-index:40;background:var(--ink);border-radius:8px;
+    padding:5px 6px;display:flex;align-items:center;gap:4px;box-shadow:0 6px 18px rgba(0,0,0,.25);
+    transform:translate(-50%,-130%);
+  }
+  .pill-editor input{
+    width:64px;background:#111827;border:1px solid #374151;color:#fff;border-radius:5px;
+    padding:4px 6px;font-size:13px;
+  }
+  .pill-editor span{color:#9ca3af;font-size:11px;}
+  .pill-editor button{
+    border:none;background:var(--blue);color:#fff;border-radius:5px;padding:4px 8px;font-size:12px;cursor:pointer;
+  }
+
+  /* ---------- opening drawer ---------- */
+  #opening-backdrop{
+    position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:49;
+    opacity:0;pointer-events:none;transition:opacity .18s;
+  }
+  #opening-backdrop.open{opacity:1;pointer-events:auto;}
+  #opening-panel{
+    position:fixed;top:0;right:0;height:100%;width:320px;max-width:88vw;
+    background:var(--panel);box-shadow:-8px 0 30px rgba(0,0,0,.18);
+    transform:translateX(100%);transition:transform .22s ease;z-index:50;
+    display:flex;flex-direction:column;padding:20px;
+  }
+  #opening-panel.open{transform:translateX(0);}
+  #opening-panel h2{font-size:16px;margin:0 0 4px;}
+  #opening-panel .sub{font-size:12px;color:var(--muted);margin-bottom:18px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
+  .field .row{display:flex;align-items:center;gap:8px;}
+  .field input[type=number]{
+    flex:1;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;
+  }
+  .field .unit{font-size:12px;color:var(--muted);}
+  #opening-panel .actions{margin-top:auto;display:flex;gap:8px;}
+  .btn{border:none;border-radius:8px;padding:10px 14px;font-size:13px;cursor:pointer;font-weight:600;}
+  .btn-primary{background:var(--blue);color:#fff;flex:1;}
+  .btn-primary:hover{background:var(--blue-dark);}
+  .btn-danger{background:#fee2e2;color:#b91c1c;}
+  .btn-danger:hover{background:#fecaca;}
+  .btn-ghost{background:var(--bg);color:var(--ink);}
+
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ink:#e5e7eb;--bg:#0f1420;--panel:#161d2b;--line:#28324a;--muted:#8993a8;
+      --room-fill:rgba(96,165,250,.10);--room-fill-2:rgba(245,158,11,.12);
+    }
+    #stage{background:#0b0f18;}
+    select.tb-select,#opening-panel .field input{background:#0f1420;color:#e5e7eb;}
+    .btn-danger{background:#3b1418;color:#fca5a5;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <h1>Offerte<span>Builder</span> — Ontwerpmodule</h1>
+    <div id="summary">
+      <div class="stat-pill"><div class="label">Vloer</div><div class="value" id="stat-floor">0 <small>m²</small></div></div>
+      <div class="stat-pill"><div class="label">Muur</div><div class="value" id="stat-wall">0 <small>m²</small></div></div>
+      <div class="stat-pill"><div class="label">Plafond</div><div class="value" id="stat-ceiling">0 <small>m²</small></div></div>
+    </div>
+  </div>
+
+  <div id="toolbar">
+    <div class="tb-group">
+      <button class="tbtn" data-tool="select"><span class="ic">↖</span>Selecteer</button>
+      <button class="tbtn" data-tool="wall"><span class="ic">✏️</span>Muur</button>
+      <button class="tbtn" data-tool="door"><span class="ic">🚪</span>Deur</button>
+      <button class="tbtn" data-tool="window"><span class="ic">🪟</span>Raam</button>
+      <button class="tbtn" data-tool="zone"><span class="ic">✂️</span>Zone splitsen</button>
+    </div>
+    <div class="sep"></div>
+    <div class="tb-group">
+      <button class="tbtn" id="snap-toggle"><span class="ic">▦</span>Snap to grid</button>
+      <span class="tb-label">Raster</span>
+      <select class="tb-select" id="grid-select">
+        <option value="50">5 cm</option>
+        <option value="100" selected>10 cm</option>
+        <option value="250">25 cm</option>
+        <option value="500">50 cm</option>
+      </select>
+    </div>
+    <div class="sep"></div>
+    <button class="tbtn" id="clear-btn"><span class="ic">🗑</span>Wis alles</button>
+    <div class="spacer"></div>
+    <span id="hint">Klik om muurpunten te plaatsen. Klik dicht bij het startpunt om een ruimte te sluiten.</span>
+  </div>
+
+  <div id="stage">
+    <canvas id="canvas"></canvas>
+  </div>
+</div>
+
+<div id="opening-backdrop"></div>
+<div id="opening-panel">
+  <h2 id="op-title">Deur toevoegen</h2>
+  <div class="sub" id="op-sub">Vul de afmetingen in voor dit element.</div>
+  <div class="field">
+    <label>Breedte</label>
+    <div class="row"><input type="number" id="op-width" min="1" step="1"><span class="unit">cm</span></div>
+  </div>
+  <div class="field">
+    <label>Hoogte</label>
+    <div class="row"><input type="number" id="op-height" min="1" step="1"><span class="unit">cm</span></div>
+  </div>
+  <div class="field" id="op-sill-field">
+    <label>Borstwering (vloer tot onderkant raam)</label>
+    <div class="row"><input type="number" id="op-sill" min="0" step="1"><span class="unit">cm</span></div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-danger" id="op-delete">Verwijderen</button>
+    <button class="btn btn-primary" id="op-save">Opslaan</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* =====================================================================
+     STATE
+     All lengths are stored internally in millimetres (integers-ish).
+     User-facing numeric fields (pills, drawer) work in centimetres, except
+     the summary widget which reports square metres.
+  ===================================================================== */
+  var state = {
+    tool: "wall",
+    snap: true,
+    gridStep: 100, // mm
+    wallThickness: 150, // mm, fixed for all new walls (v1)
+    defaultRoomHeight: 2500, // mm
+    walls: [],      // {id,x1,y1,x2,y2,thickness,heightOverride|null}
+    openings: [],   // {id,wallId,type:'door'|'window',t,width,height,sill}
+    zoneCuts: [],   // {id,x1,y1,x2,y2}
+    roomHeights: {},// key -> heightMm override
+    camera: { x: 0, y: 0, scale: 0.06 }, // scale = px per mm
+    selection: null,
+    drawing: null,     // {points:[{x,y}]}
+    zoneDraw: null,    // {p1:{x,y}}
+    pointer: { world: {x:0,y:0}, screen:{x:0,y:0} },
+    panState: null,
+    dragState: null,
+    _pillHitboxes: [],
+    _lastZones: []
+  };
+
+  var uidSeq = 1;
+  function uid(prefix){ return prefix + "_" + (Date.now().toString(36)) + (uidSeq++).toString(36); }
+
+  /* =====================================================================
+     GEOMETRY HELPERS
+  ===================================================================== */
+  function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
+  function snapToGridPoint(p){
+    if(!state.snap) return { x:p.x, y:p.y };
+    var g = state.gridStep;
+    return { x: Math.round(p.x/g)*g, y: Math.round(p.y/g)*g };
+  }
+
+  // Find an existing wall-endpoint vertex near worldPt (magnet), within
+  // `radiusMm` world units. Returns {x,y} of the vertex, or null.
+  function findExistingVertexNear(worldPt, radiusMm){
+    var best = null, bestD = radiusMm;
+    state.walls.forEach(function(w){
+      [[w.x1,w.y1],[w.x2,w.y2]].forEach(function(pt){
+        var d = Math.hypot(pt[0]-worldPt.x, pt[1]-worldPt.y);
+        if(d < bestD){ bestD = d; best = { x: pt[0], y: pt[1] }; }
+      });
+    });
+    return best;
+  }
+
+  function magnetRadiusWorld(){
+    return 14 / state.camera.scale; // ~14 screen px
+  }
+
+  // Compute the next chain point given the previous point + raw cursor
+  // world position. Priority: snap to existing vertex > angle+grid snap.
+  function computeNextPoint(prevPoint, rawWorld){
+    var magnet = findExistingVertexNear(rawWorld, magnetRadiusWorld());
+    if(magnet) return magnet;
+    if(!state.snap) return { x: rawWorld.x, y: rawWorld.y };
+    if(!prevPoint) return snapToGridPoint(rawWorld);
+    var dx = rawWorld.x - prevPoint.x, dy = rawWorld.y - prevPoint.y;
+    var dLen = Math.hypot(dx,dy);
+    if(dLen < 1) return snapToGridPoint(rawWorld);
+    var rawAngle = Math.atan2(dy,dx);
+    var snappedAngle = Math.round(rawAngle / (Math.PI/2)) * (Math.PI/2);
+    var pt = { x: prevPoint.x + Math.cos(snappedAngle)*dLen, y: prevPoint.y + Math.sin(snappedAngle)*dLen };
+    return snapToGridPoint(pt);
+  }
+
+  function angleBetween(prev2, prev1, cur){
+    // interior angle at prev1, between segment(prev2->prev1) and (prev1->cur), degrees
+    var v1 = { x: prev2.x-prev1.x, y: prev2.y-prev1.y };
+    var v2 = { x: cur.x-prev1.x, y: cur.y-prev1.y };
+    var a1 = Math.atan2(v1.y,v1.x), a2 = Math.atan2(v2.y,v2.x);
+    var d = (a2-a1) * 180/Math.PI;
+    d = ((d % 360)+360) % 360;
+    return d;
+  }
+
+  function pointSegDist(p, a, b){
+    var abx=b.x-a.x, aby=b.y-a.y;
+    var apx=p.x-a.x, apy=p.y-a.y;
+    var len2 = abx*abx+aby*aby;
+    var t = len2 === 0 ? 0 : Math.max(0, Math.min(1, (apx*abx+apy*aby)/len2));
+    var cx = a.x + abx*t, cy = a.y + aby*t;
+    return { d: Math.hypot(p.x-cx,p.y-cy), t: t, point: {x:cx,y:cy} };
+  }
+
+  function shoelaceArea(poly){
+    var s = 0;
+    for(var i=0;i<poly.length;i++){
+      var a = poly[i], b = poly[(i+1)%poly.length];
+      s += a.x*b.y - b.x*a.y;
+    }
+    return s/2;
+  }
+
+  function polyCentroid(poly){
+    var cx=0, cy=0;
+    poly.forEach(function(p){ cx+=p.x; cy+=p.y; });
+    return { x: cx/poly.length, y: cy/poly.length };
+  }
+
+  /* =====================================================================
+     FACE DETECTION (planar straight-line graph -> bounded faces)
+     Standard DCEL "walk to next edge clockwise after twin" trace.
+     Verified: for a simple closed loop, faces with POSITIVE shoelace area
+     are the bounded interior rooms; the (single, per connected loop set)
+     outer face comes out negative and is discarded.
+  ===================================================================== */
+  function detectFaces(walls){
+    if(walls.length === 0) return [];
+    var vertices = new Map(); // key -> {x,y,key}
+    function vkey(x,y){ return Math.round(x)+","+Math.round(y); }
+    function getV(x,y){
+      var k = vkey(x,y);
+      if(!vertices.has(k)) vertices.set(k, {x:x,y:y,key:k});
+      return vertices.get(k);
+    }
+    var halfEdges = []; // {from,to,wallId}
+    walls.forEach(function(w){
+      var a = getV(w.x1,w.y1), b = getV(w.x2,w.y2);
+      if(a.key === b.key) return; // zero-length, skip
+      halfEdges.push({ from:a.key, to:b.key, wallId:w.id });
+      halfEdges.push({ from:b.key, to:a.key, wallId:w.id });
+    });
+    var outgoing = new Map();
+    halfEdges.forEach(function(he,i){
+      if(!outgoing.has(he.from)) outgoing.set(he.from, []);
+      outgoing.get(he.from).push(i);
+    });
+    outgoing.forEach(function(list, vk){
+      var v = vertices.get(vk);
+      list.sort(function(i1,i2){
+        var e1=halfEdges[i1], e2=halfEdges[i2];
+        var v1=vertices.get(e1.to), v2=vertices.get(e2.to);
+        var a1=Math.atan2(v1.y-v.y, v1.x-v.x);
+        var a2=Math.atan2(v2.y-v.y, v2.x-v.x);
+        return a1-a2;
+      });
+    });
+    function twinIndex(i){ return i % 2 === 0 ? i+1 : i-1; }
+    var visited = new Array(halfEdges.length).fill(false);
+    var faces = [];
+    for(var i=0;i<halfEdges.length;i++){
+      if(visited[i]) continue;
+      var faceHalfEdges = [];
+      var cur = i, guard = 0;
+      while(!visited[cur] && guard < halfEdges.length+5){
+        visited[cur] = true;
+        faceHalfEdges.push(cur);
+        var he = halfEdges[cur];
+        var tw = twinIndex(cur);
+        var list = outgoing.get(he.to);
+        var idx = list.indexOf(tw);
+        var nextIdx = list[(idx+1) % list.length];
+        cur = nextIdx;
+        guard++;
+      }
+      var poly = faceHalfEdges.map(function(idx){ return vertices.get(halfEdges[idx].from); });
+      var wallIds = faceHalfEdges.map(function(idx){ return halfEdges[idx].wallId; });
+      var area = shoelaceArea(poly);
+      faces.push({ polygon: poly, area: area, wallIds: wallIds });
+    }
+    // interior rooms = positive area, above a small sliver threshold (0.1 m^2 in mm^2)
+    return faces.filter(function(f){ return f.area > 100000; });
+  }
+
+  function faceKey(face){
+    var ids = face.wallIds.slice().sort();
+    return "room:" + ids.join("|");
+  }
+
+  /* Split a simple polygon by an infinite-ish line segment (p1-p2 already
+     clipped to cross the polygon). Returns array of 1 or 2 sub-polygons. */
+  function splitPolygonByLine(poly, p1, p2){
+    var lineDx = p2.x-p1.x, lineDy = p2.y-p1.y;
+    function side(p){ return (p.x-p1.x)*lineDy - (p.y-p1.y)*lineDx; }
+    var left = [], right = [];
+    var n = poly.length;
+    var crossPts = [];
+    for(var i=0;i<n;i++){
+      var a = poly[i], b = poly[(i+1)%n];
+      var sa = side(a), sb = side(b);
+      if(sa >= 0) left.push(a); else right.push(a);
+      if((sa>0 && sb<0) || (sa<0 && sb>0)){
+        var t = sa/(sa-sb);
+        var ix = a.x+(b.x-a.x)*t, iy = a.y+(b.y-a.y)*t;
+        var ip = {x:ix,y:iy};
+        left.push(ip); right.push(ip);
+        crossPts.push(ip);
+      }
+    }
+    if(crossPts.length < 2 || left.length < 3 || right.length < 3) return [poly];
+    return [left, right];
+  }
+
+  // Intersect infinite line through p1,p2 with a polygon edge list; return
+  // the two farthest-apart intersection points (the chord across the room).
+  function clipLineToPolygon(p1, p2, poly){
+    var dx = p2.x-p1.x, dy = p2.y-p1.y;
+    var pts = [];
+    var n = poly.length;
+    for(var i=0;i<n;i++){
+      var a = poly[i], b = poly[(i+1)%n];
+      var x1=a.x,y1=a.y,x2=b.x,y2=b.y;
+      var denom = dx*(y2-y1) - dy*(x2-x1);
+      if(Math.abs(denom) < 1e-9) continue;
+      var t = ((x1-p1.x)*(y2-y1) - (y1-p1.y)*(x2-x1)) / denom;
+      var u = ((x1-p1.x)*dy - (y1-p1.y)*dx) / denom;
+      if(u >= -1e-6 && u <= 1+1e-6){
+        pts.push({ x: p1.x+dx*t, y: p1.y+dy*t });
+      }
+    }
+    if(pts.length < 2) return null;
+    var best = null, bestD = -1;
+    for(var i2=0;i2<pts.length;i2++){
+      for(var j=i2+1;j<pts.length;j++){
+        var d = dist(pts[i2],pts[j]);
+        if(d > bestD){ bestD = d; best = [pts[i2], pts[j]]; }
+      }
+    }
+    return best;
+  }
+
+  function pointInPoly(p, poly){
+    var inside = false;
+    for(var i=0,j=poly.length-1;i<poly.length;j=i++){
+      var xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+      var intersect = ((yi>p.y) !== (yj>p.y)) && (p.x < (xj-xi)*(p.y-yi)/(yj-yi)+xi);
+      if(intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  // Compute final render/summary zones: wall-detected faces, each further
+  // split by any zoneCuts whose midpoint falls inside them.
+  function computeZones(){
+    var faces = detectFaces(state.walls);
+    var zones = [];
+    faces.forEach(function(face){
+      var polys = [face.polygon];
+      var baseKey = faceKey(face);
+      var cutsInFace = state.zoneCuts.filter(function(cut){
+        var mid = { x:(cut.x1+cut.x2)/2, y:(cut.y1+cut.y2)/2 };
+        return pointInPoly(mid, face.polygon);
+      });
+      cutsInFace.forEach(function(cut){
+        var next = [];
+        polys.forEach(function(poly){
+          if(pointInPoly({x:(cut.x1+cut.x2)/2,y:(cut.y1+cut.y2)/2}, poly)){
+            var parts = splitPolygonByLine(poly, {x:cut.x1,y:cut.y1}, {x:cut.x2,y:cut.y2});
+            parts.forEach(function(p){ next.push(p); });
+          } else {
+            next.push(poly);
+          }
+        });
+        polys = next;
+      });
+      polys.forEach(function(poly, idx){
+        var key = polys.length > 1 ? baseKey+":z"+idx : baseKey;
+        zones.push({
+          key: key,
+          polygon: poly,
+          area: Math.abs(shoelaceArea(poly)),
+          wallIds: face.wallIds,
+          height: state.roomHeights[key] != null ? state.roomHeights[key] : state.defaultRoomHeight
+        });
+      });
+    });
+    return zones;
+  }
+
+  /* =====================================================================
+     CAMERA / CANVAS
+  ===================================================================== */
+  var canvas = document.getElementById("canvas");
+  var ctx = canvas.getContext("2d");
+  var stage = document.getElementById("stage");
+  var dpr = Math.max(1, window.devicePixelRatio || 1);
+
+  function resizeCanvas(){
+    var w = stage.clientWidth, h = stage.clientHeight;
+    canvas.width = w*dpr; canvas.height = h*dpr;
+    canvas.style.width = w+"px"; canvas.style.height = h+"px";
+    render();
+  }
+  window.addEventListener("resize", resizeCanvas);
+
+  function worldToScreen(wx,wy){
+    var W = canvas.width/dpr, H = canvas.height/dpr;
+    return { x:(wx-state.camera.x)*state.camera.scale + W/2, y:(wy-state.camera.y)*state.camera.scale + H/2 };
+  }
+  function screenToWorld(sx,sy){
+    var W = canvas.width/dpr, H = canvas.height/dpr;
+    return { x:(sx-W/2)/state.camera.scale + state.camera.x, y:(sy-H/2)/state.camera.scale + state.camera.y };
+  }
+
+  /* =====================================================================
+     RENDER
+  ===================================================================== */
+  function fmtM(mm){ return (mm/1000).toFixed(2)+" m"; }
+  function fmtM2(mm2){ return (mm2/1000000).toFixed(2); }
+
+  function render(){
+    var W = canvas.width/dpr, H = canvas.height/dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    var dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = dark ? "#0b0f18" : "#ffffff";
+    ctx.fillRect(0,0,W,H);
+
+    drawGrid(W,H,dark);
+
+    var zones = computeZones();
+    state._lastZones = zones;
+    drawZones(zones, dark);
+    drawZoneCuts(dark);
+    drawWalls(dark);
+    drawOpenings(dark);
+    drawVertexHandles(dark);
+
+    state._pillHitboxes = [];
+    drawWallPills(dark);
+    drawZoneHeightPills(zones, dark);
+    drawWallDrawPreview(dark);
+    drawZoneDrawPreview(dark);
+
+    updateSummary(zones);
+  }
+
+  function drawGrid(W,H,dark){
+    var g = state.gridStep;
+    var tl = screenToWorld(0,0), br = screenToWorld(W,H);
+    var startX = Math.floor(tl.x/g)*g, endX = Math.ceil(br.x/g)*g;
+    var startY = Math.floor(tl.y/g)*g, endY = Math.ceil(br.y/g)*g;
+    var minorAlpha = state.camera.scale > 0.025 ? 1 : 0;
+    ctx.lineWidth = 1;
+    for(var x=startX; x<=endX; x+=g){
+      var isMeter = Math.round(x) % 1000 === 0;
+      var s = worldToScreen(x, 0);
+      ctx.strokeStyle = isMeter ? (dark?"#2a3550":"#c7d1de") : (dark?"#161e30":"#eef1f5");
+      if(!isMeter && !minorAlpha) continue;
+      ctx.beginPath(); ctx.moveTo(s.x+0.5,0); ctx.lineTo(s.x+0.5,H); ctx.stroke();
+    }
+    for(var y=startY; y<=endY; y+=g){
+      var isMeterY = Math.round(y) % 1000 === 0;
+      var sY = worldToScreen(0, y);
+      ctx.strokeStyle = isMeterY ? (dark?"#2a3550":"#c7d1de") : (dark?"#161e30":"#eef1f5");
+      if(!isMeterY && !minorAlpha) continue;
+      ctx.beginPath(); ctx.moveTo(0,sY.y+0.5); ctx.lineTo(W,sY.y+0.5); ctx.stroke();
+    }
+    // axes
+    var origin = worldToScreen(0,0);
+    ctx.strokeStyle = dark ? "#3b4869" : "#aab6c6";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(origin.x+0.5,0); ctx.lineTo(origin.x+0.5,H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,origin.y+0.5); ctx.lineTo(W,origin.y+0.5); ctx.stroke();
+  }
+
+  function drawZones(zones, dark){
+    zones.forEach(function(z, idx){
+      ctx.beginPath();
+      z.polygon.forEach(function(p,i){
+        var s = worldToScreen(p.x,p.y);
+        if(i===0) ctx.moveTo(s.x,s.y); else ctx.lineTo(s.x,s.y);
+      });
+      ctx.closePath();
+      ctx.fillStyle = idx % 2 === 0 ? "var(--room-fill)".replace("var(--room-fill)", dark?"rgba(96,165,250,.10)":"rgba(47,111,235,.08)")
+                                     : (dark?"rgba(245,158,11,.10)":"rgba(245,158,11,.10)");
+      ctx.fill();
+    });
+  }
+
+  function drawZoneCuts(dark){
+    state.zoneCuts.forEach(function(c){
+      var a = worldToScreen(c.x1,c.y1), b = worldToScreen(c.x2,c.y2);
+      ctx.save();
+      ctx.setLineDash([8,6]);
+      ctx.strokeStyle = dark ? "#f59e0b" : "#b45309";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+      ctx.restore();
+    });
+  }
+
+  function wallColor(w, dark){
+    if(state.selection && state.selection.type==="wall" && state.selection.id===w.id) return "#f59e0b";
+    return dark ? "#e5e7eb" : "#1f2937";
+  }
+
+  function drawWalls(dark){
+    state.walls.forEach(function(w){
+      var a = worldToScreen(w.x1,w.y1), b = worldToScreen(w.x2,w.y2);
+      ctx.lineCap = "square";
+      ctx.lineWidth = Math.max(2, w.thickness*state.camera.scale);
+      ctx.strokeStyle = wallColor(w,dark);
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    });
+  }
+
+  function openingWallGeom(o){
+    var w = state.walls.find(function(ww){ return ww.id===o.wallId; });
+    if(!w) return null;
+    var dx=w.x2-w.x1, dy=w.y2-w.y1, len=Math.hypot(dx,dy);
+    if(len===0) return null;
+    var ux=dx/len, uy=dy/len;
+    var cx = w.x1+dx*o.t, cy = w.y1+dy*o.t;
+    return { wall:w, cx:cx, cy:cy, ux:ux, uy:uy, len:len };
+  }
+
+  function drawOpenings(dark){
+    state.openings.forEach(function(o){
+      var g = openingWallGeom(o);
+      if(!g) return;
+      var halfW = o.width/2;
+      var p1 = { x: g.cx-g.ux*halfW, y: g.cy-g.uy*halfW };
+      var p2 = { x: g.cx+g.ux*halfW, y: g.cy+g.uy*halfW };
+      var s1 = worldToScreen(p1.x,p1.y), s2 = worldToScreen(p2.x,p2.y);
+      var selected = state.selection && state.selection.type==="opening" && state.selection.id===o.id;
+
+      // erase the wall segment under the opening (gap)
+      ctx.save();
+      ctx.lineWidth = Math.max(2, g.wall.thickness*state.camera.scale) + 2;
+      ctx.strokeStyle = dark ? "#0b0f18" : "#ffffff";
+      ctx.beginPath(); ctx.moveTo(s1.x,s1.y); ctx.lineTo(s2.x,s2.y); ctx.stroke();
+      ctx.restore();
+
+      var nx = -g.uy, ny = g.ux; // wall normal
+      ctx.strokeStyle = selected ? "#f59e0b" : (dark ? "#93c5fd" : "#2f6feb");
+      ctx.lineWidth = 2;
+      if(o.type === "door"){
+        // jambs
+        ctx.beginPath(); ctx.moveTo(s1.x,s1.y); ctx.lineTo(s2.x,s2.y); ctx.stroke();
+        // swing arc + leaf, radius = width, hinge at p1, leaf swings to the
+        // wall normal; arc spans from the closed position (along the wall,
+        // at s2) to the open position (leafEnd, perpendicular to the wall)
+        var hinge = worldToScreen(p1.x,p1.y);
+        var leafEnd = worldToScreen(p1.x + nx*o.width, p1.y + ny*o.width);
+        ctx.beginPath(); ctx.moveTo(hinge.x,hinge.y); ctx.lineTo(leafEnd.x,leafEnd.y); ctx.stroke();
+        ctx.save();
+        ctx.setLineDash([4,4]);
+        var rPx = o.width*state.camera.scale;
+        var aClosed = Math.atan2(s2.y-hinge.y, s2.x-hinge.x);
+        var aOpen = Math.atan2(leafEnd.y-hinge.y, leafEnd.x-hinge.x);
+        ctx.beginPath();
+        ctx.arc(hinge.x, hinge.y, rPx, aClosed, aOpen);
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        // window: two thin parallel lines across the gap
+        var off = 4;
+        ctx.beginPath();
+        ctx.moveTo(s1.x+nx*off, s1.y+ny*off); ctx.lineTo(s2.x+nx*off, s2.y+ny*off); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(s1.x-nx*off, s1.y-ny*off); ctx.lineTo(s2.x-nx*off, s2.y-ny*off); ctx.stroke();
+      }
+    });
+  }
+  function drawVertexHandles(dark){
+    if(state.tool !== "select") return;
+    var seen = {};
+    state.walls.forEach(function(w){
+      [[w.x1,w.y1],[w.x2,w.y2]].forEach(function(pt){
+        var k = Math.round(pt[0])+","+Math.round(pt[1]);
+        if(seen[k]) return; seen[k]=true;
+        var s = worldToScreen(pt[0],pt[1]);
+        ctx.beginPath(); ctx.arc(s.x,s.y,5,0,Math.PI*2);
+        ctx.fillStyle = dark ? "#e5e7eb" : "#1f2937";
+        ctx.fill();
+      });
+    });
+  }
+
+  function registerPill(rect){ state._pillHitboxes.push(rect); }
+
+  function drawPillLabel(worldPos, text, kind, refId, extra, dark, accent){
+    var s = worldToScreen(worldPos.x, worldPos.y);
+    ctx.font = "600 12px -apple-system,Segoe UI,Roboto,sans-serif";
+    var padX = 8, padY = 4;
+    var tw = ctx.measureText(text).width;
+    var w = tw+padX*2, h = 20;
+    var x = s.x - w/2, y = s.y - h/2;
+    ctx.fillStyle = accent ? "#f59e0b" : (dark ? "#e5e7eb" : "#1f2937");
+    roundRect(ctx, x, y, w, h, 10);
+    ctx.fill();
+    ctx.fillStyle = dark ? "#0b0f18" : "#ffffff";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(text, s.x, s.y+1);
+    registerPill({ type:kind, id:refId, x:x, y:y, w:w, h:h, extra:extra });
+  }
+
+  function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function drawWallPills(dark){
+    if(state.camera.scale < 0.012) return; // too zoomed out, skip clutter
+    state.walls.forEach(function(w){
+      var mx=(w.x1+w.x2)/2, my=(w.y1+w.y2)/2;
+      var len = Math.hypot(w.x2-w.x1, w.y2-w.y1);
+      var dx=w.x2-w.x1, dy=w.y2-w.y1;
+      var nx=-dy/(len||1), ny=dx/(len||1);
+      var offset = (Math.max(2,w.thickness*state.camera.scale)/2 + 14) / state.camera.scale;
+      var labelPos = { x: mx+nx*offset, y: my+ny*offset };
+      drawPillLabel(labelPos, fmtM(len), "wall-length", w.id, null, dark, false);
+
+      if(state.tool === "select"){
+        var hOffset = -offset - 18/state.camera.scale;
+        var hPos = { x: mx+nx*hOffset, y: my+ny*hOffset };
+        var h = w.heightOverride != null ? w.heightOverride : state.defaultRoomHeight;
+        drawPillLabel(hPos, "⬍ "+fmtM(h), "wall-height", w.id, null, dark, w.heightOverride!=null);
+      }
+    });
+  }
+
+  function drawZoneHeightPills(zones, dark){
+    zones.forEach(function(z){
+      var c = polyCentroid(z.polygon);
+      drawPillLabel(c, "H "+fmtM(z.height), "zone-height", z.key, null, dark, state.roomHeights[z.key]!=null);
+    });
+  }
+
+  function drawWallDrawPreview(dark){
+    if(state.tool !== "wall" || !state.drawing) return;
+    var pts = state.drawing.points;
+    ctx.strokeStyle = dark ? "#93c5fd" : "#2f6feb";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    for(var i=0;i<pts.length-1;i++){
+      var a = worldToScreen(pts[i].x,pts[i].y), b = worldToScreen(pts[i+1].x,pts[i+1].y);
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    }
+    var last = pts[pts.length-1];
+    var cursorPt = computeNextPoint(last, state.pointer.world);
+    var a2 = worldToScreen(last.x,last.y), b2 = worldToScreen(cursorPt.x,cursorPt.y);
+    ctx.save();
+    ctx.setLineDash([6,5]);
+    ctx.beginPath(); ctx.moveTo(a2.x,a2.y); ctx.lineTo(b2.x,b2.y); ctx.stroke();
+    ctx.restore();
+
+    // vertex dots
+    ctx.fillStyle = dark ? "#93c5fd" : "#2f6feb";
+    pts.forEach(function(p){
+      var s = worldToScreen(p.x,p.y);
+      ctx.beginPath(); ctx.arc(s.x,s.y,4,0,Math.PI*2); ctx.fill();
+    });
+
+    // length label for the live segment
+    var len = dist(last, cursorPt);
+    var mid = { x:(last.x+cursorPt.x)/2, y:(last.y+cursorPt.y)/2 };
+    if(len > 1) drawFloatingLabel(mid, fmtM(len), dark);
+
+    // angle label at the joint if not a clean 0/90/180/270
+    if(pts.length >= 2){
+      var prev2 = pts[pts.length-2];
+      var ang = angleBetween(prev2, last, cursorPt);
+      var nearMultiple = Math.min(ang%90, 90-(ang%90));
+      if(nearMultiple > 0.5){
+        drawFloatingLabel(last, ang.toFixed(1)+"°", dark, true);
+      }
+    }
+  }
+
+  function drawFloatingLabel(worldPos, text, dark, accent){
+    var s = worldToScreen(worldPos.x, worldPos.y);
+    ctx.font = "600 11px -apple-system,Segoe UI,Roboto,sans-serif";
+    var w = ctx.measureText(text).width+12, h=18;
+    ctx.fillStyle = accent ? "#f59e0b" : (dark ? "#374151" : "#374151");
+    roundRect(ctx, s.x-w/2, s.y-h-10, w, h, 8);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(text, s.x, s.y-h/2-10+1);
+  }
+
+  function drawZoneDrawPreview(dark){
+    if(state.tool !== "zone" || !state.zoneDraw) return;
+    var a = worldToScreen(state.zoneDraw.p1.x, state.zoneDraw.p1.y);
+    var b = worldToScreen(state.pointer.world.x, state.pointer.world.y);
+    ctx.save();
+    ctx.setLineDash([8,6]);
+    ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    ctx.restore();
+  }
+
+  /* =====================================================================
+     SUMMARY
+  ===================================================================== */
+  function updateSummary(zones){
+    var floorArea = 0, ceilingArea = 0, wallArea = 0;
+    zones.forEach(function(z){ floorArea += z.area; ceilingArea += z.area; });
+
+    // wall height = explicit override, else max height of adjoining zones, else default
+    state.walls.forEach(function(w){
+      var len = Math.hypot(w.x2-w.x1, w.y2-w.y1);
+      var h = w.heightOverride;
+      if(h == null){
+        var adj = zones.filter(function(z){ return z.wallIds.indexOf(w.id) !== -1; });
+        h = adj.length ? Math.max.apply(null, adj.map(function(z){return z.height;})) : state.defaultRoomHeight;
+      }
+      var grossArea = len*h;
+      var openingsArea = 0;
+      state.openings.filter(function(o){ return o.wallId===w.id; }).forEach(function(o){
+        openingsArea += o.width*o.height;
+      });
+      wallArea += Math.max(0, grossArea-openingsArea);
+    });
+
+    document.getElementById("stat-floor").innerHTML = fmtM2(floorArea)+" <small>m²</small>";
+    document.getElementById("stat-wall").innerHTML = fmtM2(wallArea)+" <small>m²</small>";
+    document.getElementById("stat-ceiling").innerHTML = fmtM2(ceilingArea)+" <small>m²</small>";
+  }
+
+  /* =====================================================================
+     PERSISTENCE (localStorage autosave)
+  ===================================================================== */
+  var SAVE_KEY = "offerte-builder.plan.v1";
+  var saveTimer = null;
+  function scheduleSave(){
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){
+      try{
+        localStorage.setItem(SAVE_KEY, JSON.stringify({
+          walls: state.walls, openings: state.openings, zoneCuts: state.zoneCuts,
+          roomHeights: state.roomHeights, gridStep: state.gridStep
+        }));
+      }catch(e){}
+    }, 250);
+  }
+  function loadSaved(){
+    try{
+      var raw = localStorage.getItem(SAVE_KEY);
+      if(!raw) return;
+      var data = JSON.parse(raw);
+      state.walls = data.walls || [];
+      state.openings = data.openings || [];
+      state.zoneCuts = data.zoneCuts || [];
+      state.roomHeights = data.roomHeights || {};
+      state.gridStep = data.gridStep || 100;
+      document.getElementById("grid-select").value = String(state.gridStep);
+    }catch(e){}
+  }
+
+  /* =====================================================================
+     EVENT HANDLING
+  ===================================================================== */
+  function setTool(tool){
+    state.tool = tool;
+    state.drawing = null;
+    state.zoneDraw = null;
+    state.selection = null;
+    document.querySelectorAll(".tbtn[data-tool]").forEach(function(b){
+      b.classList.toggle("active", b.dataset.tool===tool);
+    });
+    canvas.className = "tool-"+tool;
+    var hints = {
+      select: "Klik op een muur, deur of raam om te selecteren. Sleep ankerpunten of muren om te verplaatsen. Delete om te verwijderen.",
+      wall: "Klik om muurpunten te plaatsen. Klik dicht bij het startpunt om een ruimte te sluiten.",
+      door: "Klik op een muur om een deur toe te voegen.",
+      window: "Klik op een muur om een raam toe te voegen.",
+      zone: "Trek een lijn dwars door een ruimte om deze in twee zones met eigen hoogte te splitsen."
+    };
+    document.getElementById("hint").textContent = hints[tool] || "";
+    render();
+  }
+
+  document.querySelectorAll(".tbtn[data-tool]").forEach(function(b){
+    b.addEventListener("click", function(){ setTool(b.dataset.tool); });
+  });
+
+  document.getElementById("snap-toggle").addEventListener("click", function(){
+    state.snap = !state.snap;
+    this.classList.toggle("active", state.snap);
+    render();
+  });
+  document.getElementById("snap-toggle").classList.add("active");
+
+  document.getElementById("grid-select").addEventListener("change", function(){
+    state.gridStep = parseInt(this.value,10);
+    scheduleSave();
+    render();
+  });
+
+  document.getElementById("clear-btn").addEventListener("click", function(){
+    if(!confirm("Alles wissen? Dit kan niet ongedaan gemaakt worden.")) return;
+    state.walls = []; state.openings = []; state.zoneCuts = []; state.roomHeights = {};
+    state.selection = null; state.drawing = null; state.zoneDraw = null;
+    scheduleSave(); render();
+  });
+
+  function wallLength(w){ return Math.hypot(w.x2-w.x1, w.y2-w.y1); }
+
+  function findWallHit(worldPt){
+    var tolWorld = 10/state.camera.scale;
+    var best = null, bestD = Infinity;
+    state.walls.forEach(function(w){
+      var r = pointSegDist(worldPt, {x:w.x1,y:w.y1}, {x:w.x2,y:w.y2});
+      var tol = Math.max(tolWorld, w.thickness/2+6/state.camera.scale);
+      if(r.d < tol && r.d < bestD){ bestD = r.d; best = { wall:w, t:r.t, point:r.point }; }
+    });
+    return best;
+  }
+
+  function findOpeningHit(worldPt){
+    var tolWorld = 12/state.camera.scale;
+    var best = null, bestD = Infinity;
+    state.openings.forEach(function(o){
+      var g = openingWallGeom(o);
+      if(!g) return;
+      var d = Math.hypot(worldPt.x-g.cx, worldPt.y-g.cy);
+      if(d < Math.max(tolWorld, o.width/2) && d < bestD){ bestD = d; best = o; }
+    });
+    return best;
+  }
+
+  function findVertexHit(worldPt){
+    var tolWorld = 12/state.camera.scale;
+    var found = null, bestD = tolWorld;
+    state.walls.forEach(function(w){
+      [[w.x1,w.y1],[w.x2,w.y2]].forEach(function(pt){
+        var d = Math.hypot(pt[0]-worldPt.x, pt[1]-worldPt.y);
+        if(d < bestD){ bestD = d; found = { x:pt[0], y:pt[1] }; }
+      });
+    });
+    return found;
+  }
+
+  function findPillHit(sx, sy){
+    for(var i=state._pillHitboxes.length-1;i>=0;i--){
+      var r = state._pillHitboxes[i];
+      if(sx>=r.x && sx<=r.x+r.w && sy>=r.y && sy<=r.y+r.h) return r;
+    }
+    return null;
+  }
+
+  /* ---- pointer events ---- */
+  var isPrimaryDown = false;
+
+  canvas.addEventListener("pointerdown", function(e){
+    canvas.setPointerCapture(e.pointerId);
+    var rect = canvas.getBoundingClientRect();
+    var sx = e.clientX-rect.left, sy = e.clientY-rect.top;
+    var world = screenToWorld(sx,sy);
+    state.pointer.screen = {x:sx,y:sy}; state.pointer.world = world;
+
+    if(e.button === 1 || (e.button===0 && e.spaceKey)){
+      state.panState = { startScreen:{x:sx,y:sy}, startCam:{x:state.camera.x,y:state.camera.y} };
+      canvas.classList.add("panning");
+      return;
+    }
+    if(e.button !== 0) return;
+    isPrimaryDown = true;
+
+    // pill click takes priority, but only in select mode - otherwise a pill
+    // sitting near a wall would steal clicks meant for the wall/door/zone tools
+    if(state.tool === "select"){
+      var pill = findPillHit(sx,sy);
+      if(pill){ openPillEditor(pill, sx, sy); return; }
+    }
+
+    if(state.tool === "wall"){
+      var pt = computeNextPoint(state.drawing ? state.drawing.points[state.drawing.points.length-1] : null, world);
+      if(!state.drawing){
+        state.drawing = { points: [pt] };
+      } else {
+        var pts = state.drawing.points;
+        var last = pts[pts.length-1];
+        // closing the loop near the start point?
+        if(pts.length >= 2 && dist(pt, pts[0]) < magnetRadiusWorld()){
+          addWall(last, pts[0]);
+          state.drawing = null;
+          scheduleSave();
+        } else if(dist(pt,last) > 1){
+          addWall(last, pt);
+          pts.push(pt);
+          scheduleSave();
+        }
+      }
+      render();
+      return;
+    }
+
+    if(state.tool === "door" || state.tool === "window"){
+      var hit = findWallHit(world);
+      if(hit) openOpeningDrawer(null, hit);
+      return;
+    }
+
+    if(state.tool === "zone"){
+      if(!state.zoneDraw){
+        state.zoneDraw = { p1: world };
+      } else {
+        var p1 = state.zoneDraw.p1, p2 = world;
+        var faces = detectFaces(state.walls);
+        var mid = { x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2 };
+        var face = faces.find(function(f){ return pointInPoly(mid, f.polygon); });
+        if(face){
+          var chord = clipLineToPolygon(p1,p2, face.polygon);
+          if(chord){
+            state.zoneCuts.push({ id: uid("cut"), x1:chord[0].x, y1:chord[0].y, x2:chord[1].x, y2:chord[1].y });
+            scheduleSave();
+          }
+        }
+        state.zoneDraw = null;
+      }
+      render();
+      return;
+    }
+
+    if(state.tool === "select"){
+      var vtx = findVertexHit(world);
+      if(vtx){
+        state.dragState = { type:"vertex", vertex: {x:vtx.x,y:vtx.y} };
+        return;
+      }
+      var wHit = findWallHit(world);
+      if(wHit){
+        state.selection = { type:"wall", id: wHit.wall.id };
+        state.dragState = { type:"wall", wallId: wHit.wall.id, startWorld: world,
+          orig: { x1:wHit.wall.x1,y1:wHit.wall.y1,x2:wHit.wall.x2,y2:wHit.wall.y2 } };
+        render();
+        return;
+      }
+      var oHit = findOpeningHit(world);
+      if(oHit){
+        state.selection = { type:"opening", id: oHit.id };
+        openOpeningDrawer(oHit, null);
+        render();
+        return;
+      }
+      state.selection = null;
+      render();
+    }
+  });
+
+  canvas.addEventListener("pointermove", function(e){
+    var rect = canvas.getBoundingClientRect();
+    var sx = e.clientX-rect.left, sy = e.clientY-rect.top;
+    var world = screenToWorld(sx,sy);
+    state.pointer.screen = {x:sx,y:sy}; state.pointer.world = world;
+
+    if(state.panState){
+      var dx = sx-state.panState.startScreen.x, dy = sy-state.panState.startScreen.y;
+      state.camera.x = state.panState.startCam.x - dx/state.camera.scale;
+      state.camera.y = state.panState.startCam.y - dy/state.camera.scale;
+      render();
+      return;
+    }
+
+    if(state.dragState){
+      if(state.dragState.type === "vertex"){
+        var v = state.dragState.vertex;
+        var np = state.snap ? snapToGridPoint(world) : world;
+        state.walls.forEach(function(w){
+          if(Math.round(w.x1)===Math.round(v.x) && Math.round(w.y1)===Math.round(v.y)){ w.x1=np.x; w.y1=np.y; }
+          if(Math.round(w.x2)===Math.round(v.x) && Math.round(w.y2)===Math.round(v.y)){ w.x2=np.x; w.y2=np.y; }
+        });
+        state.dragState.vertex = np;
+        render();
+        return;
+      }
+      if(state.dragState.type === "wall"){
+        var w2 = state.walls.find(function(ww){return ww.id===state.dragState.wallId;});
+        if(w2){
+          var dxw = world.x-state.dragState.startWorld.x, dyw = world.y-state.dragState.startWorld.y;
+          var o = state.dragState.orig;
+          var np1 = state.snap ? snapToGridPoint({x:o.x1+dxw,y:o.y1+dyw}) : {x:o.x1+dxw,y:o.y1+dyw};
+          var shiftX = np1.x-o.x1, shiftY = np1.y-o.y1;
+          w2.x1 = o.x1+shiftX; w2.y1 = o.y1+shiftY;
+          w2.x2 = o.x2+shiftX; w2.y2 = o.y2+shiftY;
+          render();
+        }
+        return;
+      }
+    }
+
+    if(state.tool === "wall" && state.drawing) render();
+    else if(state.tool === "zone" && state.zoneDraw) render();
+    else if(state.tool === "select") render();
+  });
+
+  window.addEventListener("pointerup", function(e){
+    if(state.panState){ state.panState=null; canvas.classList.remove("panning"); }
+    if(state.dragState){ state.dragState=null; scheduleSave(); render(); }
+    isPrimaryDown = false;
+  });
+
+  canvas.addEventListener("dblclick", function(){
+    if(state.tool==="wall" && state.drawing){ state.drawing=null; render(); }
+  });
+
+  canvas.addEventListener("wheel", function(e){
+    e.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var sx = e.clientX-rect.left, sy = e.clientY-rect.top;
+    var before = screenToWorld(sx,sy);
+    var factor = Math.pow(1.0015, -e.deltaY);
+    state.camera.scale = Math.min(0.3, Math.max(0.008, state.camera.scale*factor));
+    var after = screenToWorld(sx,sy);
+    state.camera.x += before.x-after.x;
+    state.camera.y += before.y-after.y;
+    render();
+  }, { passive:false });
+
+  window.addEventListener("keydown", function(e){
+    if(e.code === "Space") e.spaceKeyHeld = true;
+    if(e.key === "Escape"){
+      state.drawing = null; state.zoneDraw = null; render();
+    }
+    if((e.key === "Delete" || e.key === "Backspace") && state.selection){
+      if(state.selection.type === "wall"){
+        state.walls = state.walls.filter(function(w){ return w.id!==state.selection.id; });
+        state.openings = state.openings.filter(function(o){ return o.wallId!==state.selection.id; });
+      } else if(state.selection.type === "opening"){
+        state.openings = state.openings.filter(function(o){ return o.id!==state.selection.id; });
+      }
+      state.selection = null;
+      scheduleSave(); render();
+    }
+  });
+  canvas.addEventListener("pointerdown", function(e){ e.spaceKey = false; });
+
+  function addWall(p1,p2){
+    if(dist(p1,p2) < 1) return;
+    state.walls.push({ id: uid("w"), x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y, thickness: state.wallThickness, heightOverride: null });
+  }
+
+  /* =====================================================================
+     PILL EDITORS (inline length / height)
+  ===================================================================== */
+  var activeEditor = null;
+  function closePillEditor(){
+    if(activeEditor){ activeEditor.remove(); activeEditor=null; }
+  }
+  function openPillEditor(pill, sx, sy){
+    closePillEditor();
+    var div = document.createElement("div");
+    div.className = "pill-editor";
+    div.style.left = sx+"px";
+    div.style.top = sy+"px";
+    var currentMm;
+    if(pill.type === "wall-length"){
+      var w = state.walls.find(function(ww){return ww.id===pill.id;});
+      currentMm = wallLength(w);
+    } else if(pill.type === "wall-height"){
+      var w2 = state.walls.find(function(ww){return ww.id===pill.id;});
+      currentMm = w2.heightOverride != null ? w2.heightOverride : state.defaultRoomHeight;
+    } else if(pill.type === "zone-height"){
+      currentMm = state.roomHeights[pill.id] != null ? state.roomHeights[pill.id] : state.defaultRoomHeight;
+    }
+    div.innerHTML = '<input type="number" step="1" value="'+(currentMm/10).toFixed(0)+'"><span>cm</span><button>OK</button>';
+    document.body.appendChild(div);
+    var input = div.querySelector("input");
+    input.focus(); input.select();
+    function commit(){
+      var cm = parseFloat(input.value);
+      if(!isNaN(cm) && cm > 0){
+        var mm = cm*10;
+        if(pill.type === "wall-length"){
+          var w3 = state.walls.find(function(ww){return ww.id===pill.id;});
+          var dx=w3.x2-w3.x1, dy=w3.y2-w3.y1, len=Math.hypot(dx,dy)||1;
+          var ux=dx/len, uy=dy/len;
+          w3.x2 = w3.x1+ux*mm; w3.y2 = w3.y1+uy*mm;
+        } else if(pill.type === "wall-height"){
+          var w4 = state.walls.find(function(ww){return ww.id===pill.id;});
+          w4.heightOverride = mm;
+        } else if(pill.type === "zone-height"){
+          state.roomHeights[pill.id] = mm;
+        }
+        scheduleSave();
+      }
+      closePillEditor();
+      render();
+    }
+    div.querySelector("button").addEventListener("click", commit);
+    input.addEventListener("keydown", function(e){
+      if(e.key==="Enter") commit();
+      if(e.key==="Escape") closePillEditor();
+    });
+    setTimeout(function(){
+      document.addEventListener("pointerdown", onOutside, { capture:true, once:true });
+    },0);
+    function onOutside(e){
+      if(div.contains(e.target)) { setTimeout(function(){document.addEventListener("pointerdown", onOutside, {capture:true, once:true});},0); return; }
+      closePillEditor();
+    }
+    activeEditor = div;
+  }
+
+  /* =====================================================================
+     OPENING DRAWER (door / window)
+  ===================================================================== */
+  var openingBackdrop = document.getElementById("opening-backdrop");
+  var openingPanel = document.getElementById("opening-panel");
+  var editingOpeningId = null;
+  var pendingWallHit = null;
+
+  function openOpeningDrawer(existing, wallHit){
+    var isWindow;
+    if(existing){
+      editingOpeningId = existing.id;
+      pendingWallHit = null;
+      isWindow = existing.type === "window";
+      document.getElementById("op-width").value = (existing.width/10).toFixed(0);
+      document.getElementById("op-height").value = (existing.height/10).toFixed(0);
+      document.getElementById("op-sill").value = existing.sill ? (existing.sill/10).toFixed(0) : 90;
+      document.getElementById("op-title").textContent = (isWindow?"Raam":"Deur")+" bewerken";
+      document.getElementById("op-sub").textContent = "Pas de afmetingen aan of verwijder dit element.";
+      document.getElementById("op-delete").style.display = "block";
+    } else {
+      editingOpeningId = null;
+      pendingWallHit = wallHit;
+      isWindow = state.tool === "window";
+      document.getElementById("op-width").value = isWindow ? 120 : 90;
+      document.getElementById("op-height").value = isWindow ? 120 : 210;
+      document.getElementById("op-sill").value = 90;
+      document.getElementById("op-title").textContent = (isWindow?"Raam":"Deur")+" toevoegen";
+      document.getElementById("op-sub").textContent = "Vul de afmetingen in voor dit element.";
+      document.getElementById("op-delete").style.display = "none";
+    }
+    document.getElementById("op-sill-field").style.display = isWindow ? "block" : "none";
+    openingBackdrop.classList.add("open");
+    openingPanel.classList.add("open");
+  }
+  function closeOpeningDrawer(){
+    openingBackdrop.classList.remove("open");
+    openingPanel.classList.remove("open");
+    editingOpeningId = null; pendingWallHit = null;
+  }
+  openingBackdrop.addEventListener("click", closeOpeningDrawer);
+
+  document.getElementById("op-save").addEventListener("click", function(){
+    var widthCm = parseFloat(document.getElementById("op-width").value);
+    var heightCm = parseFloat(document.getElementById("op-height").value);
+    var sillCm = parseFloat(document.getElementById("op-sill").value);
+    if(isNaN(widthCm)||widthCm<=0||isNaN(heightCm)||heightCm<=0){ closeOpeningDrawer(); return; }
+    var widthMm = widthCm*10, heightMm = heightCm*10, sillMm = isNaN(sillCm)?900:sillCm*10;
+
+    if(editingOpeningId){
+      var o = state.openings.find(function(oo){return oo.id===editingOpeningId;});
+      if(o){ o.width=widthMm; o.height=heightMm; if(o.type==="window") o.sill=sillMm; }
+    } else if(pendingWallHit){
+      var w = pendingWallHit.wall;
+      var len = wallLength(w);
+      var t = Math.min(1-  (widthMm/2)/len, Math.max((widthMm/2)/len, pendingWallHit.t));
+      if(!isFinite(t)) t = 0.5;
+      state.openings.push({
+        id: uid("op"), wallId: w.id, type: state.tool, t: t,
+        width: widthMm, height: heightMm, sill: state.tool==="window" ? sillMm : null
+      });
+    }
+    scheduleSave();
+    closeOpeningDrawer();
+    render();
+  });
+
+  document.getElementById("op-delete").addEventListener("click", function(){
+    if(editingOpeningId){
+      state.openings = state.openings.filter(function(o){return o.id!==editingOpeningId;});
+      scheduleSave();
+    }
+    closeOpeningDrawer();
+    render();
+  });
+
+  /* =====================================================================
+     INIT
+  ===================================================================== */
+  loadSaved();
+  resizeCanvas();
+  setTool("wall");
+})();
+</script>
+</body>
+</html>
