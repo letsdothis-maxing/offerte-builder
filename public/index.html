@@ -29,11 +29,14 @@
   }
   #topbar h1{font-size:15px;font-weight:700;margin:0;white-space:nowrap;}
   #topbar h1 span{color:var(--blue);}
-  #summary{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap;}
+  #floating-stats{
+    position:absolute;top:16px;left:16px;display:flex;gap:8px;flex-wrap:wrap;z-index:15;
+    max-width:calc(100% - 32px);
+  }
   .stat-pill{
     display:flex;flex-direction:column;align-items:flex-start;
-    background:var(--bg);border:1px solid var(--line);border-radius:10px;
-    padding:6px 12px;min-width:96px;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:6px 12px;min-width:88px;box-shadow:0 8px 22px rgba(15,23,42,.14);
   }
   .stat-pill .label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
   .stat-pill .value{font-size:15px;font-weight:700;}
@@ -191,7 +194,7 @@
     background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;
     font-size:12.5px;margin-bottom:14px;
   }
-  #gyproc-tabs{display:flex;gap:8px;margin-bottom:14px;}
+  .gyproc-tabs-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
   .gyproc-tab{
     flex:1;position:relative;text-align:left;border:1.5px solid var(--line);background:var(--panel);
     border-radius:10px;padding:8px 10px;cursor:pointer;font-family:inherit;
@@ -219,22 +222,23 @@
 <div id="app">
   <div id="topbar">
     <h1>Offerte<span>Builder</span> — Ontwerpmodule</h1>
-    <div class="tb-group">
+    <div class="tb-group" style="margin-left:auto;">
       <button class="tbtn" id="undo-btn" disabled title="Ongedaan maken (Ctrl+Z)"><span class="ic">↶</span></button>
       <button class="tbtn" id="redo-btn" disabled title="Opnieuw doen (Ctrl+Shift+Z)"><span class="ic">↷</span></button>
       <div class="sep"></div>
       <button class="tbtn" id="gyproc-btn"><span class="ic">🧱</span>Gyproc berekenen</button>
       <button class="tbtn" id="clear-btn"><span class="ic">🗑</span>Wis alles</button>
     </div>
-    <div id="summary">
-      <div class="stat-pill"><div class="label">Vloer</div><div class="value" id="stat-floor">0 <small>m²</small></div></div>
-      <div class="stat-pill"><div class="label">Muur</div><div class="value" id="stat-wall">0 <small>m²</small></div></div>
-      <div class="stat-pill"><div class="label">Plafond</div><div class="value" id="stat-ceiling">0 <small>m²</small></div></div>
-    </div>
   </div>
 
   <div id="stage">
     <canvas id="canvas"></canvas>
+
+    <div id="floating-stats">
+      <div class="stat-pill"><div class="label">Vloer</div><div class="value" id="stat-floor">0 <small>m²</small></div></div>
+      <div class="stat-pill"><div class="label">Muur</div><div class="value" id="stat-wall">0 <small>m²</small></div></div>
+      <div class="stat-pill"><div class="label">Plafond</div><div class="value" id="stat-ceiling">0 <small>m²</small></div></div>
+    </div>
 
     <div id="floating-topright">
       <button class="tbtn" id="snap-toggle"><span class="ic">▦</span>Snap to grid</button>
@@ -295,6 +299,13 @@
   <div class="field">
     <label>Dikte</label>
     <div class="row"><input type="number" id="gyproc-thickness" min="1" step="0.5" value="12.5"><span class="unit">mm</span></div>
+  </div>
+  <div class="field">
+    <label>Tussenafstand studs (h.o.h.)</label>
+    <select class="tb-select" id="stud-hoh" style="width:100%">
+      <option value="600" selected>60 cm (standaard)</option>
+      <option value="400">40 cm (versterkt)</option>
+    </select>
   </div>
   <div id="gyproc-result"></div>
 </div>
@@ -625,11 +636,26 @@
       });
       var faceZones = polyList.map(function(poly, idx){
         var key = polyList.length > 1 ? baseKey+":z"+idx : baseKey;
+        // which of the original face's walls actually border THIS specific
+        // zone polygon (not just the original, pre-split face) - a wall
+        // that lies entirely on one side of a cut must NOT be claimed by
+        // the zone on the other side, or getWallHeight()'s max-of-adjacent-
+        // zones fallback picks up a height that has nothing to do with it
+        var zoneWallIds = polyList.length === 1 ? face.wallIds : face.wallIds.filter(function(wid){
+          var wall = state.walls.find(function(ww){ return ww.id===wid; });
+          if(!wall) return false;
+          var mid = { x:(wall.x1+wall.x2)/2, y:(wall.y1+wall.y2)/2 };
+          for(var i=0;i<poly.length;i++){
+            var a=poly[i], b=poly[(i+1)%poly.length];
+            if(pointSegDist(mid, a, b).d < 10) return true;
+          }
+          return false;
+        });
         return {
           key: key,
           polygon: poly,
           area: Math.abs(shoelaceArea(poly)),
-          wallIds: face.wallIds,
+          wallIds: zoneWallIds,
           height: state.roomHeights[key] != null ? state.roomHeights[key] : state.defaultRoomHeight
         };
       });
@@ -906,7 +932,13 @@
       var len = Math.hypot(w.x2-w.x1, w.y2-w.y1);
       var dx=w.x2-w.x1, dy=w.y2-w.y1;
       var nx=-dy/(len||1), ny=dx/(len||1);
-      var offset = (Math.max(2,w.thickness*state.camera.scale)/2 + 14) / state.camera.scale;
+      // offset needs to clear BOTH the wall's own click-tolerance and the
+      // pill's rendered half-width - the pill box is always drawn axis-
+      // aligned (wide x short) regardless of wall angle, so for a vertical
+      // wall a too-small offset lets the pill's wide bounding box overlap
+      // the wall's own clickable centerline, making that wall unselectable
+      // by clicking its midpoint (real bug, found via testing a vertical wall)
+      var offset = (Math.max(2,w.thickness*state.camera.scale)/2 + 45) / state.camera.scale;
       var labelPos = { x: mx+nx*offset, y: my+ny*offset };
       drawPillLabel(labelPos, fmtM(len), "wall-length", w.id, null, dark, false);
     });
@@ -1016,11 +1048,78 @@
   ===================================================================== */
   // wall height is always derived from the room(s) it belongs to - there is
   // no per-wall override; a wall touching zones of different heights uses
-  // the tallest one (the riser above the lower zone is counted as ceiling
-  // area, not wall area). Shared by the summary widget and the gyproc calc.
+  // the tallest one. Used wherever a single flat number is good enough
+  // (fallback when there's no split affecting this wall at all).
   function getWallHeight(w, zones){
     var adj = zones.filter(function(z){ return z.wallIds.indexOf(w.id) !== -1; });
     return adj.length ? Math.max.apply(null, adj.map(function(z){return z.height;})) : state.defaultRoomHeight;
+  }
+
+  // A wall that runs from one zone into another (i.e. a split line's own
+  // endpoint lands ON this wall) does NOT have one flat height along its
+  // whole length - the part bordering the lower zone only needs to reach
+  // that zone's ceiling, not the taller zone's. This returns the wall's
+  // height as piecewise-constant segments in t-space (0..1 along the wall),
+  // found by: for every resolvedCut whose p1/p2 lies on this wall, that's a
+  // transition point; for each resulting segment, probe a point just off
+  // the wall's midpoint (on either side, since we don't know which side
+  // faces the room) and see which adjoining zone's polygon contains it.
+  function computeWallHeightProfile(w, zones, resolvedCuts){
+    var wLen = wallLength(w);
+    if(wLen < 1) return [{ t0:0, t1:1, height: state.defaultRoomHeight }];
+    var dirx = (w.x2-w.x1)/wLen, diry = (w.y2-w.y1)/wLen;
+    var nx = -diry, ny = dirx;
+
+    var transitions = [];
+    resolvedCuts.forEach(function(rc){
+      [rc.p1, rc.p2].forEach(function(p){
+        var proj = pointSegDist(p, {x:w.x1,y:w.y1}, {x:w.x2,y:w.y2});
+        if(proj.d < 5 && proj.t > 0.002 && proj.t < 0.998) transitions.push(proj.t);
+      });
+    });
+    if(!transitions.length){
+      return [{ t0:0, t1:1, height: getWallHeight(w, zones) }];
+    }
+    transitions.sort(function(a,b){ return a-b; });
+    var boundaries = [0];
+    transitions.forEach(function(t){
+      if(t - boundaries[boundaries.length-1] > 0.002) boundaries.push(t);
+    });
+    boundaries.push(1);
+
+    var segments = [];
+    for(var i=0;i<boundaries.length-1;i++){
+      var t0 = boundaries[i], t1 = boundaries[i+1];
+      var midT = (t0+t1)/2;
+      var midX = w.x1+(w.x2-w.x1)*midT, midY = w.y1+(w.y2-w.y1)*midT;
+      var probeA = { x: midX+nx*150, y: midY+ny*150 };
+      var probeB = { x: midX-nx*150, y: midY-ny*150 };
+      // no wallIds pre-filter here on purpose: a wall actually crossed by a
+      // cut only has ITS OWN MIDPOINT inside one of the two resulting zones
+      // (zone.wallIds, built from that single point, would wrongly exclude
+      // the wall from the other zone it also genuinely borders) - direct
+      // polygon containment on this SEGMENT's own probe point is precise on
+      // its own and needs no such gate
+      var zone = zones.find(function(z){
+        return pointInPoly(probeA, z.polygon) || pointInPoly(probeB, z.polygon);
+      });
+      segments.push({ t0:t0, t1:t1, height: zone ? zone.height : getWallHeight(w, zones) });
+    }
+    return segments;
+  }
+
+  function wallProfileAreaMm2(profile, wallLenMm){
+    var area = 0;
+    profile.forEach(function(seg){ area += (seg.t1-seg.t0)*wallLenMm*seg.height; });
+    return area;
+  }
+
+  function heightAtX(profile, wallLenMm, x){
+    var t = x/(wallLenMm||1);
+    for(var i=0;i<profile.length;i++){
+      if(t <= profile[i].t1+1e-6) return profile[i].height;
+    }
+    return profile[profile.length-1].height;
   }
 
   function updateSummary(zones, resolvedCuts){
@@ -1039,8 +1138,11 @@
 
     state.walls.forEach(function(w){
       var len = Math.hypot(w.x2-w.x1, w.y2-w.y1);
-      var h = getWallHeight(w, zones);
-      var grossArea = len*h;
+      // stepped-height-aware: a wall spanning a height transition is NOT a
+      // flat rectangle up to the taller zone's height - the true area only
+      // counts each segment up to ITS OWN zone's height
+      var profile = computeWallHeightProfile(w, zones, resolvedCuts);
+      var grossArea = wallProfileAreaMm2(profile, len);
       var openingsArea = 0;
       state.openings.filter(function(o){ return o.wallId===w.id; }).forEach(function(o){
         openingsArea += o.width*o.height;
@@ -1517,7 +1619,15 @@
      PILL EDITORS (inline length / height)
   ===================================================================== */
   var activeEditor = null;
+  var activeOutsideHandler = null, activeOutsideTimer = null;
   function closePillEditor(){
+    // the outside-click listener re-arms itself asynchronously (see below)
+    // whenever a click lands inside the editor - without explicitly
+    // cancelling both the pending timer and any currently-armed listener
+    // here, committing via the OK button (rather than an outside click)
+    // leaves a dangling document-level listener behind every time
+    if(activeOutsideTimer){ clearTimeout(activeOutsideTimer); activeOutsideTimer=null; }
+    if(activeOutsideHandler){ document.removeEventListener("pointerdown", activeOutsideHandler, true); activeOutsideHandler=null; }
     if(activeEditor){ activeEditor.remove(); activeEditor=null; }
   }
   function openPillEditor(pill, sx, sy){
@@ -1562,13 +1672,19 @@
       if(e.key==="Enter") commit();
       if(e.key==="Escape") closePillEditor();
     });
-    setTimeout(function(){
-      document.addEventListener("pointerdown", onOutside, { capture:true, once:true });
-    },0);
+    function armOutsideListener(){
+      activeOutsideTimer = setTimeout(function(){
+        activeOutsideTimer = null;
+        document.addEventListener("pointerdown", onOutside, { capture:true, once:true });
+        activeOutsideHandler = onOutside;
+      },0);
+    }
     function onOutside(e){
-      if(div.contains(e.target)) { setTimeout(function(){document.addEventListener("pointerdown", onOutside, {capture:true, once:true});},0); return; }
+      activeOutsideHandler = null;
+      if(div.contains(e.target)){ armOutsideListener(); return; }
       closePillEditor();
     }
+    armOutsideListener();
     activeEditor = div;
   }
 
@@ -1666,6 +1782,9 @@
     { w:3000, h:1200, label:"3000 x 1200 mm" },
     { w:2600, h:600,  label:"2600 x 600 mm" }
   ];
+  var STUD_LENGTHS = [2600, 3000, 3600];  // mm, standard vertical C-profile lengths
+  var TRACK_LENGTHS = [3000, 4000];       // mm, standard horizontal U-profile (rail) lengths
+  var STUD_RESERVE_PCT = 5;               // snijverlies/reserve margin (brainstorm: 5-10%)
 
   var gyprocBackdrop = document.getElementById("gyproc-backdrop");
   var gyprocPanel = document.getElementById("gyproc-panel");
@@ -1674,10 +1793,19 @@
   var gyprocWallId = null;
   var gyprocPickWallId = null;
   var gyprocResults = null, gyprocActiveIndex = 0;
-  var gyprocWallLenMm = 0, gyprocWallHeightMm = 0;
+  var gyprocWallLenMm = 0, gyprocWallHeightMm = 0, gyprocWallProfile = null;
+  var gyprocStudLayout = null, gyprocStudLengthOptions = null, gyprocTrackLengthOptions = null;
   var toolBeforeGyprocPick = "select";
 
-  document.getElementById("gyproc-btn").addEventListener("click", enterGyprocPickMode);
+  document.getElementById("gyproc-btn").addEventListener("click", function(){
+    // if a wall is already selected, skip the picker banner entirely and
+    // go straight to its calculation
+    if(state.selection && state.selection.type === "wall"){
+      openGyprocDrawer(state.selection.id);
+      return;
+    }
+    enterGyprocPickMode();
+  });
   document.getElementById("gyproc-pick-cancel").addEventListener("click", cancelGyprocPickMode);
   gyprocPickConfirm.addEventListener("click", function(){
     if(!gyprocPickWallId) return;
@@ -1718,9 +1846,13 @@
     var w = state.walls.find(function(ww){ return ww.id===wallId; });
     if(!w) return;
     gyprocWallLenMm = wallLength(w);
-    gyprocWallHeightMm = getWallHeight(w, state._lastZones);
+    gyprocWallProfile = computeWallHeightProfile(w, state._lastZones, state._lastResolvedCuts);
+    gyprocWallHeightMm = Math.max.apply(null, gyprocWallProfile.map(function(s){return s.height;}));
+    var stepped = gyprocWallProfile.length > 1;
+    var areaM2 = wallProfileAreaMm2(gyprocWallProfile, gyprocWallLenMm)/1000000;
     document.getElementById("gyproc-wall-info").textContent =
-      "Muur: "+fmtM(gyprocWallLenMm)+" breed x "+fmtM(gyprocWallHeightMm)+" hoog ("+fmtM2(gyprocWallLenMm*gyprocWallHeightMm)+" m²)";
+      "Muur: "+fmtM(gyprocWallLenMm)+" breed x "+fmtM(gyprocWallHeightMm)+" hoog"
+      +(stepped ? " (hoogteverschil in deze muur)" : "")+" ("+areaM2.toFixed(2)+" m²)";
     gyprocBackdrop.classList.add("open");
     gyprocPanel.classList.add("open");
     runGyprocCalculation();
@@ -1748,13 +1880,30 @@
   // "waste" backdrop), openings cut out where they fall, and skipped panels
   // marked with a dashed X - so the user can visually judge the proposal
   // instead of trusting the numbers blind.
-  function buildGyprocDiagramSVG(wallLenMm, wallHeightMm, chosen, openingRects, skippedCells){
+  function buildGyprocDiagramSVG(wallLenMm, wallHeightMm, chosen, openingRects, skippedCells, profile, studLayout){
     var vbW = Math.max(chosen.across*chosen.panelW, wallLenMm);
     var vbH = Math.max(chosen.up*chosen.panelH, wallHeightMm);
     var unit = Math.max(vbW, vbH);
     var pad = unit*0.04;
     var tile = unit*0.05;
     function flipY(dataY){ return vbH - dataY; } // floor at the bottom of the picture
+    var prof = profile && profile.length ? profile : [{t0:0,t1:1,height:wallHeightMm}];
+
+    // the wall's true outline as a stepped polygon (data space, y=0 floor):
+    // bottom-left -> up to segment 0's height -> across -> riser to the
+    // next segment's height -> ... -> down to bottom-right. Degenerates to
+    // a plain rectangle when there's only one segment (the common case).
+    var profilePts = [{x:0,y:0}];
+    prof.forEach(function(seg){
+      var x0=seg.t0*wallLenMm, x1=seg.t1*wallLenMm;
+      profilePts.push({x:x0,y:seg.height});
+      profilePts.push({x:x1,y:seg.height});
+    });
+    profilePts.push({x:wallLenMm,y:0});
+    var polyStr = profilePts.map(function(p){ return p.x+','+flipY(p.y); }).join(' ');
+    // just the top edge (excludes the two floor corners) - used for the
+    // stud-track top rail, which follows the ceiling profile, not a flat line
+    var topEdgeStr = profilePts.slice(1,-1).map(function(p){ return p.x+','+flipY(p.y); }).join(' ');
 
     var svg = [];
     svg.push('<svg viewBox="'+(-pad)+' '+(-pad)+' '+(vbW+2*pad)+' '+(vbH+2*pad)+'" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;">');
@@ -1764,19 +1913,17 @@
       + '</pattern></defs>');
 
     // waste/overshoot backdrop = the full panel-grid bounding box (a cut
-    // line running through here, past the wall edge, is an offcut)
+    // line running through here, past the wall edge OR above a lower
+    // section of a stepped wall, is an offcut)
     svg.push('<rect x="0" y="0" width="'+vbW+'" height="'+vbH+'" fill="url(#gyprocHatch)"/>');
 
-    // the real wall - always fully covered by material by construction
-    // (across/up are ceil()'d), so it's a single solid fill rather than
-    // per-cell fills (which would otherwise mask the hatch backdrop
-    // completely, since the panel grid always tiles its own full extent)
-    var wallY = flipY(wallHeightMm);
+    // the real wall - drawn as the stepped polygon, not a flat rect, so a
+    // height difference between zones is directly visible in its shape
     var gridW = chosen.across*chosen.panelW, gridH = chosen.up*chosen.panelH;
-    svg.push('<rect x="0" y="'+wallY+'" width="'+wallLenMm+'" height="'+wallHeightMm+'" fill="rgba(47,111,235,0.16)"/>');
+    svg.push('<polygon points="'+polyStr+'" fill="rgba(47,111,235,0.16)"/>');
 
     // panel cut lines across the WHOLE grid extent, so any panel overshoot
-    // shows up as grid lines running through the hatched area past the wall edge
+    // (past the wall edge OR into a stepped-away notch) shows against the hatch
     for(var r=0;r<=chosen.up;r++){
       var ly = flipY(r*chosen.panelH);
       svg.push('<line x1="0" y1="'+ly+'" x2="'+gridW+'" y2="'+ly+'" stroke="#2f6feb" stroke-width="'+(unit*0.0035)+'"/>');
@@ -1793,7 +1940,8 @@
     });
 
     // skipped-cell markers drawn LAST (on top of the opening fill) - a
-    // skipped cell is by definition fully covered by its opening, so if
+    // skipped cell is by definition fully covered by its opening (or has no
+    // real wall material behind it at all in a stepped section), so if
     // drawn before the opening its dashed outline would always be hidden
     // underneath the solid opening fill
     skippedCells.forEach(function(key){
@@ -1804,7 +1952,25 @@
     });
 
     // real wall outline, always on top so it stays legible against overshoot
-    svg.push('<rect x="0" y="'+wallY+'" width="'+wallLenMm+'" height="'+wallHeightMm+'" fill="none" stroke="#1f2937" stroke-width="'+(unit*0.010)+'"/>');
+    svg.push('<polygon points="'+polyStr+'" fill="none" stroke="#1f2937" stroke-width="'+(unit*0.010)+'"/>');
+
+    // metal stud overlay: yellow vertical bars (C-profile studs, each cut to
+    // the LOCAL wall height at its own x-position) + yellow rails (bottom
+    // track always flat at the floor; top track follows the stepped
+    // ceiling profile) - drawn last so they visibly sit "over" the plate layout
+    if(studLayout){
+      var railH = unit*0.012, studW = unit*0.012, studStroke = unit*0.0025;
+      svg.push('<polyline points="0,'+flipY(0)+' '+wallLenMm+','+flipY(0)+'" fill="none" stroke="rgba(234,179,8,0.6)" stroke-width="'+railH+'"/>');
+      svg.push('<polyline points="'+topEdgeStr+'" fill="none" stroke="rgba(234,179,8,0.6)" stroke-width="'+railH+'"/>');
+      studLayout.positions.forEach(function(x){
+        var h = heightAtX(prof, wallLenMm, x);
+        svg.push('<rect x="'+(x-studW/2)+'" y="'+flipY(h)+'" width="'+studW+'" height="'+h+'" fill="rgba(234,179,8,0.6)" stroke="#a16207" stroke-width="'+studStroke+'"/>');
+      });
+      studLayout.reinforcedPositions.forEach(function(x){
+        var h2 = heightAtX(prof, wallLenMm, x);
+        svg.push('<rect x="'+(x-studW)+'" y="'+flipY(h2)+'" width="'+(studW*2)+'" height="'+h2+'" fill="rgba(217,119,6,0.75)" stroke="#92400e" stroke-width="'+(studStroke*1.2)+'"/>');
+      });
+    }
 
     svg.push('</svg>');
     return svg.join('');
@@ -1812,13 +1978,14 @@
 
   // Computes the full result (chosen orientation, skipped cells, areas,
   // waste %) for ONE standard panel format against the current wall.
-  function computeGyprocForSize(wallLenMm, wallHeightMm, openingRects, baseW, baseH, thicknessMm, sizeLabel){
+  function computeGyprocForSize(wallLenMm, wallHeightMm, openingRects, profile, baseW, baseH, thicknessMm, sizeLabel){
     // 2D cutting-stock choice: try the panel in both orientations, keep
     // whichever tiles the wall with fewer total sheets
     var optA = tileWall(wallLenMm, wallHeightMm, baseW, baseH);
     var optB = tileWall(wallLenMm, wallHeightMm, baseH, baseW);
     var chosen = (optB.across*optB.up) < (optA.across*optA.up) ? optB : optA;
     var orientationLabel = chosen===optB ? "staand (90° gedraaid)" : "liggend (zoals opgegeven)";
+    var prof = profile && profile.length ? profile : [{t0:0,t1:1,height:wallHeightMm}];
 
     var grossPanels = chosen.across*chosen.up;
     var skippedCells = [];
@@ -1829,13 +1996,23 @@
         var fullyCovered = openingRects.some(function(o){
           return o.x1<=cx1 && o.x2>=cx2 && o.y1<=cy1 && o.y2>=cy2;
         });
+        if(!fullyCovered){
+          // also skip a cell that has no real wall material anywhere along
+          // its x-range - i.e. it falls entirely in the "notch" of a
+          // stepped wall, above the lower zone's ceiling
+          var hasMaterial = prof.some(function(seg){
+            var segX0=seg.t0*wallLenMm, segX1=seg.t1*wallLenMm;
+            return segX1>cx1 && segX0<cx2 && seg.height>cy1;
+          });
+          if(!hasMaterial) fullyCovered = true;
+        }
         if(fullyCovered) skippedCells.push(r+"_"+c);
       }
     }
     var skipped = skippedCells.length;
     var netPanels = Math.max(grossPanels-skipped, grossPanels>0 ? 1 : 0);
 
-    var grossAreaM2 = (wallLenMm*wallHeightMm)/1000000;
+    var grossAreaM2 = wallProfileAreaMm2(prof, wallLenMm)/1000000;
     var openingsAreaM2 = openingRects.reduce(function(sum,o){ return sum+(o.x2-o.x1)*(o.y2-o.y1); },0)/1000000;
     var neededAreaM2 = Math.max(0, grossAreaM2-openingsAreaM2);
     var panelAreaM2 = (chosen.panelW*chosen.panelH)/1000000;
@@ -1850,24 +2027,116 @@
     };
   }
 
+  /* =====================================================================
+     METAL STUDS ("regels van de kunst"): vertical C-profile studs at a
+     chosen h.o.h. spacing, plus reinforced (doubled) studs at door/window
+     jambs and corner junctions, plus horizontal U-profile top/bottom rails.
+  ===================================================================== */
+  function wallEndHasCorner(w, isStart){
+    var px = isStart ? w.x1 : w.x2, py = isStart ? w.y1 : w.y2;
+    return state.walls.some(function(other){
+      if(other.id === w.id) return false;
+      return (Math.round(other.x1)===Math.round(px) && Math.round(other.y1)===Math.round(py)) ||
+             (Math.round(other.x2)===Math.round(px) && Math.round(other.y2)===Math.round(py));
+    });
+  }
+
+  // Regular grid positions (evenly spaced, first at 0, last at wallLenMm,
+  // count = ceil(length/hoh)+1 per the standard formula) + reinforcement
+  // positions at every opening jamb ("regels van de kunst": doubled studs
+  // either side of a door/window) and at every corner junction.
+  function computeStudLayout(w, wallLenMm, openingRects, hohMm){
+    var regularCount = Math.ceil(wallLenMm/hohMm) + 1;
+    var actualSpacing = wallLenMm/Math.max(1, regularCount-1);
+    var positions = [];
+    for(var i=0;i<regularCount;i++) positions.push(i*actualSpacing);
+
+    var reinforcedPositions = [];
+    openingRects.forEach(function(o){
+      reinforcedPositions.push(Math.max(0, o.x1));
+      reinforcedPositions.push(Math.min(wallLenMm, o.x2));
+    });
+
+    var startCorner = wallEndHasCorner(w, true);
+    var endCorner = wallEndHasCorner(w, false);
+    var cornerCount = (startCorner?1:0) + (endCorner?1:0);
+    if(startCorner) reinforcedPositions.push(0);
+    if(endCorner) reinforcedPositions.push(wallLenMm);
+
+    return {
+      positions: positions, regularCount: regularCount, hohMm: hohMm,
+      reinforcedPositions: reinforcedPositions,
+      openingReinforcedCount: openingRects.length*2, cornerCount: cornerCount,
+      totalCount: regularCount + openingRects.length*2 + cornerCount
+    };
+  }
+
+  // Compares the standard vertical C-profile lengths: each stud is cut to
+  // the LOCAL wall height at its own x-position (profile-aware, so a
+  // stepped wall doesn't overstate the length needed for studs in the
+  // lower section). Recommends whichever standard length wastes the least;
+  // if the wall is taller than every standard length, falls back to the
+  // longest one and flags that profiles need to be coupled/overlapped.
+  function computeStudLengthOptions(wallLenMm, profile, studLayout){
+    var allX = studLayout.positions.concat(studLayout.reinforcedPositions);
+    var neededHeights = allX.map(function(x){ return heightAtX(profile, wallLenMm, x); });
+    var maxNeeded = Math.max.apply(null, neededHeights.concat([0]));
+    var viable = STUD_LENGTHS.filter(function(l){ return l >= maxNeeded; });
+    var needsCoupling = viable.length === 0;
+    var usable = viable.length ? viable : [STUD_LENGTHS[STUD_LENGTHS.length-1]];
+    return usable.map(function(lengthMm){
+      var totalBought = 0, totalNeeded = 0, totalPieces = 0;
+      neededHeights.forEach(function(need){
+        var pieces = needsCoupling ? Math.ceil(need/lengthMm) : 1;
+        totalBought += pieces*lengthMm;
+        totalNeeded += need;
+        totalPieces += pieces;
+      });
+      var wastePct = totalBought>0 ? Math.max(0,(totalBought-totalNeeded)/totalBought*100) : 0;
+      return { lengthMm:lengthMm, needsCoupling:needsCoupling, totalPieces:totalPieces, wastePct:wastePct };
+    }).sort(function(a,b){ return a.wastePct-b.wastePct; });
+  }
+
+  // Compares the standard horizontal U-profile (rail) lengths for covering
+  // the top + bottom track runs (each = wallLenMm, pieced end-to-end).
+  function computeTrackLengthOptions(wallLenMm){
+    return TRACK_LENGTHS.map(function(pieceLenMm){
+      var piecesPerRail = Math.ceil(wallLenMm/pieceLenMm);
+      var totalPieces = piecesPerRail*2; // top + bottom
+      var neededLength = wallLenMm*2;
+      var boughtLength = totalPieces*pieceLenMm;
+      var wastePct = boughtLength>0 ? Math.max(0,(boughtLength-neededLength)/boughtLength*100) : 0;
+      return { pieceLenMm:pieceLenMm, piecesPerRail:piecesPerRail, totalPieces:totalPieces, wastePct:wastePct };
+    }).sort(function(a,b){ return a.wastePct-b.wastePct; });
+  }
+
   // Runs the calculation for ALL standard formats against the currently
   // open wall and renders the comparison + recommendation.
   function runGyprocCalculation(){
     var w = state.walls.find(function(ww){ return ww.id===gyprocWallId; });
     if(!w) return;
     var thicknessMm = parseFloat(document.getElementById("gyproc-thickness").value) || 12.5;
+    var hohMm = parseInt(document.getElementById("stud-hoh").value,10) || 600;
     var openingRects = state.openings.filter(function(o){ return o.wallId===w.id; })
       .map(function(o){ return getOpeningLocalRect(o, gyprocWallLenMm); });
 
     gyprocResults = PANEL_SIZES.map(function(sz){
-      return computeGyprocForSize(gyprocWallLenMm, gyprocWallHeightMm, openingRects, sz.w, sz.h, thicknessMm, sz.label);
+      return computeGyprocForSize(gyprocWallLenMm, gyprocWallHeightMm, openingRects, gyprocWallProfile, sz.w, sz.h, thicknessMm, sz.label);
     });
     // recommend the format with the least material loss
     gyprocResults.sort(function(a,b){ return a.wastePct-b.wastePct; });
     gyprocActiveIndex = 0;
+
+    gyprocStudLayout = computeStudLayout(w, gyprocWallLenMm, openingRects, hohMm);
+    gyprocStudLengthOptions = computeStudLengthOptions(gyprocWallLenMm, gyprocWallProfile, gyprocStudLayout);
+    gyprocTrackLengthOptions = computeTrackLengthOptions(gyprocWallLenMm);
+
     renderGyprocResults();
   }
   document.getElementById("gyproc-thickness").addEventListener("input", function(){
+    if(gyprocResults) runGyprocCalculation();
+  });
+  document.getElementById("stud-hoh").addEventListener("change", function(){
     if(gyprocResults) runGyprocCalculation();
   });
 
@@ -1875,7 +2144,8 @@
     if(!gyprocResults) return;
     var best = gyprocResults[0];
     var active = gyprocResults[gyprocActiveIndex];
-    var diagramSVG = buildGyprocDiagramSVG(gyprocWallLenMm, gyprocWallHeightMm, active.chosen, active.openingRects, active.skippedCells);
+    var stepped = gyprocWallProfile && gyprocWallProfile.length > 1;
+    var diagramSVG = buildGyprocDiagramSVG(gyprocWallLenMm, gyprocWallHeightMm, active.chosen, active.openingRects, active.skippedCells, gyprocWallProfile, gyprocStudLayout);
 
     var tabsHtml = gyprocResults.map(function(r, idx){
       return '<button type="button" class="gyproc-tab'+(idx===gyprocActiveIndex?' active':'')+'" data-idx="'+idx+'">'
@@ -1887,31 +2157,75 @@
 
     var html = ''
       + '<div class="reco">Aanbevolen: <strong>'+best.sizeLabel+'</strong> — '+best.netPanels+' platen, '+best.wastePct.toFixed(0)+'% verlies (minste materiaalverlies)</div>'
-      + '<div id="gyproc-tabs">'+tabsHtml+'</div>'
+      + '<div class="gyproc-tabs-row">'+tabsHtml+'</div>'
       + '<div class="big">'+active.netPanels+' '+(active.netPanels===1?'plaat':'platen')+'</div>'
       + '<div id="gyproc-diagram">'+diagramSVG+'</div>'
       + '<div id="gyproc-legend">'
       +   '<span><i style="background:rgba(47,111,235,0.35);border:1.5px solid #2f6feb;"></i>Plaat</span>'
       +   '<span><i style="background:repeating-linear-gradient(45deg,#f3f5f8,#f3f5f8 3px,#cbd5e1 3px,#cbd5e1 5px);"></i>Overschot (afval)</span>'
-      +   (active.skipped>0 ? '<span><i style="background:#fff;border:1.5px dashed #94a3b8;"></i>Overgeslagen (achter deur/raam)</span>' : '')
+      +   (active.skipped>0 ? '<span><i style="background:#fff;border:1.5px dashed #94a3b8;"></i>Overgeslagen (achter deur/raam/stap)</span>' : '')
       +   (active.openingRects.length>0 ? '<span><i style="background:#fde68a;border:1.5px solid #b45309;"></i>Deur/raam</span>' : '')
+      +   '<span><i style="background:rgba(234,179,8,0.6);border:1.5px solid #a16207;"></i>Metal stud</span>'
+      +   '<span><i style="background:rgba(217,119,6,0.75);border:1.5px solid #92400e;"></i>Versterkte stud</span>'
       + '</div>'
       + '<div class="row"><span class="k">Indeling</span><span class="v">'+active.chosen.across+' x '+active.chosen.up+' ('+active.orientationLabel+')</span></div>'
       + '<div class="row"><span class="k">Plaatformaat</span><span class="v">'+active.chosen.panelW+' x '+active.chosen.panelH+' mm, '+active.thicknessMm+' mm dik</span></div>'
-      + '<div class="row"><span class="k">Muuroppervlak (bruto)</span><span class="v">'+active.grossAreaM2.toFixed(2)+' m²</span></div>'
+      + '<div class="row"><span class="k">Muuroppervlak'+(stepped?' (incl. hoogtestap)':'')+'</span><span class="v">'+active.grossAreaM2.toFixed(2)+' m²</span></div>'
       + (active.openingsAreaM2>0 ? '<div class="row"><span class="k">Netto (excl. deuren/ramen)</span><span class="v">'+active.neededAreaM2.toFixed(2)+' m²</span></div>' : '')
-      + (active.skipped>0 ? '<div class="row"><span class="k">Platen overgeslagen (volledig raam/deur)</span><span class="v">'+active.skipped+'</span></div>' : '')
+      + (active.skipped>0 ? '<div class="row"><span class="k">Platen overgeslagen (opening/stap)</span><span class="v">'+active.skipped+'</span></div>' : '')
       + '<div class="row"><span class="k">Gedekt oppervlak</span><span class="v">'+active.coveredAreaM2.toFixed(2)+' m²</span></div>'
-      + '<div class="row"><span class="k">Snijverlies</span><span class="v">'+active.wastePct.toFixed(0)+'%</span></div>';
+      + '<div class="row"><span class="k">Snijverlies</span><span class="v">'+active.wastePct.toFixed(0)+'%</span></div>'
+      + buildStudSectionHtml();
     var resultEl = document.getElementById("gyproc-result");
     resultEl.innerHTML = html;
     resultEl.classList.add("show");
-    resultEl.querySelectorAll(".gyproc-tab").forEach(function(btn){
+    resultEl.querySelectorAll(".gyproc-tab[data-idx]").forEach(function(btn){
       btn.addEventListener("click", function(){
         gyprocActiveIndex = parseInt(btn.dataset.idx,10);
         renderGyprocResults();
       });
     });
+  }
+
+  function buildStudSectionHtml(){
+    if(!gyprocStudLayout) return '';
+    var bestStud = gyprocStudLengthOptions[0];
+    var bestTrack = gyprocTrackLengthOptions[0];
+    var studReserve = Math.ceil(gyprocStudLayout.totalCount*(1+STUD_RESERVE_PCT/100));
+    var trackReserve = Math.ceil(bestTrack.totalPieces*(1+STUD_RESERVE_PCT/100));
+
+    var studCardsHtml = gyprocStudLengthOptions.map(function(r){
+      return '<div class="gyproc-tab'+(r===bestStud?' active':'')+'">'
+        + (r===bestStud ? '<span class="badge">Beste</span>' : '')
+        + '<div class="sz">'+(r.lengthMm/10)+' cm'+(r.needsCoupling?' *':'')+'</div>'
+        + '<div class="stat">'+r.wastePct.toFixed(0)+'% verlies</div>'
+        + '</div>';
+    }).join('');
+    var trackCardsHtml = gyprocTrackLengthOptions.map(function(r){
+      return '<div class="gyproc-tab'+(r===bestTrack?' active':'')+'">'
+        + (r===bestTrack ? '<span class="badge">Beste</span>' : '')
+        + '<div class="sz">'+(r.pieceLenMm/10)+' cm</div>'
+        + '<div class="stat">'+r.totalPieces+' stuks · '+r.wastePct.toFixed(0)+'% verlies</div>'
+        + '</div>';
+    }).join('');
+
+    return ''
+      + '<div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line);">'
+      + '<h3 style="font-size:14px;margin:0 0 10px;">Metal studs</h3>'
+      + '<div class="reco">Aanbevolen studlengte: <strong>'+(bestStud.lengthMm/10)+' cm</strong> — '+bestStud.wastePct.toFixed(0)+'% verlies'
+      +   (bestStud.needsCoupling ? ' (* muur hoger dan standaardlengtes - profielen moeten gekoppeld/overlapt worden)' : '')
+      + '</div>'
+      + '<div class="gyproc-tabs-row">'+studCardsHtml+'</div>'
+      + '<div class="row"><span class="k">Verticale studs, regulier (h.o.h. '+(gyprocStudLayout.hohMm/10)+' cm)</span><span class="v">'+gyprocStudLayout.regularCount+'</span></div>'
+      + (gyprocStudLayout.openingReinforcedCount>0 ? '<div class="row"><span class="k">Extra bij deuren/ramen (regels van de kunst)</span><span class="v">'+gyprocStudLayout.openingReinforcedCount+'</span></div>' : '')
+      + (gyprocStudLayout.cornerCount>0 ? '<div class="row"><span class="k">Extra bij hoekaansluiting</span><span class="v">'+gyprocStudLayout.cornerCount+'</span></div>' : '')
+      + '<div class="row"><span class="k">Totaal verticale studs</span><span class="v">'+gyprocStudLayout.totalCount+'</span></div>'
+      + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+studReserve+' stuks</span></div>'
+      + '<div class="row" style="margin-top:12px;"><span class="k"><strong>Horizontale rails</strong> (boven + onder)</span><span class="v"></span></div>'
+      + '<div class="gyproc-tabs-row">'+trackCardsHtml+'</div>'
+      + '<div class="row"><span class="k">Totaal railstukken</span><span class="v">'+bestTrack.totalPieces+'</span></div>'
+      + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+trackReserve+' stuks</span></div>'
+      + '</div>';
   }
 
   /* =====================================================================
