@@ -139,6 +139,10 @@
   #gyproc-result .row .k{color:var(--muted);}
   #gyproc-result .row .v{font-weight:600;}
   #gyproc-result .big{font-size:26px;font-weight:800;margin-bottom:8px;color:var(--blue);}
+  #gyproc-diagram{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:4px 0 14px;background:#fff;}
+  #gyproc-legend{display:flex;flex-wrap:wrap;gap:10px 14px;font-size:11px;color:var(--muted);margin-bottom:16px;}
+  #gyproc-legend span{display:inline-flex;align-items:center;gap:5px;}
+  #gyproc-legend i{width:11px;height:11px;border-radius:3px;display:inline-block;flex-shrink:0;}
 
   @media (prefers-color-scheme: dark){
     :root{
@@ -1444,6 +1448,74 @@
     return { across: Math.ceil(wallLenMm/panelW), up: Math.ceil(wallHeightMm/panelH), panelW: panelW, panelH: panelH };
   }
 
+  // Renders the proposed panel layout as an SVG "cutting diagram": the real
+  // wall outline, the panel grid drawn at its true size (so any panel
+  // overshoot past the wall edge is directly visible against a hatched
+  // "waste" backdrop), openings cut out where they fall, and skipped panels
+  // marked with a dashed X - so the user can visually judge the proposal
+  // instead of trusting the numbers blind.
+  function buildGyprocDiagramSVG(wallLenMm, wallHeightMm, chosen, openingRects, skippedCells){
+    var vbW = Math.max(chosen.across*chosen.panelW, wallLenMm);
+    var vbH = Math.max(chosen.up*chosen.panelH, wallHeightMm);
+    var unit = Math.max(vbW, vbH);
+    var pad = unit*0.04;
+    var tile = unit*0.05;
+    function flipY(dataY){ return vbH - dataY; } // floor at the bottom of the picture
+
+    var svg = [];
+    svg.push('<svg viewBox="'+(-pad)+' '+(-pad)+' '+(vbW+2*pad)+' '+(vbH+2*pad)+'" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;">');
+    svg.push('<defs><pattern id="gyprocHatch" width="'+tile+'" height="'+tile+'" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">'
+      + '<rect width="'+tile+'" height="'+tile+'" fill="#f3f5f8"/>'
+      + '<line x1="0" y1="0" x2="0" y2="'+tile+'" stroke="#cbd5e1" stroke-width="'+(tile*0.35)+'"/>'
+      + '</pattern></defs>');
+
+    // waste/overshoot backdrop = the full panel-grid bounding box (a cut
+    // line running through here, past the wall edge, is an offcut)
+    svg.push('<rect x="0" y="0" width="'+vbW+'" height="'+vbH+'" fill="url(#gyprocHatch)"/>');
+
+    // the real wall - always fully covered by material by construction
+    // (across/up are ceil()'d), so it's a single solid fill rather than
+    // per-cell fills (which would otherwise mask the hatch backdrop
+    // completely, since the panel grid always tiles its own full extent)
+    var wallY = flipY(wallHeightMm);
+    var gridW = chosen.across*chosen.panelW, gridH = chosen.up*chosen.panelH;
+    svg.push('<rect x="0" y="'+wallY+'" width="'+wallLenMm+'" height="'+wallHeightMm+'" fill="rgba(47,111,235,0.16)"/>');
+
+    // panel cut lines across the WHOLE grid extent, so any panel overshoot
+    // shows up as grid lines running through the hatched area past the wall edge
+    for(var r=0;r<=chosen.up;r++){
+      var ly = flipY(r*chosen.panelH);
+      svg.push('<line x1="0" y1="'+ly+'" x2="'+gridW+'" y2="'+ly+'" stroke="#2f6feb" stroke-width="'+(unit*0.0035)+'"/>');
+    }
+    for(var c=0;c<=chosen.across;c++){
+      var lx = c*chosen.panelW;
+      svg.push('<line x1="'+lx+'" y1="'+flipY(0)+'" x2="'+lx+'" y2="'+flipY(gridH)+'" stroke="#2f6feb" stroke-width="'+(unit*0.0035)+'"/>');
+    }
+
+    // openings, cut into the wall on top of the panel grid
+    openingRects.forEach(function(o){
+      var oy = flipY(o.y2);
+      svg.push('<rect x="'+o.x1+'" y="'+oy+'" width="'+(o.x2-o.x1)+'" height="'+(o.y2-o.y1)+'" fill="#fde68a" stroke="#b45309" stroke-width="'+(unit*0.004)+'"/>');
+    });
+
+    // skipped-cell markers drawn LAST (on top of the opening fill) - a
+    // skipped cell is by definition fully covered by its opening, so if
+    // drawn before the opening its dashed outline would always be hidden
+    // underneath the solid opening fill
+    skippedCells.forEach(function(key){
+      var parts = key.split("_"), r = parseInt(parts[0],10), c = parseInt(parts[1],10);
+      var cx1=c*chosen.panelW;
+      var cyTop=flipY(r*chosen.panelH+chosen.panelH);
+      svg.push('<rect x="'+cx1+'" y="'+cyTop+'" width="'+chosen.panelW+'" height="'+chosen.panelH+'" fill="none" stroke="#78716c" stroke-width="'+(unit*0.006)+'" stroke-dasharray="'+(unit*0.02)+','+(unit*0.014)+'"/>');
+    });
+
+    // real wall outline, always on top so it stays legible against overshoot
+    svg.push('<rect x="0" y="'+wallY+'" width="'+wallLenMm+'" height="'+wallHeightMm+'" fill="none" stroke="#1f2937" stroke-width="'+(unit*0.010)+'"/>');
+
+    svg.push('</svg>');
+    return svg.join('');
+  }
+
   document.getElementById("gyproc-calc").addEventListener("click", function(){
     var w = state.walls.find(function(ww){ return ww.id===gyprocWallId; });
     if(!w) return;
@@ -1464,7 +1536,7 @@
       .map(function(o){ return getOpeningLocalRect(o, wallLenMm); });
 
     var grossPanels = chosen.across*chosen.up;
-    var skipped = 0;
+    var skippedCells = [];
     for(var r=0;r<chosen.up;r++){
       for(var c=0;c<chosen.across;c++){
         var cx1=c*chosen.panelW, cx2=(c+1)*chosen.panelW;
@@ -1472,9 +1544,10 @@
         var fullyCovered = openingRects.some(function(o){
           return o.x1<=cx1 && o.x2>=cx2 && o.y1<=cy1 && o.y2>=cy2;
         });
-        if(fullyCovered) skipped++;
+        if(fullyCovered) skippedCells.push(r+"_"+c);
       }
     }
+    var skipped = skippedCells.length;
     var netPanels = Math.max(grossPanels-skipped, grossPanels>0 ? 1 : 0);
 
     var grossAreaM2 = (wallLenMm*wallHeightMm)/1000000;
@@ -1484,8 +1557,17 @@
     var coveredAreaM2 = netPanels*panelAreaM2;
     var wastePct = coveredAreaM2>0 ? Math.max(0,(coveredAreaM2-neededAreaM2)/coveredAreaM2*100) : 0;
 
+    var diagramSVG = buildGyprocDiagramSVG(wallLenMm, wallHeightMm, chosen, openingRects, skippedCells);
+
     var html = ''
       + '<div class="big">'+netPanels+' '+(netPanels===1?'plaat':'platen')+'</div>'
+      + '<div id="gyproc-diagram">'+diagramSVG+'</div>'
+      + '<div id="gyproc-legend">'
+      +   '<span><i style="background:rgba(47,111,235,0.35);border:1.5px solid #2f6feb;"></i>Plaat</span>'
+      +   '<span><i style="background:repeating-linear-gradient(45deg,#f3f5f8,#f3f5f8 3px,#cbd5e1 3px,#cbd5e1 5px);"></i>Overschot (afval)</span>'
+      +   (skipped>0 ? '<span><i style="background:#fff;border:1.5px dashed #94a3b8;"></i>Overgeslagen (achter deur/raam)</span>' : '')
+      +   (openingRects.length>0 ? '<span><i style="background:#fde68a;border:1.5px solid #b45309;"></i>Deur/raam</span>' : '')
+      + '</div>'
       + '<div class="row"><span class="k">Indeling</span><span class="v">'+chosen.across+' x '+chosen.up+' ('+orientationLabel+')</span></div>'
       + '<div class="row"><span class="k">Plaatformaat</span><span class="v">'+chosen.panelW+' x '+chosen.panelH+' mm, '+thicknessMm+' mm dik</span></div>'
       + '<div class="row"><span class="k">Muuroppervlak (bruto)</span><span class="v">'+grossAreaM2.toFixed(2)+' m²</span></div>'
