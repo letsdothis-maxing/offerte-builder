@@ -1810,7 +1810,7 @@
   // moved into the Metal studs section itself (so stud controls live
   // together): read/written directly as module state rather than via DOM
   // lookups, since the controls are rebuilt on every render.
-  var gyprocHohMm = 600, gyprocUseReinforced = true, gyprocStudGaugeMm = 50;
+  var gyprocHohMm = 600, gyprocStudGaugeMm = 50;
   var toolBeforeGyprocPick = "select";
 
   document.getElementById("gyproc-btn").addEventListener("click", function(){
@@ -2031,17 +2031,13 @@
         svg.push('<rect x="'+(p.x-studW/2)+'" y="'+flipY(seg[1])+'" width="'+studW+'" height="'+segH+'" fill="rgba(234,179,8,0.7)" stroke="#a16207" stroke-width="'+studStroke+'"/>');
       });
     });
-    // Every anchor (opening jamb / corner) always gets at least one bar;
-    // a "versterkte" (doubled) anchor draws two normal studs placed
-    // against each other instead of one wide bar. Both/either sit on the
-    // dir side of the anchor (away from the opening/corner) so they never
-    // overlap the opening rect drawn above.
-    studLayout.reinforcedMeta.forEach(function(m){
+    // Every anchor (opening jamb / corner) always gets exactly one bar,
+    // sitting on the dir side of the anchor (away from the opening/corner)
+    // so it never overlaps the opening rect drawn above.
+    studLayout.anchorStudMeta.forEach(function(m){
       var h2 = heightAtX(prof, wallLenMm, m.x);
-      for(var k=0;k<m.count;k++){
-        var sx = m.dir>0 ? (m.x + k*studW) : (m.x - (k+1)*studW);
-        svg.push('<rect x="'+sx+'" y="'+flipY(h2)+'" width="'+studW+'" height="'+h2+'" fill="rgba(217,119,6,0.85)" stroke="#92400e" stroke-width="'+(studStroke*1.2)+'"/>');
-      }
+      var sx = m.dir>0 ? m.x : (m.x - studW);
+      svg.push('<rect x="'+sx+'" y="'+flipY(h2)+'" width="'+studW+'" height="'+h2+'" fill="rgba(217,119,6,0.85)" stroke="#92400e" stroke-width="'+(studStroke*1.2)+'"/>');
     });
 
     // horizontal head/sill U-profile members framing each opening, drawn
@@ -2158,21 +2154,20 @@
     return segments.filter(function(s){ return s[1]-s[0] > EPS; });
   }
 
-  // Anchor positions (door/window jambs + corner junctions) ALWAYS get at
-  // least one profile - that's structural, not optional (a jamb/corner
-  // needs something to attach to, "versterkt" only decides single vs
-  // doubled there). The rest of the wall is filled with regular studs on
-  // ONE fixed global h.o.h. grid across the WHOLE wall (same pitch from
-  // x=0 every time, never re-centered per gap) so they line up with the
-  // gyproc panel seams, which use that exact same "fixed pitch from x=0"
-  // grid at colWidth increments - re-deriving the pitch per gap desyncs
-  // the two grids and studs stop landing under panel seams. A grid
-  // position under an opening isn't dropped outright either - it keeps
-  // whatever cripple segment(s) survive above/below the opening there, so
-  // panel seams above a door still land on a (shorter) supporting stud.
-  function computeStudLayout(w, wallLenMm, openingRects, hohMm, useReinforced, profile){
+  // Anchor positions (door/window jambs + corner junctions) ALWAYS get
+  // exactly one profile - that's structural, not optional (a jamb/corner
+  // needs something to attach to). The rest of the wall is filled with
+  // regular studs on ONE fixed global h.o.h. grid across the WHOLE wall
+  // (same pitch from x=0 every time, never re-centered per gap) so they
+  // line up with the gyproc panel seams, which use that exact same "fixed
+  // pitch from x=0" grid at colWidth increments - re-deriving the pitch
+  // per gap desyncs the two grids and studs stop landing under panel
+  // seams. A grid position under an opening isn't dropped outright either
+  // - it keeps whatever cripple segment(s) survive above/below the
+  // opening there, so panel seams above a door still land on a (shorter)
+  // supporting stud.
+  function computeStudLayout(w, wallLenMm, openingRects, hohMm, profile){
     var EPS = 1;
-    var studsPerAnchor = useReinforced ? 2 : 1;
 
     var anchors = []; // {x, dir, opening}
     function pushAnchor(x, dir, opening){
@@ -2229,23 +2224,20 @@
     });
     positions.sort(function(a,b){ return a.x-b.x; });
 
-    // reinforcedMeta carries a "dir" per anchor (-1/+1): the side the
-    // stud(s) sit on, pointing AWAY from the opening/corner they brace, so
-    // a renderer never has to guess which way to keep clear of the opening
-    // - it always extends into the wall material, never across it. "count"
-    // is how many bars to draw there (1 = single, 2 = doubled/versterkt).
-    var reinforcedPositions = [];
-    var reinforcedMeta = anchors.map(function(a){
-      for(var n=0;n<studsPerAnchor;n++) reinforcedPositions.push(a.x);
-      return { x:a.x, dir:a.dir, count:studsPerAnchor };
-    });
+    // anchorStudMeta carries a "dir" per anchor (-1/+1): the side the
+    // single stud sits on, pointing AWAY from the opening/corner it
+    // braces, so a renderer never has to guess which way to keep clear of
+    // the opening - it always extends into the wall material, never
+    // across it.
+    var anchorStudPositions = anchors.map(function(a){ return a.x; });
+    var anchorStudMeta = anchors.map(function(a){ return { x:a.x, dir:a.dir }; });
     var openingAnchorCount = openingRects.length*2;
     var cornerAnchorCount = (startCorner?1:0) + (endCorner?1:0);
 
     // horizontal U-profile members framing each opening: a head track above
     // every opening, plus a sill track below it if the opening doesn't
     // reach the floor (a window - a door already runs to the floor, no
-    // sill needed there). Always present, independent of the toggle.
+    // sill needed there).
     var horizontalMembers = openingRects.map(function(o){
       return { x1:o.x1, x2:o.x2, y:o.y2, kind:"head" };
     });
@@ -2255,11 +2247,10 @@
 
     return {
       positions: positions, regularCount: regularPhysicalCount, hohMm: hohMm,
-      useReinforced: useReinforced, studsPerAnchor: studsPerAnchor,
-      reinforcedPositions: reinforcedPositions, reinforcedMeta: reinforcedMeta,
+      anchorStudPositions: anchorStudPositions, anchorStudMeta: anchorStudMeta,
       horizontalMembers: horizontalMembers,
       openingAnchorCount: openingAnchorCount, cornerAnchorCount: cornerAnchorCount,
-      totalCount: regularPhysicalCount + (openingAnchorCount+cornerAnchorCount)*studsPerAnchor
+      totalCount: regularPhysicalCount + openingAnchorCount + cornerAnchorCount
     };
   }
 
@@ -2278,7 +2269,7 @@
     var neededHeights = studLayout.positions.reduce(function(acc,p){
       p.segments.forEach(function(seg){ acc.push(seg[1]-seg[0]); });
       return acc;
-    }, []).concat(studLayout.reinforcedPositions.map(function(x){ return heightAtX(profile, wallLenMm, x); }));
+    }, []).concat(studLayout.anchorStudPositions.map(function(x){ return heightAtX(profile, wallLenMm, x); }));
     var totalNeeded = neededHeights.reduce(function(s,h){ return s+h; },0);
     var maxNeeded = Math.max.apply(null, neededHeights.concat([0]));
     var viable = STUD_LENGTHS.filter(function(l){ return l >= maxNeeded; });
@@ -2348,7 +2339,7 @@
     gyprocResults.sort(function(a,b){ return a.wastePct-b.wastePct; });
     gyprocActiveIndex = 0;
 
-    gyprocStudLayout = computeStudLayout(w, gyprocWallLenMm, openingRects, gyprocHohMm, gyprocUseReinforced, gyprocWallProfile);
+    gyprocStudLayout = computeStudLayout(w, gyprocWallLenMm, openingRects, gyprocHohMm, gyprocWallProfile);
     gyprocStudLengthOptions = computeStudLengthOptions(gyprocWallLenMm, gyprocWallProfile, gyprocStudLayout);
     gyprocTrackLengthOptions = computeTrackLengthOptions(gyprocWallLenMm, gyprocStudLayout.horizontalMembers);
     gyprocStudActiveIndex = 0;
@@ -2426,11 +2417,6 @@
       gyprocStudGaugeMm = parseInt(gaugeEl.value,10) || 50;
       renderGyprocResults();
     });
-    var reinforcedEl = document.getElementById("stud-reinforced");
-    if(reinforcedEl) reinforcedEl.addEventListener("change", function(){
-      gyprocUseReinforced = reinforcedEl.checked;
-      runGyprocCalculation();
-    });
   }
 
   // Metal studs are rendered as their OWN section with their OWN diagram
@@ -2480,14 +2466,10 @@
       +   '<label>Profielbreedte (dikte)</label>'
       +   '<select class="tb-select" id="stud-gauge" style="width:100%">'+gaugeOptionsHtml+'</select>'
       + '</div>'
-      + '<div class="field" style="display:flex;align-items:center;gap:8px;">'
-      +   '<input type="checkbox" id="stud-reinforced" style="width:16px;height:16px;margin:0;"'+(gyprocUseReinforced?' checked':'')+'>'
-      +   '<label style="margin:0;" for="stud-reinforced">Versterkte (dubbele) studs bij deuren/ramen/hoeken</label>'
-      + '</div>'
       + '<div class="gyproc-diagram-box">'+studDiagramSVG+'</div>'
       + '<div id="gyproc-legend">'
       +   '<span><i style="background:rgba(234,179,8,0.7);border:1.5px solid #a16207;"></i>Metal stud</span>'
-      +   '<span><i style="background:rgba(217,119,6,0.85);border:1.5px solid #92400e;"></i>'+(gyprocUseReinforced ? 'Versterkte (dubbele) stud / latei / onderdorpel' : 'Rand-stud (deur/raam/hoek) / latei / onderdorpel')+'</span>'
+      +   '<span><i style="background:rgba(217,119,6,0.85);border:1.5px solid #92400e;"></i>Rand-stud (deur/raam/hoek) / latei / onderdorpel</span>'
       +   (gyprocOpeningRects.length>0 ? '<span><i style="background:#fde68a;border:1.5px solid #b45309;"></i>Deur/raam</span>' : '')
       + '</div>'
       + '<div class="reco">Aanbevolen studlengte: <strong>'+gaugeLabel+' &middot; '+(bestStud.lengthMm/10)+' cm</strong> — '+bestStud.totalPieces+' profielen, '+bestStud.wastePct.toFixed(0)+'% verlies'
@@ -2495,8 +2477,8 @@
       + '</div>'
       + '<div class="gyproc-tabs-row">'+studCardsHtml+'</div>'
       + '<div class="row"><span class="k">Verticale studs, regulier (h.o.h. max. '+(gyprocStudLayout.hohMm/10)+' cm, incl. rafelstijlen boven/onder opening)</span><span class="v">'+gyprocStudLayout.regularCount+'</span></div>'
-      + (gyprocStudLayout.openingAnchorCount>0 ? '<div class="row"><span class="k">Bij deuren/ramen (dagkant, '+gyprocStudLayout.studsPerAnchor+'x '+(gyprocUseReinforced?'dubbel':'enkel')+' per zijde)</span><span class="v">'+(gyprocStudLayout.openingAnchorCount*gyprocStudLayout.studsPerAnchor)+'</span></div>' : '')
-      + (gyprocStudLayout.cornerAnchorCount>0 ? '<div class="row"><span class="k">Bij hoekaansluiting ('+gyprocStudLayout.studsPerAnchor+'x '+(gyprocUseReinforced?'dubbel':'enkel')+')</span><span class="v">'+(gyprocStudLayout.cornerAnchorCount*gyprocStudLayout.studsPerAnchor)+'</span></div>' : '')
+      + (gyprocStudLayout.openingAnchorCount>0 ? '<div class="row"><span class="k">Bij deuren/ramen (dagkant)</span><span class="v">'+gyprocStudLayout.openingAnchorCount+'</span></div>' : '')
+      + (gyprocStudLayout.cornerAnchorCount>0 ? '<div class="row"><span class="k">Bij hoekaansluiting</span><span class="v">'+gyprocStudLayout.cornerAnchorCount+'</span></div>' : '')
       + '<div class="row"><span class="k">Totaal fysieke studs op de muur</span><span class="v">'+gyprocStudLayout.totalCount+'</span></div>'
       + '<div class="row"><span class="k">Aan te kopen profielen ('+(activeStud.lengthMm/10)+' cm, na nesting)</span><span class="v">'+activeStud.totalPieces+'</span></div>'
       + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+studReserve+' stuks</span></div>'
