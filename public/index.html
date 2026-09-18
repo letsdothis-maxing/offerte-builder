@@ -2192,22 +2192,23 @@
       var x = i*actualSpacing;
       var onAnchor = anchors.some(function(a){ return Math.abs(a.x-x) < EPS; });
       if(onAnchor) continue;
-      // priority order ("regels van de kunst"): a candidate INSIDE an
-      // opening's width always gets whatever cripple segment survives
-      // above/below it (there IS material and a panel seam to support
-      // there); only once it's outside every opening do we check whether
-      // it's too close to a jamb/corner anchor to bother with (that
-      // anchor's own profile already covers the zone, and a nearly-
-      // touching second stud can't be screwed to anyway) before falling
-      // back to a normal full-height stud.
+      // priority order ("regels van de kunst"): a candidate too close to a
+      // jamb/corner anchor is ALWAYS skipped first, whether it's inside an
+      // opening's width or not - a jamb stud runs the full wall height, so
+      // its own material already covers the zone right beside it, cripple
+      // segment above/below an opening included (a "rafelstijl" 50mm from
+      // the jamb is exactly as redundant/unscrewable as a full stud 50mm
+      // from it outside the opening). Only once it's clear of every anchor
+      // do we ask whether it's inside an opening (cripple segment) or not
+      // (normal full-height stud).
+      var tooCloseToAnchor = anchors.some(function(a){ return Math.abs(a.x-x) < STUD_MIN_ANCHOR_DIST; });
+      if(tooCloseToAnchor) continue;
       var withinOpeningX = openingRects.some(function(o){ return x > o.x1+EPS && x < o.x2-EPS; });
       if(withinOpeningX){
         var segs = studSegmentsAtX(x, wallLenMm, profile, openingRects);
         if(segs.length){ positions.push({x:x, segments:segs}); regularPhysicalCount += segs.length; }
         continue;
       }
-      var tooCloseToAnchor = anchors.some(function(a){ return Math.abs(a.x-x) < STUD_MIN_ANCHOR_DIST; });
-      if(tooCloseToAnchor) continue;
       positions.push({x:x, segments:[[0, heightAtX(profile, wallLenMm, x)]]});
       regularPhysicalCount += 1;
     }
@@ -2479,8 +2480,8 @@
       + '<div class="row"><span class="k">Verticale studs, regulier (h.o.h. max. '+(gyprocStudLayout.hohMm/10)+' cm, incl. rafelstijlen boven/onder opening)</span><span class="v">'+gyprocStudLayout.regularCount+'</span></div>'
       + (gyprocStudLayout.openingAnchorCount>0 ? '<div class="row"><span class="k">Bij deuren/ramen (dagkant)</span><span class="v">'+gyprocStudLayout.openingAnchorCount+'</span></div>' : '')
       + (gyprocStudLayout.cornerAnchorCount>0 ? '<div class="row"><span class="k">Bij hoekaansluiting</span><span class="v">'+gyprocStudLayout.cornerAnchorCount+'</span></div>' : '')
-      + '<div class="row"><span class="k">Totaal fysieke studs op de muur</span><span class="v">'+gyprocStudLayout.totalCount+'</span></div>'
-      + '<div class="row"><span class="k">Aan te kopen profielen ('+(activeStud.lengthMm/10)+' cm, na nesting)</span><span class="v">'+activeStud.totalPieces+'</span></div>'
+      + '<div class="row"><span class="k">Totaal fysieke studs op de muur (incl. korte rafelstijlen)</span><span class="v">'+gyprocStudLayout.totalCount+'</span></div>'
+      + '<div class="row"><span class="k">Aan te kopen profielen ('+(activeStud.lengthMm/10)+' cm - korte stukken genest op 1 profiel)</span><span class="v">'+activeStud.totalPieces+'</span></div>'
       + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+studReserve+' stuks</span></div>'
       + '<div class="row" style="margin-top:12px;"><span class="k"><strong>Horizontale rails</strong> (boven + onder'+(gyprocStudLayout.horizontalMembers.length>0?' + latei/onderdorpel bij openingen':'')+', samen genest)</span><span class="v"></span></div>'
       + '<div class="gyproc-tabs-row">'+trackCardsHtml+'</div>'
