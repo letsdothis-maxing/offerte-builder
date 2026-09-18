@@ -183,6 +183,39 @@
   .pl-card .edit-btn{position:absolute;top:12px;right:10px;background:none;border:none;cursor:pointer;font-size:14px;color:var(--muted);padding:4px 6px;border-radius:6px;}
   .pl-card .edit-btn:hover{background:var(--bg);}
   .pl-empty{text-align:center;color:var(--muted);padding:60px 20px;font-size:14px;}
+  .pl-body{padding-bottom:90px;}
+
+  /* ---------- floating bottom nav (Projecten / Materialen) ---------- */
+  #pl-bottom-nav{
+    position:fixed;left:50%;bottom:20px;transform:translateX(-50%);
+    display:flex;align-items:center;gap:4px;padding:6px;
+    background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    box-shadow:0 10px 30px rgba(15,23,42,.18);z-index:15;
+  }
+  .pl-nav-btn{
+    display:flex;align-items:center;gap:6px;border:none;background:none;color:var(--ink);
+    padding:9px 16px;border-radius:11px;font-size:13px;cursor:pointer;font-weight:600;
+  }
+  .pl-nav-btn:hover{background:var(--bg);}
+  .pl-nav-btn.active{background:var(--blue);color:#fff;}
+
+  /* ---------- materials page ---------- */
+  .mat-section-title{font-size:14px;margin:26px 0 12px;}
+  .mat-section-title:first-child{margin-top:0;}
+  .mat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+  .mat-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  }
+  .mat-name{font-size:14px;font-weight:600;}
+  .mat-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+  .mat-price{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+  .mat-price-input{
+    width:88px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:14px;
+    text-align:right;background:#fff;color:var(--ink);
+  }
+  .mat-price-input.mat-price-error{border-color:#b91c1c;}
+  .mat-unit{font-size:13px;color:var(--muted);}
 
   /* ---------- project form drawer (reuses .field/.actions/.btn) ---------- */
   #project-form-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:69;opacity:0;pointer-events:none;transition:opacity .18s;}
@@ -240,7 +273,7 @@
       --room-fill:rgba(96,165,250,.10);--room-fill-2:rgba(245,158,11,.12);
     }
     #stage{background:#0b0f18;}
-    select.tb-select,#opening-panel .field input,#gyproc-panel .field input,#project-form-panel .field input,#project-form-panel .field textarea{background:#0f1420;color:#e5e7eb;}
+    select.tb-select,#opening-panel .field input,#gyproc-panel .field input,#project-form-panel .field input,#project-form-panel .field textarea,.mat-price-input{background:#0f1420;color:#e5e7eb;}
     .btn-danger{background:#3b1418;color:#fca5a5;}
   }
 </style>
@@ -300,12 +333,19 @@
 
 <div id="project-list-screen" class="hidden">
   <div class="pl-topbar">
-    <h1>Offerte<span>Builder</span> — Projecten</h1>
+    <h1 id="pl-title">Offerte<span>Builder</span> — Projecten</h1>
     <button class="tbtn tbtn-primary" id="pl-new-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;"><span class="ic">+</span>Nieuw project</button>
   </div>
   <div class="pl-body">
-    <div id="pl-empty" class="pl-empty" style="display:none;">Nog geen projecten. Maak je eerste project aan om te starten.</div>
-    <div id="pl-grid" class="pl-grid"></div>
+    <div id="pl-page-projects">
+      <div id="pl-empty" class="pl-empty" style="display:none;">Nog geen projecten. Maak je eerste project aan om te starten.</div>
+      <div id="pl-grid" class="pl-grid"></div>
+    </div>
+    <div id="pl-page-materials" style="display:none;"></div>
+  </div>
+  <div id="pl-bottom-nav">
+    <button class="pl-nav-btn active" data-page="projects"><span class="ic">🗂️</span>Projecten</button>
+    <button class="pl-nav-btn" data-page="materials"><span class="ic">💶</span>Materialen</button>
   </div>
 </div>
 
@@ -1309,8 +1349,22 @@
   function showProjectList(){
     document.getElementById("project-list-screen").classList.remove("hidden");
     document.getElementById("app").style.display = "none";
-    renderProjectList();
+    showPlPage("projects");
   }
+  function showPlPage(page){
+    document.querySelectorAll(".pl-nav-btn").forEach(function(btn){
+      btn.classList.toggle("active", btn.dataset.page===page);
+    });
+    document.getElementById("pl-page-projects").style.display = page==="projects" ? "" : "none";
+    document.getElementById("pl-page-materials").style.display = page==="materials" ? "" : "none";
+    document.getElementById("pl-new-btn").style.display = page==="projects" ? "" : "none";
+    document.getElementById("pl-title").innerHTML = "Offerte<span>Builder</span> — "+(page==="materials"?"Materialen":"Projecten");
+    if(page==="projects") renderProjectList();
+    else renderMaterialsPage();
+  }
+  document.querySelectorAll(".pl-nav-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){ showPlPage(btn.dataset.page); });
+  });
   function enterProject(id){
     projectsState.activeId = id;
     saveProjectsState();
@@ -1352,6 +1406,60 @@
       btn.addEventListener("click", function(e){
         e.stopPropagation();
         openProjectForm(btn.dataset.editId);
+      });
+    });
+  }
+
+  /* =====================================================================
+     MATERIALS PAGE ("Materialen lijst")
+     App-wide (not per-project) price list for every standard gyproc
+     panel size and metal stud length/gauge option, so quotes can be
+     based on real, up-to-date supplier prices. Card lists are built from
+     the SAME PANEL_SIZES/STUD_LENGTHS/STUD_GAUGES constants the gyproc
+     calculator itself uses, so a new standard size added there
+     automatically gets its own price card here too.
+  ===================================================================== */
+  var MATERIAL_PRICES_KEY = "offerte-builder.material-prices.v1";
+  var materialPrices = {};
+  function loadMaterialPrices(){
+    try{ materialPrices = JSON.parse(localStorage.getItem(MATERIAL_PRICES_KEY)) || {}; }catch(e){ materialPrices = {}; }
+  }
+  function saveMaterialPrices(){
+    try{ localStorage.setItem(MATERIAL_PRICES_KEY, JSON.stringify(materialPrices)); }catch(e){}
+  }
+  function materialCardHtml(key, title, subtitle){
+    var price = materialPrices[key];
+    var priceVal = (typeof price==="number" && !isNaN(price)) ? price : "";
+    return '<div class="mat-card">'
+      + '<div class="mat-info"><div class="mat-name">'+escapeHtml(title)+'</div>'+(subtitle?'<div class="mat-sub">'+escapeHtml(subtitle)+'</div>':'')+'</div>'
+      + '<div class="mat-price"><input type="number" min="0" step="0.01" inputmode="decimal" class="mat-price-input" data-key="'+key+'" value="'+priceVal+'" placeholder="0,00"><span class="mat-unit">€</span></div>'
+      + '</div>';
+  }
+  function renderMaterialsPage(){
+    var host = document.getElementById("pl-page-materials");
+    host.innerHTML = ''
+      + '<h2 class="mat-section-title">Gyproc platen</h2>'
+      + '<div class="mat-grid">' + PANEL_SIZES.map(function(sz){
+          return materialCardHtml("gyproc:"+sz.w+"x"+sz.h, sz.label, "Gyproc plaat");
+        }).join('') + '</div>'
+      + '<h2 class="mat-section-title">Metal studs — lengtes</h2>'
+      + '<div class="mat-grid">' + STUD_LENGTHS.map(function(l){
+          return materialCardHtml("stud-length:"+l, (l/10)+" cm", "Verticale C-profiel, lengte");
+        }).join('') + '</div>'
+      + '<h2 class="mat-section-title">Metal studs — diktes</h2>'
+      + '<div class="mat-grid">' + STUD_GAUGES.map(function(g){
+          return materialCardHtml("stud-gauge:"+g, g+" mm", "Profielbreedte (dikte)");
+        }).join('') + '</div>';
+    host.querySelectorAll(".mat-price-input").forEach(function(inp){
+      inp.addEventListener("change", function(){
+        var key = inp.dataset.key;
+        var raw = inp.value.trim();
+        if(raw===""){ delete materialPrices[key]; inp.classList.remove("mat-price-error"); saveMaterialPrices(); return; }
+        var v = parseFloat(raw.replace(",", "."));
+        if(isNaN(v) || v<0){ inp.classList.add("mat-price-error"); return; }
+        inp.classList.remove("mat-price-error");
+        materialPrices[key] = v;
+        saveMaterialPrices();
       });
     });
   }
@@ -2009,7 +2117,7 @@
     { w:2600, h:600,  label:"2600 x 600 mm" }
   ];
   var STUD_LENGTHS = [2600, 3000, 3600];  // mm, standard vertical C-profile lengths
-  var TRACK_LENGTHS = [3000, 4000];       // mm, standard horizontal U-profile (rail) lengths
+  var TRACK_LENGTHS = [2600, 3000, 4000]; // mm, standard horizontal U-profile (rail) lengths
   var STUD_GAUGES = [50, 75, 100];        // mm, standard C/U-profile web widths
   var STUD_RESERVE_PCT = 5;               // snijverlies/reserve margin (brainstorm: 5-10%)
   var STUD_MIN_ANCHOR_DIST = 150;         // mm - a regular stud this close to a jamb/corner anchor is redundant (the anchor's own profile already covers that zone) and unscrewable in practice
@@ -2683,6 +2791,7 @@
       +   '<select class="tb-select" id="stud-hoh" style="width:100%">'
       +     '<option value="600"'+(gyprocHohMm===600?' selected':'')+'>60 cm (standaard)</option>'
       +     '<option value="400"'+(gyprocHohMm===400?' selected':'')+'>40 cm (versterkt)</option>'
+      +     '<option value="300"'+(gyprocHohMm===300?' selected':'')+'>30 cm (extra versterkt)</option>'
       +   '</select>'
       + '</div>'
       + '<div class="field">'
@@ -2716,6 +2825,7 @@
      INIT
   ===================================================================== */
   loadProjectsState();
+  loadMaterialPrices();
   if(projectsState.activeId && getActiveProject()){
     enterProject(projectsState.activeId);
   } else {
