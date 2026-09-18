@@ -1795,6 +1795,7 @@
   var TRACK_LENGTHS = [3000, 4000];       // mm, standard horizontal U-profile (rail) lengths
   var STUD_GAUGES = [50, 75, 100];        // mm, standard C/U-profile web widths
   var STUD_RESERVE_PCT = 5;               // snijverlies/reserve margin (brainstorm: 5-10%)
+  var STUD_MIN_ANCHOR_DIST = 150;         // mm - a regular stud this close to a jamb/corner anchor is redundant (the anchor's own profile already covers that zone) and unscrewable in practice
 
   var gyprocBackdrop = document.getElementById("gyproc-backdrop");
   var gyprocPanel = document.getElementById("gyproc-panel");
@@ -2196,9 +2197,37 @@
       var x = i*actualSpacing;
       var onAnchor = anchors.some(function(a){ return Math.abs(a.x-x) < EPS; });
       if(onAnchor) continue;
-      var segs = studSegmentsAtX(x, wallLenMm, profile, openingRects);
-      if(segs.length){ positions.push({x:x, segments:segs}); regularPhysicalCount += segs.length; }
+      // priority order ("regels van de kunst"): a candidate INSIDE an
+      // opening's width always gets whatever cripple segment survives
+      // above/below it (there IS material and a panel seam to support
+      // there); only once it's outside every opening do we check whether
+      // it's too close to a jamb/corner anchor to bother with (that
+      // anchor's own profile already covers the zone, and a nearly-
+      // touching second stud can't be screwed to anyway) before falling
+      // back to a normal full-height stud.
+      var withinOpeningX = openingRects.some(function(o){ return x > o.x1+EPS && x < o.x2-EPS; });
+      if(withinOpeningX){
+        var segs = studSegmentsAtX(x, wallLenMm, profile, openingRects);
+        if(segs.length){ positions.push({x:x, segments:segs}); regularPhysicalCount += segs.length; }
+        continue;
+      }
+      var tooCloseToAnchor = anchors.some(function(a){ return Math.abs(a.x-x) < STUD_MIN_ANCHOR_DIST; });
+      if(tooCloseToAnchor) continue;
+      positions.push({x:x, segments:[[0, heightAtX(profile, wallLenMm, x)]]});
+      regularPhysicalCount += 1;
     }
+    // an opening narrower than the h.o.h. pitch can land entirely between
+    // two grid candidates, leaving its header/latei with zero supporting
+    // studs at all - force one cripple stud at its own horizontal center
+    // in that case, so the panel piece above it is never left unsupported.
+    openingRects.forEach(function(o){
+      var hasCrippleHere = positions.some(function(p){ return p.x > o.x1+EPS && p.x < o.x2-EPS; });
+      if(hasCrippleHere) return;
+      var xMid = (o.x1+o.x2)/2;
+      var segs = studSegmentsAtX(xMid, wallLenMm, profile, openingRects);
+      if(segs.length){ positions.push({x:xMid, segments:segs}); regularPhysicalCount += segs.length; }
+    });
+    positions.sort(function(a,b){ return a.x-b.x; });
 
     // reinforcedMeta carries a "dir" per anchor (-1/+1): the side the
     // stud(s) sit on, pointing AWAY from the opening/corner they brace, so
