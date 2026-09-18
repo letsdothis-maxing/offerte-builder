@@ -610,7 +610,11 @@
           if(localChord){
             var parts = splitPolygonByLine(poly, localChord[0], localChord[1]);
             if(parts.length === 2){
-              cutRecords.push({ cutId: cut.id, chord: localChord, polyA: parts[0], polyB: parts[1] });
+              // the polygon the cut was actually clipped against (the whole
+              // face for a single cut, or a sub-zone left over from an
+              // earlier cut in a multi-cut room) - needed to measure the
+              // cut's distance to the walls it does NOT touch
+              cutRecords.push({ cutId: cut.id, chord: localChord, polyA: parts[0], polyB: parts[1], sourcePoly: poly });
               parts.forEach(function(p){ next.push(p); });
               return;
             }
@@ -634,7 +638,7 @@
         var zA = faceZones.find(function(z){ return z.polygon === cr.polyA; });
         var zB = faceZones.find(function(z){ return z.polygon === cr.polyB; });
         if(zA && zB){
-          resolvedCuts.push({ id: cr.cutId, p1: cr.chord[0], p2: cr.chord[1], length: dist(cr.chord[0],cr.chord[1]), zoneA: zA, zoneB: zB });
+          resolvedCuts.push({ id: cr.cutId, p1: cr.chord[0], p2: cr.chord[1], length: dist(cr.chord[0],cr.chord[1]), zoneA: zA, zoneB: zB, sourcePoly: cr.sourcePoly });
         }
       });
     });
@@ -697,6 +701,7 @@
     drawZoneHeightPills(zones, dark);
     drawWallDrawPreview(dark);
     drawZoneDrawPreview(dark);
+    drawSelectedZoneCutDistances(resolvedCuts, dark);
 
     updateSummary(zones, resolvedCuts);
     updateSelectionUI();
@@ -965,6 +970,34 @@
     ctx.fillStyle = "#fff";
     ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText(text, s.x, s.y-h/2-10+1);
+  }
+
+  // When a split line is selected, shows how far it sits from the walls it
+  // does NOT touch: a mostly-horizontal cut (touches the left/right walls
+  // at its own endpoints) gets its distance-from-top/bottom measured by
+  // casting a perpendicular ray from its midpoint against the room
+  // boundary; a mostly-vertical cut gets distance-from-left/right the same
+  // way (perpendicular to a vertical line is horizontal, so the ray
+  // naturally lands on the left/right walls, and vice versa).
+  function drawSelectedZoneCutDistances(resolvedCuts, dark){
+    if(!state.selection || state.selection.type !== "zoneCut") return;
+    var rc = resolvedCuts.find(function(r){ return r.id === state.selection.id; });
+    if(!rc || !rc.sourcePoly) return;
+    var dx = rc.p2.x-rc.p1.x, dy = rc.p2.y-rc.p1.y;
+    var len = Math.hypot(dx,dy) || 1;
+    var nx = -dy/len, ny = dx/len; // perpendicular unit vector
+    var mid = { x:(rc.p1.x+rc.p2.x)/2, y:(rc.p1.y+rc.p2.y)/2 };
+    var far = { x: mid.x+nx*1e6, y: mid.y+ny*1e6 };
+    var bounds = clipLineToPolygon(mid, far, rc.sourcePoly);
+    if(!bounds) return;
+    var isVerticalPerp = Math.abs(ny) > Math.abs(nx);
+    var pA = bounds[0], pB = bounds[1];
+    var first = isVerticalPerp ? (pA.y < pB.y ? pA : pB) : (pA.x < pB.x ? pA : pB);
+    var second = first === pA ? pB : pA;
+    var labelFirst = isVerticalPerp ? "boven" : "links";
+    var labelSecond = isVerticalPerp ? "onder" : "rechts";
+    drawFloatingLabel({ x:(mid.x+first.x)/2, y:(mid.y+first.y)/2 }, labelFirst+" "+fmtM(dist(mid,first)), dark, true);
+    drawFloatingLabel({ x:(mid.x+second.x)/2, y:(mid.y+second.y)/2 }, labelSecond+" "+fmtM(dist(mid,second)), dark, true);
   }
 
   function drawZoneDrawPreview(dark){
