@@ -164,6 +164,33 @@
   .btn-danger{background:#fee2e2;color:#b91c1c;}
   .btn-danger:hover{background:#fecaca;}
   .btn-ghost{background:var(--bg);color:var(--ink);}
+  .field textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;resize:vertical;}
+  .field input[type=text],.field input[type=date]{flex:1;width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;}
+
+  /* ---------- project list screen ---------- */
+  #project-list-screen{position:fixed;inset:0;background:var(--bg);z-index:5;display:flex;flex-direction:column;overflow:auto;}
+  #project-list-screen.hidden{display:none;}
+  .pl-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;}
+  .pl-topbar h1{font-size:16px;margin:0;font-weight:700;}
+  .pl-topbar h1 span{color:var(--blue);}
+  .pl-body{padding:24px;max-width:960px;margin:0 auto;width:100%;}
+  .pl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
+  .pl-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;cursor:pointer;transition:box-shadow .15s,border-color .15s;position:relative;}
+  .pl-card:hover{box-shadow:0 8px 22px rgba(15,23,42,.12);border-color:var(--blue);}
+  .pl-card h3{font-size:15px;margin:0 0 6px;padding-right:26px;word-break:break-word;}
+  .pl-card p{font-size:12px;color:var(--muted);margin:0 0 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:32px;}
+  .pl-card .meta{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:2px;}
+  .pl-card .edit-btn{position:absolute;top:12px;right:10px;background:none;border:none;cursor:pointer;font-size:14px;color:var(--muted);padding:4px 6px;border-radius:6px;}
+  .pl-card .edit-btn:hover{background:var(--bg);}
+  .pl-empty{text-align:center;color:var(--muted);padding:60px 20px;font-size:14px;}
+
+  /* ---------- project form drawer (reuses .field/.actions/.btn) ---------- */
+  #project-form-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:69;opacity:0;pointer-events:none;transition:opacity .18s;}
+  #project-form-backdrop.open{opacity:1;pointer-events:auto;}
+  #project-form-panel{position:fixed;top:0;right:0;height:100%;width:340px;max-width:88vw;background:var(--panel);box-shadow:-8px 0 30px rgba(0,0,0,.18);transform:translateX(100%);transition:transform .22s ease;z-index:70;display:flex;flex-direction:column;padding:20px;}
+  #project-form-panel.open{transform:translateX(0);}
+  #project-form-panel h2{font-size:16px;margin:0 0 18px;}
+  #project-form-panel .actions{margin-top:auto;display:flex;gap:8px;}
 
   /* ---------- gyproc drawer (reuses .field/.actions/.btn from above) ---------- */
   #gyproc-backdrop{
@@ -213,7 +240,7 @@
       --room-fill:rgba(96,165,250,.10);--room-fill-2:rgba(245,158,11,.12);
     }
     #stage{background:#0b0f18;}
-    select.tb-select,#opening-panel .field input,#gyproc-panel .field input{background:#0f1420;color:#e5e7eb;}
+    select.tb-select,#opening-panel .field input,#gyproc-panel .field input,#project-form-panel .field input,#project-form-panel .field textarea{background:#0f1420;color:#e5e7eb;}
     .btn-danger{background:#3b1418;color:#fca5a5;}
   }
 </style>
@@ -221,7 +248,8 @@
 <body>
 <div id="app">
   <div id="topbar">
-    <h1>Offerte<span>Builder</span> — Ontwerpmodule</h1>
+    <button class="tbtn" id="back-to-projects-btn" title="Terug naar projecten"><span class="ic">←</span>Projecten</button>
+    <h1 id="app-title">Offerte<span>Builder</span> — Ontwerpmodule</h1>
     <div class="tb-group" style="margin-left:auto;">
       <button class="tbtn" id="undo-btn" disabled title="Ongedaan maken (Ctrl+Z)"><span class="ic">↶</span></button>
       <button class="tbtn" id="redo-btn" disabled title="Opnieuw doen (Ctrl+Shift+Z)"><span class="ic">↷</span></button>
@@ -267,6 +295,38 @@
       <button class="tbtn" data-tool="window"><span class="ic">🪟</span>Raam</button>
       <button class="tbtn" data-tool="zone"><span class="ic">✂️</span>Splitsen</button>
     </div>
+  </div>
+</div>
+
+<div id="project-list-screen" class="hidden">
+  <div class="pl-topbar">
+    <h1>Offerte<span>Builder</span> — Projecten</h1>
+    <button class="tbtn tbtn-primary" id="pl-new-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;"><span class="ic">+</span>Nieuw project</button>
+  </div>
+  <div class="pl-body">
+    <div id="pl-empty" class="pl-empty" style="display:none;">Nog geen projecten. Maak je eerste project aan om te starten.</div>
+    <div id="pl-grid" class="pl-grid"></div>
+  </div>
+</div>
+
+<div id="project-form-backdrop"></div>
+<div id="project-form-panel">
+  <h2 id="pf-title">Nieuw project</h2>
+  <div class="field">
+    <label>Naam</label>
+    <div class="row"><input type="text" id="pf-name" maxlength="80"></div>
+  </div>
+  <div class="field">
+    <label>Omschrijving</label>
+    <textarea id="pf-desc" rows="4" maxlength="400"></textarea>
+  </div>
+  <div class="field">
+    <label>Planningsdatum</label>
+    <div class="row"><input type="date" id="pf-date"></div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-danger" id="pf-delete" style="display:none;">Verwijderen</button>
+    <button class="btn btn-primary" id="pf-save">Opslaan</button>
   </div>
 </div>
 
@@ -1164,34 +1224,191 @@
   }
 
   /* =====================================================================
-     PERSISTENCE (localStorage autosave)
+     PERSISTENCE (localStorage, multi-project)
+     Each project keeps its own walls/openings/zoneCuts/roomHeights blob;
+     scheduleSave() always writes into the CURRENTLY ACTIVE project, never
+     a single global slot, so switching projects can't cross-contaminate
+     another one's drawing.
   ===================================================================== */
-  var SAVE_KEY = "offerte-builder.plan.v1";
+  var OLD_SAVE_KEY = "offerte-builder.plan.v1"; // pre-multi-project single save, read once for migration only
+  var PROJECTS_KEY = "offerte-builder.projects.v1";
+  var projectsState = { activeId: null, projects: [] };
   var saveTimer = null;
+
+  function saveProjectsState(){
+    try{ localStorage.setItem(PROJECTS_KEY, JSON.stringify(projectsState)); }catch(e){}
+  }
+  function loadProjectsState(){
+    try{
+      var raw = localStorage.getItem(PROJECTS_KEY);
+      if(raw){ projectsState = JSON.parse(raw); return; }
+    }catch(e){}
+    // first run since this feature shipped: migrate the old single-blob
+    // save (if any real drawing exists there) into a first project, so
+    // existing work isn't lost.
+    var migrated = null;
+    try{
+      var oldRaw = localStorage.getItem(OLD_SAVE_KEY);
+      if(oldRaw){
+        var oldData = JSON.parse(oldRaw);
+        if((oldData.walls||[]).length){
+          migrated = {
+            id: uid("proj"), name: "Mijn project", description: "", planningDate: "",
+            createdAt: Date.now(), updatedAt: Date.now(),
+            data: {
+              walls: oldData.walls||[], openings: oldData.openings||[], zoneCuts: oldData.zoneCuts||[],
+              roomHeights: oldData.roomHeights||{}, gridStep: oldData.gridStep||100
+            }
+          };
+        }
+      }
+    }catch(e){}
+    projectsState = { activeId: migrated ? migrated.id : null, projects: migrated ? [migrated] : [] };
+    saveProjectsState();
+  }
+  function getActiveProject(){
+    return projectsState.projects.find(function(p){ return p.id===projectsState.activeId; }) || null;
+  }
   function scheduleSave(){
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function(){
-      try{
-        localStorage.setItem(SAVE_KEY, JSON.stringify({
-          walls: state.walls, openings: state.openings, zoneCuts: state.zoneCuts,
-          roomHeights: state.roomHeights, gridStep: state.gridStep
-        }));
-      }catch(e){}
+      var proj = getActiveProject();
+      if(!proj) return;
+      proj.data = {
+        walls: state.walls, openings: state.openings, zoneCuts: state.zoneCuts,
+        roomHeights: state.roomHeights, gridStep: state.gridStep
+      };
+      proj.updatedAt = Date.now();
+      saveProjectsState();
     }, 250);
   }
-  function loadSaved(){
-    try{
-      var raw = localStorage.getItem(SAVE_KEY);
-      if(!raw) return;
-      var data = JSON.parse(raw);
-      state.walls = data.walls || [];
-      state.openings = data.openings || [];
-      state.zoneCuts = data.zoneCuts || [];
-      state.roomHeights = data.roomHeights || {};
-      state.gridStep = data.gridStep || 100;
-      document.getElementById("grid-select").value = String(state.gridStep);
-    }catch(e){}
+  function loadActiveProjectIntoState(){
+    var proj = getActiveProject();
+    var data = (proj && proj.data) || {};
+    state.walls = data.walls || [];
+    state.openings = data.openings || [];
+    state.zoneCuts = data.zoneCuts || [];
+    state.roomHeights = data.roomHeights || {};
+    state.gridStep = data.gridStep || 100;
+    document.getElementById("grid-select").value = String(state.gridStep);
   }
+
+  /* =====================================================================
+     PROJECT LIST SCREEN
+  ===================================================================== */
+  function fmtDate(iso){
+    if(!iso) return "";
+    var d = new Date(iso);
+    if(isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("nl-BE", {day:"numeric", month:"short", year:"numeric"});
+  }
+  function fmtTimestamp(ms){
+    if(!ms) return "";
+    return new Date(ms).toLocaleDateString("nl-BE", {day:"numeric", month:"short", year:"numeric"});
+  }
+  function showProjectList(){
+    document.getElementById("project-list-screen").classList.remove("hidden");
+    document.getElementById("app").style.display = "none";
+    renderProjectList();
+  }
+  function enterProject(id){
+    projectsState.activeId = id;
+    saveProjectsState();
+    loadActiveProjectIntoState();
+    undoStack.length = 0; redoStack.length = 0; updateUndoRedoButtons();
+    state.selection = null; state.dragState = null; state.drawing = null; state.zoneDraw = null;
+    state.camera = { x:0, y:0, scale:0.06 };
+    var proj = getActiveProject();
+    document.getElementById("app-title").innerHTML = "Offerte<span>Builder</span> — "+(proj?escapeHtml(proj.name):"");
+    document.getElementById("project-list-screen").classList.add("hidden");
+    document.getElementById("app").style.display = "flex";
+    resizeCanvas();
+    setTool("wall");
+  }
+  function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+
+  function renderProjectList(){
+    var grid = document.getElementById("pl-grid");
+    var sorted = projectsState.projects.slice().sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
+    document.getElementById("pl-empty").style.display = sorted.length ? "none" : "";
+    grid.innerHTML = sorted.map(function(p){
+      return '<div class="pl-card" data-id="'+p.id+'">'
+        + '<button class="edit-btn" data-edit-id="'+p.id+'" title="Bewerken">✎</button>'
+        + '<h3>'+escapeHtml(p.name || "Naamloos project")+'</h3>'
+        + (p.description ? '<p>'+escapeHtml(p.description)+'</p>' : '<p></p>')
+        + '<div class="meta">'
+        +   (p.planningDate ? '<span>Gepland: '+fmtDate(p.planningDate)+'</span>' : '')
+        +   '<span>Laatst gewijzigd: '+fmtTimestamp(p.updatedAt)+'</span>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+    grid.querySelectorAll(".pl-card").forEach(function(card){
+      card.addEventListener("click", function(e){
+        if(e.target.closest(".edit-btn")) return;
+        enterProject(card.dataset.id);
+      });
+    });
+    grid.querySelectorAll(".edit-btn").forEach(function(btn){
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
+        openProjectForm(btn.dataset.editId);
+      });
+    });
+  }
+
+  var pfBackdrop = document.getElementById("project-form-backdrop");
+  var pfPanel = document.getElementById("project-form-panel");
+  var pfEditingId = null;
+  function openProjectForm(editId){
+    pfEditingId = editId || null;
+    var proj = editId ? projectsState.projects.find(function(p){ return p.id===editId; }) : null;
+    document.getElementById("pf-title").textContent = proj ? "Project bewerken" : "Nieuw project";
+    document.getElementById("pf-name").value = proj ? proj.name : "";
+    document.getElementById("pf-desc").value = proj ? proj.description : "";
+    document.getElementById("pf-date").value = proj ? (proj.planningDate||"") : "";
+    document.getElementById("pf-delete").style.display = proj ? "" : "none";
+    pfBackdrop.classList.add("open");
+    pfPanel.classList.add("open");
+    document.getElementById("pf-name").focus();
+  }
+  function closeProjectForm(){
+    pfBackdrop.classList.remove("open");
+    pfPanel.classList.remove("open");
+    pfEditingId = null;
+  }
+  pfBackdrop.addEventListener("click", closeProjectForm);
+  document.getElementById("pf-save").addEventListener("click", function(){
+    var name = document.getElementById("pf-name").value.trim();
+    if(!name){ document.getElementById("pf-name").focus(); return; }
+    var desc = document.getElementById("pf-desc").value.trim();
+    var date = document.getElementById("pf-date").value;
+    if(pfEditingId){
+      var proj = projectsState.projects.find(function(p){ return p.id===pfEditingId; });
+      if(proj){ proj.name = name; proj.description = desc; proj.planningDate = date; proj.updatedAt = Date.now(); }
+    } else {
+      projectsState.projects.push({
+        id: uid("proj"), name: name, description: desc, planningDate: date,
+        createdAt: Date.now(), updatedAt: Date.now(),
+        data: { walls:[], openings:[], zoneCuts:[], roomHeights:{}, gridStep:100 }
+      });
+    }
+    saveProjectsState();
+    var wasNew = !pfEditingId;
+    var newId = wasNew ? projectsState.projects[projectsState.projects.length-1].id : pfEditingId;
+    closeProjectForm();
+    if(wasNew){ enterProject(newId); } else { renderProjectList(); }
+  });
+  document.getElementById("pf-delete").addEventListener("click", function(){
+    if(!pfEditingId) return;
+    if(!confirm("Dit project en alle bijhorende tekeningen definitief verwijderen?")) return;
+    projectsState.projects = projectsState.projects.filter(function(p){ return p.id!==pfEditingId; });
+    if(projectsState.activeId===pfEditingId) projectsState.activeId = null;
+    saveProjectsState();
+    closeProjectForm();
+    renderProjectList();
+  });
+  document.getElementById("pl-new-btn").addEventListener("click", function(){ openProjectForm(null); });
+  document.getElementById("back-to-projects-btn").addEventListener("click", showProjectList);
 
   /* =====================================================================
      EVENT HANDLING
@@ -2022,7 +2239,12 @@
       svg.push('<rect x="'+o.x1+'" y="'+oy+'" width="'+(o.x2-o.x1)+'" height="'+(o.y2-o.y1)+'" fill="#fde68a" stroke="#b45309" stroke-width="'+(unit*0.004)+'"/>');
     });
 
-    var railH = unit*0.014, studW = unit*0.014, studStroke = unit*0.003;
+    // stud/rail bar width tracks the actually-selected profile gauge
+    // (50/75/100mm) at true-to-wall scale, so switching gauges visibly
+    // changes the drawing instead of always rendering the same fixed
+    // schematic width - floored so it stays visible on a very large wall.
+    var studW = Math.max(gyprocStudGaugeMm, unit*0.006);
+    var railH = studW, studStroke = unit*0.003;
     svg.push('<polyline points="0,'+flipY(0)+' '+wallLenMm+','+flipY(0)+'" fill="none" stroke="rgba(234,179,8,0.7)" stroke-width="'+railH+'"/>');
     svg.push('<polyline points="'+poly.topEdge+'" fill="none" stroke="rgba(234,179,8,0.7)" stroke-width="'+railH+'"/>');
     studLayout.positions.forEach(function(p){
@@ -2493,9 +2715,12 @@
   /* =====================================================================
      INIT
   ===================================================================== */
-  loadSaved();
-  resizeCanvas();
-  setTool("wall");
+  loadProjectsState();
+  if(projectsState.activeId && getActiveProject()){
+    enterProject(projectsState.activeId);
+  } else {
+    showProjectList();
+  }
 })();
 </script>
 </body>
