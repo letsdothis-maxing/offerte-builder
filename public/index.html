@@ -319,7 +319,7 @@
   .ctype-btn{border:1px solid var(--line);background:var(--bg);color:var(--muted);padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;}
   .ctype-btn.active{background:rgba(47,111,235,.12);border-color:var(--blue);color:var(--blue-dark);}
   .status-select-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-  .status-select-row select{flex:1;min-width:160px;}
+  .status-select-row select{flex:1;min-width:160px;height:35px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
   .status-pill{display:inline-flex;align-items:center;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
   .status-pill.status-aanvraag{background:rgba(107,114,128,.14);color:#4b5563;}
   .status-pill.status-offerte_verstuurd{background:rgba(47,111,235,.14);color:#1f4fb8;}
@@ -330,7 +330,8 @@
   .pl-card .status-pill{margin-bottom:8px;}
   .info-section-label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:10px;}
   .info-field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
-  .info-field input[type=text],.info-field input[type=date]{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
+  .info-field input[type=text],.info-field input[type=date],.info-field input[type=number]{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
+  .info-field input[type=number]:disabled{background:var(--bg);color:var(--muted);cursor:not-allowed;}
   .info-card textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit;resize:vertical;color:var(--ink);background:var(--panel);}
   .info-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
   .info-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
@@ -378,6 +379,7 @@
   .offerte-client-line{font-size:13px;color:var(--muted);}
   .offerte-btw{display:flex;align-items:center;gap:8px;}
   .offerte-btw label{font-size:12px;color:var(--muted);}
+  .offerte-btw select{height:35px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
   .offerte-empty{padding:30px 0;text-align:center;color:var(--muted);font-size:14px;}
   .offerte-coats-row{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:16px;}
   .offerte-coats-field{display:flex;align-items:center;gap:8px;}
@@ -410,7 +412,8 @@
     select.tb-select,#opening-panel .field input,#gyproc-panel .field input,#project-form-panel .field input,#project-form-panel .field textarea,.mat-price-input{background:#0f1420;color:#e5e7eb;}
     .btn-danger{background:#3b1418;color:#fca5a5;}
     #save-status{background:#3b2a0f;color:#fbbf24;}
-    .info-field input,.info-card textarea,#offerte-btw-rate,.offerte-coats-field input{background:#0f1420;color:#e5e7eb;}
+    .info-field input,.info-card textarea,#offerte-btw-rate,.offerte-coats-field input,.status-select-row select{background:#0f1420;color:#e5e7eb;}
+    .info-field input[type=number]:disabled{background:#1a2233;color:#8993a8;}
     .offerte-warn{background:#3b2a0f;color:#fbbf24;}
     .offerte-table th{background:#0f1420;}
     .status-pill.status-aanvraag{color:#d1d5db;}
