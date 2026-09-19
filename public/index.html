@@ -271,6 +271,63 @@
   .gyproc-checkout-tabs .gyproc-tab.active .stat{color:var(--blue-dark);}
   .gyproc-checkout-tabs .gyproc-tab .stat.warn{color:#b45309;}
 
+  /* ---------- project tabs (Info / Grondplan / Offerte) ---------- */
+  #project-tabs{display:flex;gap:6px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;}
+  .ptab-btn{border:1px solid var(--line);background:var(--bg);color:var(--muted);padding:7px 18px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s,color .12s,border-color .12s;}
+  .ptab-btn:hover{background:#eef2f7;}
+  .ptab-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .ptab-page{display:none;flex:1;min-height:0;}
+  .ptab-page.active{display:flex;flex-direction:column;}
+  #ptab-info.active,#ptab-offerte.active{overflow:auto;}
+  #ptab-grondplan{overflow:hidden;}
+  #ptab-grondplan #stage{position:relative;flex:1;}
+
+  /* ---------- Info tab ---------- */
+  .info-tab-inner{max-width:640px;margin:0 auto;padding:28px 20px 60px;display:flex;flex-direction:column;gap:16px;width:100%;}
+  .info-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .info-card-head{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+  .client-avatar{flex-shrink:0;width:52px;height:52px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;letter-spacing:.02em;}
+  .client-headline{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
+  .info-name-input{border:none;background:transparent;font-size:17px;font-weight:700;color:var(--ink);padding:2px 0;width:100%;font-family:inherit;}
+  .info-name-input:focus{outline:none;border-bottom:1px solid var(--blue);}
+  .client-type-toggle{display:flex;gap:6px;}
+  .ctype-btn{border:1px solid var(--line);background:var(--bg);color:var(--muted);padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .ctype-btn.active{background:rgba(47,111,235,.12);border-color:var(--blue);color:var(--blue-dark);}
+  .info-section-label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:10px;}
+  .info-field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
+  .info-field input[type=text],.info-field input[type=date]{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
+  .info-card textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit;resize:vertical;color:var(--ink);background:var(--panel);}
+  .info-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .info-image-grid{display:flex;flex-wrap:wrap;gap:10px;}
+  .info-img-add,.info-img-thumb{width:84px;height:84px;border-radius:10px;flex-shrink:0;}
+  .info-img-add{border:1.5px dashed var(--line);background:var(--bg);color:var(--muted);font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;}
+  .info-img-add:hover{background:#eef2f7;color:var(--blue);border-color:var(--blue);}
+  .info-img-thumb{position:relative;overflow:hidden;border:1px solid var(--line);}
+  .info-img-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .info-img-del{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;border:none;background:rgba(17,24,39,.68);color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;}
+  .info-img-del:hover{background:rgba(185,28,28,.9);}
+  .info-img-status{font-size:12px;color:var(--muted);margin-top:8px;min-height:16px;}
+
+  /* ---------- Offerte tab ---------- */
+  .offerte-inner{max-width:760px;margin:0 auto;padding:28px 20px 60px;width:100%;}
+  .offerte-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap;}
+  .offerte-head h2{margin:0 0 4px;font-size:19px;}
+  .offerte-client-line{font-size:13px;color:var(--muted);}
+  .offerte-btw{display:flex;align-items:center;gap:8px;}
+  .offerte-btw label{font-size:12px;color:var(--muted);}
+  .offerte-empty{padding:30px 0;text-align:center;color:var(--muted);font-size:14px;}
+  .offerte-table-wrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;}
+  .offerte-table{width:100%;min-width:480px;border-collapse:collapse;font-size:13.5px;}
+  .offerte-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:10px 14px;border-bottom:1px solid var(--line);background:var(--bg);white-space:nowrap;}
+  .offerte-table td{padding:9px 14px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  .offerte-table tr:last-child td{border-bottom:none;}
+  .offerte-table td:nth-child(2),.offerte-table th:nth-child(2){text-align:center;width:70px;}
+  .offerte-table td:nth-child(3),.offerte-table th:nth-child(3),.offerte-table td:nth-child(4),.offerte-table th:nth-child(4){text-align:right;width:110px;}
+  .offerte-totals{margin-top:16px;margin-left:auto;max-width:320px;}
+  .offerte-totals-row{display:flex;justify-content:space-between;padding:6px 4px;font-size:13.5px;color:var(--muted);}
+  .offerte-totals-row.offerte-grand{border-top:1px solid var(--line);margin-top:6px;padding-top:10px;font-size:16px;font-weight:700;color:var(--ink);}
+  .offerte-warn{margin-top:16px;font-size:12.5px;color:#b45309;background:#fef3c7;padding:9px 12px;border-radius:8px;}
+
   @media (prefers-color-scheme: dark){
     :root{
       --ink:#e5e7eb;--bg:#0f1420;--panel:#161d2b;--line:#28324a;--muted:#8993a8;
@@ -280,6 +337,9 @@
     select.tb-select,#opening-panel .field input,#gyproc-panel .field input,#project-form-panel .field input,#project-form-panel .field textarea,.mat-price-input{background:#0f1420;color:#e5e7eb;}
     .btn-danger{background:#3b1418;color:#fca5a5;}
     #save-status{background:#3b2a0f;color:#fbbf24;}
+    .info-field input,.info-card textarea,#offerte-btw-rate{background:#0f1420;color:#e5e7eb;}
+    .offerte-warn{background:#3b2a0f;color:#fbbf24;}
+    .offerte-table th{background:#0f1420;}
   }
 
   /* ---------- mobile compaction ---------- */
@@ -290,6 +350,8 @@
     #app-title{font-size:14px;}
     #floating-nav .tbtn{padding:9px 11px;}
     #floating-topright{display:none;}
+    .info-grid-2{grid-template-columns:1fr;gap:14px;}
+    .info-tab-inner,.offerte-inner{padding:18px 14px 48px;}
   }
 </style>
 </head>
@@ -309,6 +371,59 @@
     </div>
   </div>
 
+  <div id="project-tabs">
+    <button class="ptab-btn" data-ptab="info">Info</button>
+    <button class="ptab-btn" data-ptab="grondplan">Grondplan</button>
+    <button class="ptab-btn" data-ptab="offerte">Offerte</button>
+  </div>
+
+  <div id="ptab-info" class="ptab-page">
+    <div class="info-tab-inner">
+      <div class="info-card">
+        <div class="info-card-head">
+          <div class="client-avatar" id="info-avatar">?</div>
+          <div class="client-headline">
+            <input type="text" id="info-client-name" class="info-name-input" placeholder="Naam klant" maxlength="80">
+            <div class="client-type-toggle">
+              <button type="button" class="ctype-btn" data-ctype="particulier">Particulier</button>
+              <button type="button" class="ctype-btn" data-ctype="zakelijk">Zakelijk</button>
+            </div>
+          </div>
+        </div>
+        <div class="info-field">
+          <label>Adres</label>
+          <input type="text" id="info-client-address" placeholder="Straat, postcode, gemeente" maxlength="160">
+        </div>
+      </div>
+
+      <div class="info-card">
+        <label class="info-section-label">Project omschrijving</label>
+        <textarea id="info-description" rows="4" placeholder="Beschrijf het project..."></textarea>
+      </div>
+
+      <div class="info-card info-grid-2">
+        <div class="info-field">
+          <label>Streefdatum</label>
+          <input type="date" id="info-planning-date">
+        </div>
+        <div class="info-field">
+          <label>Duration estimation</label>
+          <input type="text" id="info-duration" placeholder="bv. 2 weken" maxlength="40">
+        </div>
+      </div>
+
+      <div class="info-card">
+        <label class="info-section-label">Afbeeldingen voor aanvang</label>
+        <div class="info-image-grid" id="info-image-grid">
+          <button type="button" class="info-img-add" id="info-img-add-btn" title="Afbeelding toevoegen">+</button>
+        </div>
+        <input type="file" id="info-img-file" accept="image/*" multiple style="display:none;">
+        <div class="info-img-status" id="info-img-status"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ptab-grondplan" class="ptab-page">
   <div id="stage">
     <canvas id="canvas"></canvas>
 
@@ -338,6 +453,43 @@
       <button class="tbtn" data-tool="door"><span class="ic">🚪</span><span class="lbl">Deur</span></button>
       <button class="tbtn" data-tool="window"><span class="ic">🪟</span><span class="lbl">Raam</span></button>
       <button class="tbtn" data-tool="zone"><span class="ic">✂️</span><span class="lbl">Splitsen</span></button>
+    </div>
+  </div>
+  </div>
+
+  <div id="ptab-offerte" class="ptab-page">
+    <div class="offerte-inner">
+      <div class="offerte-head">
+        <div>
+          <h2 id="offerte-project-name">Offerte</h2>
+          <div class="offerte-client-line" id="offerte-client-line"></div>
+        </div>
+        <div class="offerte-btw">
+          <label for="offerte-btw-rate">Btw tarief</label>
+          <select id="offerte-btw-rate">
+            <option value="6">6%</option>
+            <option value="21" selected>21%</option>
+            <option value="0">0% (vrijgesteld)</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="offerte-empty" class="offerte-empty" style="display:none;">Nog geen muren getekend — ga naar Grondplan om je ontwerp te starten.</div>
+
+      <div class="offerte-table-wrap" id="offerte-table" style="overflow-x:auto;">
+        <table class="offerte-table">
+          <thead><tr><th>Materiaal</th><th>Aantal</th><th>Eenheidsprijs</th><th>Totaal</th></tr></thead>
+          <tbody id="offerte-table-body"></tbody>
+        </table>
+      </div>
+
+      <div class="offerte-totals" id="offerte-totals">
+        <div class="offerte-totals-row"><span>Subtotaal (excl. btw)</span><span id="offerte-subtotal">€ 0,00</span></div>
+        <div class="offerte-totals-row"><span id="offerte-btw-label">Btw (21%)</span><span id="offerte-btw-amount">€ 0,00</span></div>
+        <div class="offerte-totals-row offerte-grand"><span>Totaal (incl. btw)</span><span id="offerte-grand-total">€ 0,00</span></div>
+      </div>
+
+      <div class="offerte-warn" id="offerte-warn" style="display:none;">⚠ Voor sommige materialen ontbreekt een prijs — vul deze aan bij Materialen voor een volledige offerte.</div>
     </div>
   </div>
 </div>
@@ -442,6 +594,10 @@
     openings: [],   // {id,wallId,type:'door'|'window',t,width,height,sill}
     zoneCuts: [],   // {id,x1,y1,x2,y2}
     roomHeights: {},// key -> heightMm override
+    // Info-tab project metadata (per project, saved alongside walls/openings
+    // in the same proj.data blob - see loadActiveProjectIntoState/scheduleSave).
+    clientName: "", clientAddress: "", clientType: "particulier",
+    durationEstimate: "", beforeImages: [], btwRate: 21,
     camera: { x: 0, y: 0, scale: 0.06 }, // scale = px per mm
     selection: null,
     drawing: null,     // {points:[{x,y}]}
@@ -1451,7 +1607,9 @@
       if(!proj) return;
       proj.data = {
         walls: state.walls, openings: state.openings, zoneCuts: state.zoneCuts,
-        roomHeights: state.roomHeights, gridStep: state.gridStep
+        roomHeights: state.roomHeights, gridStep: state.gridStep,
+        clientName: state.clientName, clientAddress: state.clientAddress, clientType: state.clientType,
+        durationEstimate: state.durationEstimate, beforeImages: state.beforeImages, btwRate: state.btwRate
       };
       proj.updatedAt = Date.now();
       dbUpsertProject(projectToRow(proj)).catch(function(){
@@ -1475,6 +1633,12 @@
     state.roomHeights = data.roomHeights || {};
     state.gridStep = data.gridStep || 100;
     document.getElementById("grid-select").value = String(state.gridStep);
+    state.clientName = data.clientName || "";
+    state.clientAddress = data.clientAddress || "";
+    state.clientType = data.clientType || "particulier";
+    state.durationEstimate = data.durationEstimate || "";
+    state.beforeImages = data.beforeImages || [];
+    state.btwRate = data.btwRate != null ? data.btwRate : 21;
   }
 
   /* =====================================================================
@@ -1520,10 +1684,146 @@
     document.getElementById("app-title-name").textContent = proj?proj.name:"";
     document.getElementById("project-list-screen").classList.add("hidden");
     document.getElementById("app").style.display = "flex";
-    resizeCanvas();
     setTool("wall");
+    showPTab("info");
   }
   function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+
+  /* =====================================================================
+     PROJECT TABS (Info / Grondplan / Offerte)
+  ===================================================================== */
+  var activePTab = "info";
+  function showPTab(tab){
+    activePTab = tab;
+    document.querySelectorAll(".ptab-btn").forEach(function(btn){
+      btn.classList.toggle("active", btn.dataset.ptab===tab);
+    });
+    ["info","grondplan","offerte"].forEach(function(t){
+      document.getElementById("ptab-"+t).classList.toggle("active", t===tab);
+    });
+    if(tab==="grondplan") resizeCanvas();
+    else if(tab==="info") renderInfoTab();
+    else if(tab==="offerte") renderOfferteTab();
+  }
+  document.querySelectorAll(".ptab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){ showPTab(btn.dataset.ptab); });
+  });
+
+  /* ---------- Info tab ---------- */
+  function updateInfoAvatar(name){
+    var initials = (name||"").trim().split(/\s+/).filter(Boolean).slice(0,2)
+      .map(function(w){ return w[0].toUpperCase(); }).join("");
+    document.getElementById("info-avatar").textContent = initials || "?";
+  }
+  function renderInfoTab(){
+    var proj = getActiveProject();
+    if(!proj) return;
+    document.getElementById("info-client-name").value = state.clientName || "";
+    document.getElementById("info-client-address").value = state.clientAddress || "";
+    document.querySelectorAll(".ctype-btn").forEach(function(btn){
+      btn.classList.toggle("active", (state.clientType||"particulier")===btn.dataset.ctype);
+    });
+    document.getElementById("info-description").value = proj.description || "";
+    document.getElementById("info-planning-date").value = proj.planningDate || "";
+    document.getElementById("info-duration").value = state.durationEstimate || "";
+    updateInfoAvatar(state.clientName);
+    renderInfoImages();
+  }
+  document.getElementById("info-client-name").addEventListener("input", function(){
+    state.clientName = this.value;
+    updateInfoAvatar(state.clientName);
+    scheduleSave();
+  });
+  document.getElementById("info-client-address").addEventListener("input", function(){
+    state.clientAddress = this.value;
+    scheduleSave();
+  });
+  document.querySelectorAll(".ctype-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      state.clientType = btn.dataset.ctype;
+      document.querySelectorAll(".ctype-btn").forEach(function(b){ b.classList.toggle("active", b===btn); });
+      scheduleSave();
+    });
+  });
+  document.getElementById("info-description").addEventListener("input", function(){
+    var proj = getActiveProject();
+    if(!proj) return;
+    proj.description = this.value;
+    scheduleSave();
+  });
+  document.getElementById("info-planning-date").addEventListener("input", function(){
+    var proj = getActiveProject();
+    if(!proj) return;
+    proj.planningDate = this.value;
+    scheduleSave();
+  });
+  document.getElementById("info-duration").addEventListener("input", function(){
+    state.durationEstimate = this.value;
+    scheduleSave();
+  });
+
+  /* ---------- before-images (Supabase Storage, via /api/storage proxy) ---------- */
+  function renderInfoImages(){
+    var grid = document.getElementById("info-image-grid");
+    grid.querySelectorAll(".info-img-thumb").forEach(function(el){ el.remove(); });
+    var addBtn = document.getElementById("info-img-add-btn");
+    (state.beforeImages||[]).forEach(function(img){
+      var wrap = document.createElement("div");
+      wrap.className = "info-img-thumb";
+      wrap.innerHTML = '<img src="'+escapeHtml(img.url)+'" alt="">'
+        + '<button type="button" class="info-img-del" data-img-id="'+img.id+'" title="Verwijderen">✕</button>';
+      grid.insertBefore(wrap, addBtn);
+    });
+    grid.querySelectorAll(".info-img-del").forEach(function(btn){
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
+        deleteInfoImage(btn.dataset.imgId);
+      });
+    });
+  }
+  document.getElementById("info-img-add-btn").addEventListener("click", function(){
+    document.getElementById("info-img-file").click();
+  });
+  document.getElementById("info-img-file").addEventListener("change", async function(e){
+    var files = Array.prototype.slice.call(e.target.files || []);
+    this.value = "";
+    var statusEl = document.getElementById("info-img-status");
+    for(var i=0;i<files.length;i++){
+      statusEl.textContent = "Uploaden… ("+(i+1)+"/"+files.length+")";
+      await uploadInfoImage(files[i]);
+    }
+    statusEl.textContent = "";
+  });
+  async function uploadInfoImage(file){
+    var proj = getActiveProject();
+    if(!proj) return;
+    var extMatch = /\.([a-zA-Z0-9]+)$/.exec(file.name||"");
+    var ext = extMatch ? extMatch[1].toLowerCase() : "jpg";
+    var path = proj.id + "/" + uid("img") + "." + ext;
+    try{
+      var res = await fetch("/api/storage/object/project-images/"+path, {
+        method: "POST",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file
+      });
+      if(!res.ok) throw new Error("upload failed ("+res.status+")");
+      var img = { id: uid("img"), path: path, url: "/api/storage/object/public/project-images/"+path };
+      state.beforeImages = (state.beforeImages||[]).concat([img]);
+      renderInfoImages();
+      scheduleSave();
+    }catch(err){
+      showSaveError("⚠ Afbeelding uploaden mislukt");
+    }
+  }
+  function deleteInfoImage(imgId){
+    var img = (state.beforeImages||[]).find(function(i){ return i.id===imgId; });
+    state.beforeImages = (state.beforeImages||[]).filter(function(i){ return i.id!==imgId; });
+    renderInfoImages();
+    scheduleSave();
+    if(img && img.path){
+      fetch("/api/storage/object/project-images/"+img.path, { method:"DELETE" }).catch(function(){});
+    }
+  }
 
   function renderProjectList(){
     var grid = document.getElementById("pl-grid");
@@ -3153,6 +3453,142 @@
     document.getElementById("gpf-total").textContent = fmtEuro(gyprocSum+studsSum);
     document.getElementById("gpf-warn").style.display = anyMissing ? "" : "none";
   }
+
+  /* =====================================================================
+     OFFERTE TAB
+     Standalone, whole-project pricing bill: reuses the exact same
+     calculation engine as the gyproc drawer (computeRoomCornerPlan /
+     computeGyprocForSize / computeStudLayout / computeStudLengthOptions /
+     computeTrackLengthOptions), but runs it across EVERY room in the
+     project (not just whichever room the drawer was last opened on) and
+     always uses each material's lowest-waste ("Beste") option, since the
+     drawer's manual per-wall picks are transient UI state that's never
+     persisted - there's nothing stable to "reuse" across rooms/reloads.
+     Line items are aggregated by material SKU so identical materials
+     needed by different walls collapse into one priced line, like a real
+     supplier quote.
+  ===================================================================== */
+  function computeProjectOffer(){
+    var thicknessMm = parseFloat(document.getElementById("gyproc-thickness").value) || 12.5;
+    var faces = detectFaces(state.walls);
+    var covered = {};
+    var rooms = [];
+    faces.forEach(function(f){
+      var walls = f.wallIds
+        .map(function(id){ return state.walls.find(function(w){ return w.id===id; }); })
+        .filter(function(w){ return w && !w.excludeFromCalc; });
+      if(!walls.length) return;
+      walls.forEach(function(w){ covered[w.id] = true; });
+      rooms.push(walls);
+    });
+    state.walls.forEach(function(w){
+      if(w.excludeFromCalc || covered[w.id]) return;
+      rooms.push([w]);
+      covered[w.id] = true;
+    });
+
+    var lineItems = {};
+    function addLineItem(key, label, qty, unitPrice){
+      if(!lineItems[key]) lineItems[key] = { label:label, qty:0, unitPrice:unitPrice, missing:unitPrice==null };
+      lineItems[key].qty += qty;
+      if(unitPrice==null) lineItems[key].missing = true;
+    }
+
+    var anyWalls = false;
+    rooms.forEach(function(roomWalls){
+      var cornerPlan = computeRoomCornerPlan(roomWalls, gyprocStudGaugeMm);
+      roomWalls.forEach(function(w){
+        anyWalls = true;
+        var wallLenMm = wallLength(w);
+        var wallProfile = computeWallHeightProfile(w, state._lastZones, state._lastResolvedCuts);
+        var wallHeightMm = Math.max.apply(null, wallProfile.map(function(s){ return s.height; }));
+        var openingRects = state.openings.filter(function(o){ return o.wallId===w.id; })
+          .map(function(o){ return getOpeningLocalRect(o, wallLenMm); });
+
+        var results = PANEL_SIZES.map(function(sz){
+          return computeGyprocForSize(wallLenMm, wallHeightMm, openingRects, wallProfile, sz.w, sz.h, thicknessMm, sz.label);
+        });
+        results.sort(function(a,b){ return a.wastePct-b.wastePct; });
+        var bestPanel = results[0];
+        var szEntry = PANEL_SIZES.find(function(s){ return s.label===bestPanel.sizeLabel; });
+        addLineItem("gyproc:"+szEntry.w+"x"+szEntry.h, "Gyproc "+szEntry.label+" ("+thicknessMm+"mm)",
+          bestPanel.netPanels, materialPrices["gyproc:"+szEntry.w+"x"+szEntry.h]);
+
+        var studLayout = computeStudLayout(w, wallLenMm, openingRects, gyprocHohMm, wallProfile, cornerPlan[w.id]);
+        var studLengthOptions = computeStudLengthOptions(wallLenMm, wallProfile, studLayout);
+        var trackLengthOptions = computeTrackLengthOptions(wallLenMm, studLayout.horizontalMembers);
+        var bestStud = studLengthOptions[0];
+        var bestTrack = trackLengthOptions[0];
+        var studReserve = Math.ceil(bestStud.totalPieces*(1+STUD_RESERVE_PCT/100));
+        var trackReserve = Math.ceil(bestTrack.totalPieces*(1+STUD_RESERVE_PCT/100));
+        addLineItem("stud:"+bestStud.lengthMm+":"+gyprocStudGaugeMm, "Metal stud "+gyprocStudGaugeMm+"mm, "+(bestStud.lengthMm/10)+" cm",
+          studReserve, materialPrices["stud:"+bestStud.lengthMm+":"+gyprocStudGaugeMm]);
+        addLineItem("rail:"+bestTrack.pieceLenMm, "Rail (U-profiel), "+(bestTrack.pieceLenMm/10)+" cm",
+          trackReserve, materialPrices["rail:"+bestTrack.pieceLenMm]);
+      });
+    });
+
+    var anyMissing = false;
+    var items = Object.keys(lineItems).map(function(k){
+      var it = lineItems[k];
+      var unitPrice = it.unitPrice || 0;
+      var total = unitPrice * it.qty;
+      if(it.missing) anyMissing = true;
+      return { label:it.label, qty:it.qty, unitPrice:unitPrice, total:total, missing:it.missing };
+    });
+    items.sort(function(a,b){ return a.label.localeCompare(b.label); });
+    var subtotal = items.reduce(function(s,it){ return s+it.total; }, 0);
+
+    return { items:items, subtotal:subtotal, anyMissing:anyMissing, hasWalls:anyWalls };
+  }
+
+  function renderOfferteTab(){
+    var proj = getActiveProject();
+    if(!proj) return;
+    document.getElementById("offerte-project-name").textContent = "Offerte — " + (proj.name || "Naamloos project");
+    var clientBits = [];
+    if(state.clientName) clientBits.push(state.clientName);
+    if(state.clientAddress) clientBits.push(state.clientAddress);
+    document.getElementById("offerte-client-line").textContent = clientBits.join(" · ");
+    document.getElementById("offerte-btw-rate").value = String(state.btwRate);
+
+    var offer = computeProjectOffer();
+    var table = document.getElementById("offerte-table");
+    var totalsEl = document.getElementById("offerte-totals");
+    var emptyEl = document.getElementById("offerte-empty");
+    var warnEl = document.getElementById("offerte-warn");
+
+    if(!offer.hasWalls){
+      table.style.display = "none";
+      totalsEl.style.display = "none";
+      warnEl.style.display = "none";
+      emptyEl.style.display = "";
+      return;
+    }
+    emptyEl.style.display = "none";
+    table.style.display = "";
+    totalsEl.style.display = "";
+
+    document.getElementById("offerte-table-body").innerHTML = offer.items.map(function(it){
+      return "<tr><td>"+escapeHtml(it.label)+(it.missing?' <span style="color:#b45309;">(geen prijs)</span>':'')+"</td>"
+        + "<td>"+it.qty+"</td>"
+        + "<td>"+(it.missing?"—":fmtEuro(it.unitPrice))+"</td>"
+        + "<td>"+(it.missing?"—":fmtEuro(it.total))+"</td></tr>";
+    }).join("");
+
+    var btwRate = state.btwRate || 0;
+    var btwAmount = offer.subtotal * (btwRate/100);
+    document.getElementById("offerte-subtotal").textContent = fmtEuro(offer.subtotal);
+    document.getElementById("offerte-btw-label").textContent = "Btw ("+btwRate+"%)";
+    document.getElementById("offerte-btw-amount").textContent = fmtEuro(btwAmount);
+    document.getElementById("offerte-grand-total").textContent = fmtEuro(offer.subtotal+btwAmount);
+    warnEl.style.display = offer.anyMissing ? "" : "none";
+  }
+  document.getElementById("offerte-btw-rate").addEventListener("change", function(){
+    state.btwRate = parseFloat(this.value) || 0;
+    scheduleSave();
+    renderOfferteTab();
+  });
 
   // Metal studs are rendered as their OWN section with their OWN diagram
   // (separate from the gyproc plate diagram above, which was confusing when
