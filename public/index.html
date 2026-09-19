@@ -202,6 +202,7 @@
   /* ---------- materials page ---------- */
   .mat-section-title{font-size:14px;margin:26px 0 12px;}
   .mat-section-title:first-child{margin-top:0;}
+  .mat-subsection-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:16px 0 8px;}
   .mat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
   .mat-card{
     background:var(--panel);border:1px solid var(--line);border-radius:12px;
@@ -235,11 +236,16 @@
     position:fixed;top:0;right:0;height:100%;width:340px;max-width:88vw;
     background:var(--panel);box-shadow:-8px 0 30px rgba(0,0,0,.18);
     transform:translateX(100%);transition:transform .22s ease;z-index:50;
-    display:flex;flex-direction:column;padding:20px;overflow-y:auto;
+    display:flex;flex-direction:column;padding:0;
   }
   #gyproc-panel.open{transform:translateX(0);}
+  #gyproc-panel-scroll{flex:1;min-height:0;overflow-y:auto;padding:20px;}
   #gyproc-panel h2{font-size:16px;margin:0 0 4px;}
   #gyproc-panel .sub{font-size:12px;color:var(--muted);margin-bottom:18px;}
+  #gyproc-price-footer{flex-shrink:0;padding:14px 20px;border-top:1px solid var(--line);background:var(--panel);box-shadow:0 -6px 16px rgba(15,23,42,.06);}
+  .gpf-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:2px 0;}
+  .gpf-total{display:flex;justify-content:space-between;font-size:17px;font-weight:700;margin-top:6px;padding-top:6px;border-top:1px solid var(--line);}
+  .gpf-warn{font-size:11px;color:#b45309;margin-top:8px;}
   #gyproc-result{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;display:none;}
   #gyproc-result.show{display:block;}
   #gyproc-result .row{display:flex;justify-content:space-between;padding:4px 0;}
@@ -394,13 +400,21 @@
 
 <div id="gyproc-backdrop"></div>
 <div id="gyproc-panel">
-  <h2>Gyproc berekening</h2>
-  <div class="sub" id="gyproc-wall-info">Geen muur geselecteerd.</div>
-  <div class="field">
-    <label>Dikte</label>
-    <div class="row"><input type="number" id="gyproc-thickness" min="1" step="0.5" value="12.5"><span class="unit">mm</span></div>
+  <div id="gyproc-panel-scroll">
+    <h2>Gyproc berekening</h2>
+    <div class="sub" id="gyproc-wall-info">Geen muur geselecteerd.</div>
+    <div class="field">
+      <label>Dikte</label>
+      <div class="row"><input type="number" id="gyproc-thickness" min="1" step="0.5" value="12.5"><span class="unit">mm</span></div>
+    </div>
+    <div id="gyproc-result"></div>
   </div>
-  <div id="gyproc-result"></div>
+  <div id="gyproc-price-footer" style="display:none;">
+    <div class="gpf-row"><span>Gyproc platen</span><span id="gpf-gyproc">€ 0,00</span></div>
+    <div class="gpf-row"><span>Metal studs</span><span id="gpf-studs">€ 0,00</span></div>
+    <div class="gpf-total"><span>Totaal</span><span id="gpf-total">€ 0,00</span></div>
+    <div class="gpf-warn" id="gpf-warn" style="display:none;">⚠ Vul materiaalprijzen in bij Materialen voor een volledige offerte</div>
+  </div>
 </div>
 
 <script>
@@ -809,6 +823,7 @@
   ===================================================================== */
   function fmtM(mm){ return (mm/1000).toFixed(2)+" m"; }
   function fmtM2(mm2){ return (mm2/1000000).toFixed(2); }
+  function fmtEuro(n){ return "€ " + n.toLocaleString("nl-BE", {minimumFractionDigits:2, maximumFractionDigits:2}); }
 
   function render(){
     var W = canvas.width/dpr, H = canvas.height/dpr;
@@ -1437,19 +1452,25 @@
   }
   function renderMaterialsPage(){
     var host = document.getElementById("pl-page-materials");
-    host.innerHTML = ''
-      + '<h2 class="mat-section-title">Gyproc platen</h2>'
+    var html = '<h2 class="mat-section-title">Gyproc platen</h2>'
       + '<div class="mat-grid">' + PANEL_SIZES.map(function(sz){
           return materialCardHtml("gyproc:"+sz.w+"x"+sz.h, sz.label, "Gyproc plaat");
-        }).join('') + '</div>'
-      + '<h2 class="mat-section-title">Metal studs — lengtes</h2>'
-      + '<div class="mat-grid">' + STUD_LENGTHS.map(function(l){
-          return materialCardHtml("stud-length:"+l, (l/10)+" cm", "Verticale C-profiel, lengte");
-        }).join('') + '</div>'
-      + '<h2 class="mat-section-title">Metal studs — diktes</h2>'
-      + '<div class="mat-grid">' + STUD_GAUGES.map(function(g){
-          return materialCardHtml("stud-gauge:"+g, g+" mm", "Profielbreedte (dikte)");
         }).join('') + '</div>';
+    // studs of the same LENGTH only differ by dikte (gauge) - price per
+    // (lengte, dikte) combination, not two independent flat lists, since
+    // a 260cm/50mm profile and a 260cm/100mm profile are different SKUs.
+    html += '<h2 class="mat-section-title">Metal studs</h2>';
+    STUD_LENGTHS.forEach(function(l){
+      html += '<h3 class="mat-subsection-title">'+(l/10)+' cm</h3>'
+        + '<div class="mat-grid">' + STUD_GAUGES.map(function(g){
+            return materialCardHtml("stud:"+l+":"+g, g+" mm", "Dikte bij "+(l/10)+" cm lengte");
+          }).join('') + '</div>';
+    });
+    html += '<h3 class="mat-subsection-title">Horizontale rails</h3>'
+      + '<div class="mat-grid">' + TRACK_LENGTHS.map(function(l){
+          return materialCardHtml("rail:"+l, (l/10)+" cm", "Horizontaal U-profiel, lengte");
+        }).join('') + '</div>';
+    host.innerHTML = html;
     host.querySelectorAll(".mat-price-input").forEach(function(inp){
       inp.addEventListener("change", function(){
         var key = inp.dataset.key;
@@ -2116,7 +2137,7 @@
     { w:3000, h:1200, label:"3000 x 1200 mm" },
     { w:2600, h:600,  label:"2600 x 600 mm" }
   ];
-  var STUD_LENGTHS = [2600, 3000, 3600];  // mm, standard vertical C-profile lengths
+  var STUD_LENGTHS = [2600, 3000, 4000];  // mm, standard vertical C-profile lengths
   var TRACK_LENGTHS = [2600, 3000, 4000]; // mm, standard horizontal U-profile (rail) lengths
   var STUD_GAUGES = [50, 75, 100];        // mm, standard C/U-profile web widths
   var STUD_RESERVE_PCT = 5;               // snijverlies/reserve margin (brainstorm: 5-10%)
@@ -2748,6 +2769,43 @@
       gyprocStudGaugeMm = parseInt(gaugeEl.value,10) || 50;
       renderGyprocResults();
     });
+    updateGyprocPriceFooter(active);
+  }
+
+  // Fixed footer at the bottom of the gyproc drawer (outside the scrolling
+  // content area, so it's always visible): a per-wall offerte price, built
+  // from the SAME material prices entered on the Materialen page, matched
+  // to whichever format/length/gauge tab is currently active - so it
+  // always reflects exactly what's shown on screen. Uses the reserve-
+  // inclusive stud/rail purchase counts (what would actually be bought),
+  // gyproc has no separate reserve concept so netPanels is used as-is.
+  function updateGyprocPriceFooter(active){
+    var footer = document.getElementById("gyproc-price-footer");
+    if(!gyprocStudLayout || !gyprocStudLengthOptions || !gyprocTrackLengthOptions){
+      footer.style.display = "none";
+      return;
+    }
+    footer.style.display = "";
+
+    var szEntry = PANEL_SIZES.find(function(s){ return s.label===active.sizeLabel; });
+    var gyprocPrice = szEntry ? materialPrices["gyproc:"+szEntry.w+"x"+szEntry.h] : undefined;
+    var gyprocSubtotal = (gyprocPrice||0) * active.netPanels;
+
+    var activeStud = gyprocStudLengthOptions[gyprocStudActiveIndex] || gyprocStudLengthOptions[0];
+    var activeTrack = gyprocTrackLengthOptions[gyprocTrackActiveIndex] || gyprocTrackLengthOptions[0];
+    var studReserve = Math.ceil(activeStud.totalPieces*(1+STUD_RESERVE_PCT/100));
+    var trackReserve = Math.ceil(activeTrack.totalPieces*(1+STUD_RESERVE_PCT/100));
+    var studPrice = materialPrices["stud:"+activeStud.lengthMm+":"+gyprocStudGaugeMm];
+    var railPrice = materialPrices["rail:"+activeTrack.pieceLenMm];
+    var studsSubtotal = (studPrice||0)*studReserve + (railPrice||0)*trackReserve;
+
+    var total = gyprocSubtotal + studsSubtotal;
+    var missingPrice = gyprocPrice==null || studPrice==null || railPrice==null;
+
+    document.getElementById("gpf-gyproc").textContent = fmtEuro(gyprocSubtotal);
+    document.getElementById("gpf-studs").textContent = fmtEuro(studsSubtotal);
+    document.getElementById("gpf-total").textContent = fmtEuro(total);
+    document.getElementById("gpf-warn").style.display = missingPrice ? "" : "none";
   }
 
   // Metal studs are rendered as their OWN section with their OWN diagram
