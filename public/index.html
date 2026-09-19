@@ -191,6 +191,28 @@
   .pl-nav-btn:hover{background:var(--bg);}
   .pl-nav-btn.active{background:var(--blue);color:#fff;}
 
+  /* ---------- planning page ---------- */
+  #planning-controls{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+  .planning-view-toggle{display:flex;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;}
+  .planning-view-btn{border:none;background:none;color:var(--muted);padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .planning-view-btn.active{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(15,23,42,.15);}
+  .planning-nav{display:flex;align-items:center;gap:10px;}
+  #planning-range-label{font-size:14px;font-weight:700;min-width:140px;text-align:center;}
+  #planning-scroll{overflow-x:auto;padding-bottom:10px;}
+  .planning-timeline{display:inline-block;min-width:100%;}
+  .planning-header-row{display:flex;border-bottom:2px solid var(--line);margin-bottom:6px;}
+  .planning-col-header{flex-shrink:0;text-align:center;font-size:11px;color:var(--muted);padding:6px 4px;font-weight:600;text-transform:capitalize;}
+  .planning-col-header.today{color:var(--blue);}
+  .planning-rows{position:relative;}
+  .planning-row{position:relative;height:38px;}
+  .planning-event{
+    position:absolute;top:4px;height:30px;background:rgba(47,111,235,.14);border:1px solid var(--blue);color:var(--blue-dark);
+    border-radius:8px;font-size:12px;font-weight:600;padding:0 10px;display:flex;align-items:center;
+    overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;transition:background .12s;
+  }
+  .planning-event:hover{background:rgba(47,111,235,.26);}
+  #planning-grid .pl-empty{padding:40px 20px;}
+
   /* ---------- materials page ---------- */
   .mat-section-title{font-size:14px;margin:26px 0 12px;}
   .mat-section-title:first-child{margin-top:0;}
@@ -300,6 +322,9 @@
   .info-field input[type=text],.info-field input[type=date]{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
   .info-card textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit;resize:vertical;color:var(--ink);background:var(--panel);}
   .info-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .info-duration-row{display:flex;gap:8px;}
+  .info-duration-row input[type=number]{width:80px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;color:var(--ink);background:var(--panel);}
+  .info-duration-row select{flex:1;padding:8px 10px;}
   .info-address-grid{
     display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px;
     grid-template-areas:"street street number addition" "postal city city country";
@@ -395,6 +420,7 @@
     <span id="save-status" style="display:none;"></span>
     <div class="tb-group" style="margin-left:auto;">
       <button class="tbtn" id="gyproc-btn"><span class="ic">🧮</span><span class="lbl">Berekenen</span></button>
+      <button class="tbtn" id="export-btn"><span class="ic">🖼️</span><span class="lbl">Exporteer</span></button>
       <button class="tbtn" id="clear-btn"><span class="ic">🗑</span><span class="lbl">Wis alles</span></button>
     </div>
   </div>
@@ -444,8 +470,15 @@
           <input type="date" id="info-planning-date">
         </div>
         <div class="info-field">
-          <label>Duration estimation</label>
-          <input type="text" id="info-duration" placeholder="bv. 2 weken" maxlength="40">
+          <label>Geschatte doorlooptijd</label>
+          <div class="info-duration-row">
+            <input type="number" min="0" step="1" id="info-duration-value" placeholder="0">
+            <select id="info-duration-unit" class="tb-select">
+              <option value="dagen">dagen</option>
+              <option value="weken" selected>weken</option>
+              <option value="maanden">maanden</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -591,9 +624,27 @@
       <div id="pl-grid" class="pl-grid"></div>
     </div>
     <div id="pl-page-materials" style="display:none;"></div>
+    <div id="pl-page-planning" style="display:none;">
+      <div id="planning-controls">
+        <div class="planning-view-toggle">
+          <button type="button" class="planning-view-btn" data-range="dag">Dag</button>
+          <button type="button" class="planning-view-btn" data-range="week">Week</button>
+          <button type="button" class="planning-view-btn active" data-range="maand">Maand</button>
+          <button type="button" class="planning-view-btn" data-range="jaar">Jaar</button>
+        </div>
+        <div class="planning-nav">
+          <button type="button" class="tbtn" id="planning-prev">←</button>
+          <div id="planning-range-label"></div>
+          <button type="button" class="tbtn" id="planning-next">→</button>
+          <button type="button" class="tbtn" id="planning-today">Vandaag</button>
+        </div>
+      </div>
+      <div id="planning-scroll"><div id="planning-grid"></div></div>
+    </div>
   </div>
   <div id="pl-bottom-nav">
     <button class="pl-nav-btn active" data-page="projects"><span class="ic">🗂️</span>Projecten</button>
+    <button class="pl-nav-btn" data-page="planning"><span class="ic">📅</span>Planning</button>
     <button class="pl-nav-btn" data-page="materials"><span class="ic">💶</span>Materialen</button>
   </div>
 </div>
@@ -687,7 +738,7 @@
     clientName: "", clientType: "particulier",
     clientStreet: "", clientHouseNumber: "", clientAddressAddition: "",
     clientPostalCode: "", clientCity: "", clientCountry: "België",
-    durationEstimate: "", beforeImages: [], btwRate: 21,
+    durationValue: 1, durationUnit: "weken", beforeImages: [], btwRate: 21,
     // gyproc defaults true (pre-existing projects already relied on it being
     // calculated/billed); verven/primer are opt-in add-ons so they default off.
     services: { gyproc: true, verven: false, primer: false },
@@ -1084,6 +1135,26 @@
   function fmtM(mm){ return (mm/1000).toFixed(2)+" m"; }
   function fmtM2(mm2){ return (mm2/1000000).toFixed(2); }
   function fmtEuro(n){ return "€ " + n.toLocaleString("nl-BE", {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+  // Best-effort parse of the old free-text "duration estimation" field
+  // (e.g. "2 weken", "10 dagen") into the new structured {value,unit} -
+  // only used once, as a migration fallback for projects saved before the
+  // Planning tab needed a real, computable duration.
+  function parseDurationEstimate(text){
+    if(!text) return null;
+    var m = /(\d+(?:[.,]\d+)?)\s*(dag|dagen|week|weken|maand|maanden)/i.exec(text);
+    if(!m) return null;
+    var value = parseFloat(m[1].replace(",", "."));
+    var unitRaw = m[2].toLowerCase();
+    var unit = /^dag/.test(unitRaw) ? "dagen" : /^week/.test(unitRaw) ? "weken" : "maanden";
+    return { value: value, unit: unit };
+  }
+  function durationToDays(value, unit){
+    var v = value || 0;
+    if(unit==="weken") return v*7;
+    if(unit==="maanden") return v*30;
+    return v;
+  }
 
   function render(){
     var W = canvas.width/dpr, H = canvas.height/dpr;
@@ -1730,7 +1801,7 @@
         clientStreet: state.clientStreet, clientHouseNumber: state.clientHouseNumber,
         clientAddressAddition: state.clientAddressAddition, clientPostalCode: state.clientPostalCode,
         clientCity: state.clientCity, clientCountry: state.clientCountry,
-        durationEstimate: state.durationEstimate, beforeImages: state.beforeImages, btwRate: state.btwRate,
+        durationValue: state.durationValue, durationUnit: state.durationUnit, beforeImages: state.beforeImages, btwRate: state.btwRate,
         services: state.services, paintCoats: state.paintCoats, primerCoats: state.primerCoats,
         travelDistanceKm: state.travelDistanceKm, travelDistanceAddress: state.travelDistanceAddress,
         travelDistanceIsEstimate: state.travelDistanceIsEstimate, travelRatePerKm: state.travelRatePerKm,
@@ -1769,7 +1840,17 @@
     state.clientPostalCode = data.clientPostalCode || "";
     state.clientCity = data.clientCity || "";
     state.clientCountry = data.clientCountry || "België";
-    state.durationEstimate = data.durationEstimate || "";
+    // structured duration replaces the old free-text field - best-effort
+    // parse a legacy value once so existing projects don't silently lose
+    // their estimate, otherwise a sane default.
+    if(data.durationValue != null && data.durationUnit){
+      state.durationValue = data.durationValue;
+      state.durationUnit = data.durationUnit;
+    } else {
+      var legacyParsed = parseDurationEstimate(data.durationEstimate);
+      state.durationValue = legacyParsed ? legacyParsed.value : 1;
+      state.durationUnit = legacyParsed ? legacyParsed.unit : "weken";
+    }
     state.beforeImages = data.beforeImages || [];
     state.btwRate = data.btwRate != null ? data.btwRate : 21;
     state.services = {
@@ -1811,13 +1892,171 @@
     });
     document.getElementById("pl-page-projects").style.display = page==="projects" ? "" : "none";
     document.getElementById("pl-page-materials").style.display = page==="materials" ? "" : "none";
+    document.getElementById("pl-page-planning").style.display = page==="planning" ? "" : "none";
     document.getElementById("pl-new-btn").style.display = page==="projects" ? "" : "none";
-    document.getElementById("pl-title").innerHTML = "Offerte<span>Builder</span> — "+(page==="materials"?"Materialen":"Projecten");
+    var pageTitle = page==="materials" ? "Materialen" : page==="planning" ? "Planning" : "Projecten";
+    document.getElementById("pl-title").innerHTML = "Offerte<span>Builder</span> — "+pageTitle;
     if(page==="projects") renderProjectList();
-    else renderMaterialsPage();
+    else if(page==="materials") renderMaterialsPage();
+    else renderPlanningPage();
   }
   document.querySelectorAll(".pl-nav-btn").forEach(function(btn){
     btn.addEventListener("click", function(){ showPlPage(btn.dataset.page); });
+  });
+
+  /* =====================================================================
+     PLANNING TAB
+     A lightweight horizontal-timeline Gantt (not a wrapping month grid -
+     that would need multi-day bars to wrap across week-row boundaries,
+     which is a lot of extra layout complexity for little real benefit
+     here). Every project with a streefdatum becomes one bar spanning
+     [planningDate, planningDate + doorlooptijd), greedily packed into
+     rows so overlapping projects stack instead of colliding.
+  ===================================================================== */
+  var planningRange = "maand"; // 'dag'|'week'|'maand'|'jaar'
+  var planningAnchorDate = new Date();
+  var PLANNING_DAY_NAMES = ["Ma","Di","Wo","Do","Vr","Za","Zo"];
+
+  function addDays(d, n){ var r = new Date(d); r.setDate(r.getDate()+n); return r; }
+  function addMonths(d, n){ var r = new Date(d); r.setMonth(r.getMonth()+n); return r; }
+  function startOfWeek(d){ var r = new Date(d.getFullYear(),d.getMonth(),d.getDate()); var day=(r.getDay()+6)%7; r.setDate(r.getDate()-day); return r; }
+  function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function daysInMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
+  function parseISODate(s){
+    if(!s) return null;
+    var parts = s.split("-").map(Number);
+    if(parts.length!==3 || parts.some(isNaN)) return null;
+    return new Date(parts[0], parts[1]-1, parts[2]);
+  }
+
+  function getProjectDurationDays(proj){
+    var data = proj.data || {};
+    if(data.durationValue!=null && data.durationUnit){
+      var d = durationToDays(data.durationValue, data.durationUnit);
+      if(d>0) return Math.max(1, Math.round(d));
+    }
+    return 1; // no (parseable) duration set - render as a single-day event
+  }
+  function buildPlanningEvents(){
+    return projectsState.projects.filter(function(p){ return p.planningDate && parseISODate(p.planningDate); }).map(function(p){
+      var start = parseISODate(p.planningDate);
+      var end = addDays(start, getProjectDurationDays(p)-1);
+      return { id: p.id, name: p.name || "Naamloos project", start: start, end: end };
+    });
+  }
+  // Greedy interval packing: each project goes in the first row whose last
+  // placed event ends before this one starts, else it opens a new row.
+  function packEventsIntoRows(events){
+    var rows = [];
+    events.slice().sort(function(a,b){ return a.startIdx-b.startIdx; }).forEach(function(ev){
+      for(var i=0;i<rows.length;i++){
+        var row = rows[i];
+        if(row[row.length-1].endIdx < ev.startIdx){ row.push(ev); return; }
+      }
+      rows.push([ev]);
+    });
+    return rows;
+  }
+  function formatPlanningRangeLabel(windowStart, unitType, numUnits){
+    if(unitType==="month") return windowStart.getFullYear();
+    if(numUnits===1) return windowStart.toLocaleDateString("nl-BE", {day:"numeric", month:"long", year:"numeric"});
+    if(numUnits<=7){
+      var last = addDays(windowStart, numUnits-1);
+      return windowStart.toLocaleDateString("nl-BE",{day:"numeric",month:"short"})+" – "+last.toLocaleDateString("nl-BE",{day:"numeric",month:"short",year:"numeric"});
+    }
+    return windowStart.toLocaleDateString("nl-BE", {month:"long", year:"numeric"});
+  }
+  function renderPlanningPage(){
+    document.querySelectorAll(".planning-view-btn").forEach(function(btn){
+      btn.classList.toggle("active", btn.dataset.range===planningRange);
+    });
+
+    var windowStart, numUnits, unitType;
+    if(planningRange==="dag"){ windowStart = new Date(planningAnchorDate.getFullYear(),planningAnchorDate.getMonth(),planningAnchorDate.getDate()); numUnits=1; unitType="day"; }
+    else if(planningRange==="week"){ windowStart = startOfWeek(planningAnchorDate); numUnits=7; unitType="day"; }
+    else if(planningRange==="jaar"){ windowStart = new Date(planningAnchorDate.getFullYear(),0,1); numUnits=12; unitType="month"; }
+    else { windowStart = startOfMonth(planningAnchorDate); numUnits=daysInMonth(planningAnchorDate); unitType="day"; }
+
+    document.getElementById("planning-range-label").textContent = formatPlanningRangeLabel(windowStart, unitType, numUnits);
+
+    var events = buildPlanningEvents();
+    var visible = events.map(function(ev){
+      var s, e;
+      if(unitType==="month"){
+        s = (ev.start.getFullYear()-windowStart.getFullYear())*12 + (ev.start.getMonth()-windowStart.getMonth());
+        e = (ev.end.getFullYear()-windowStart.getFullYear())*12 + (ev.end.getMonth()-windowStart.getMonth());
+      } else {
+        s = Math.round((ev.start-windowStart)/86400000);
+        e = Math.round((ev.end-windowStart)/86400000);
+      }
+      if(e<0 || s>numUnits-1) return null;
+      return { id:ev.id, name:ev.name, startIdx:Math.max(0,s), endIdx:Math.min(numUnits-1,e) };
+    }).filter(Boolean);
+
+    var today = new Date(); today.setHours(0,0,0,0);
+    var todayIdx = -1;
+    if(unitType==="month"){
+      var mdiff = (today.getFullYear()-windowStart.getFullYear())*12+(today.getMonth()-windowStart.getMonth());
+      if(mdiff>=0 && mdiff<numUnits) todayIdx = mdiff;
+    } else {
+      var ddiff = Math.round((today-windowStart)/86400000);
+      if(ddiff>=0 && ddiff<numUnits) todayIdx = ddiff;
+    }
+
+    var colWidth = unitType==="month" ? 90 : (planningRange==="dag" ? 320 : planningRange==="week" ? 140 : 40);
+    var headerHtml = '<div class="planning-header-row">' + Array.from({length:numUnits}).map(function(_,i){
+      var label;
+      if(unitType==="month"){
+        label = addMonths(windowStart,i).toLocaleDateString("nl-BE",{month:"short"});
+      } else {
+        var d = addDays(windowStart,i);
+        label = planningRange==="week" ? (PLANNING_DAY_NAMES[(d.getDay()+6)%7]+" "+d.getDate()) : String(d.getDate());
+      }
+      return '<div class="planning-col-header'+(i===todayIdx?' today':'')+'" style="width:'+colWidth+'px;">'+label+'</div>';
+    }).join('') + '</div>';
+
+    var rows = packEventsIntoRows(visible);
+    var gridWidth = numUnits*colWidth;
+    var rowsHtml = rows.map(function(row){
+      return '<div class="planning-row">' + row.map(function(ev){
+        var left = ev.startIdx*colWidth;
+        var width = (ev.endIdx-ev.startIdx+1)*colWidth - 6;
+        return '<div class="planning-event" style="left:'+left+'px;width:'+width+'px;" data-project-id="'+ev.id+'" title="'+escapeHtml(ev.name)+'">'+escapeHtml(ev.name)+'</div>';
+      }).join('') + '</div>';
+    }).join('');
+
+    var host = document.getElementById("planning-grid");
+    host.innerHTML = '<div class="planning-timeline" style="min-width:'+gridWidth+'px;">'
+      + headerHtml
+      + (rows.length ? '<div class="planning-rows">'+rowsHtml+'</div>' : '<div class="pl-empty">Geen projecten met een streefdatum in deze periode.</div>')
+      + '</div>';
+    host.querySelectorAll(".planning-event").forEach(function(el){
+      el.addEventListener("click", function(){ enterProject(el.dataset.projectId); });
+    });
+  }
+  document.querySelectorAll(".planning-view-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      planningRange = btn.dataset.range;
+      renderPlanningPage();
+    });
+  });
+  document.getElementById("planning-prev").addEventListener("click", function(){
+    if(planningRange==="dag") planningAnchorDate = addDays(planningAnchorDate,-1);
+    else if(planningRange==="week") planningAnchorDate = addDays(planningAnchorDate,-7);
+    else if(planningRange==="jaar") planningAnchorDate = addMonths(planningAnchorDate,-12);
+    else planningAnchorDate = addMonths(planningAnchorDate,-1);
+    renderPlanningPage();
+  });
+  document.getElementById("planning-next").addEventListener("click", function(){
+    if(planningRange==="dag") planningAnchorDate = addDays(planningAnchorDate,1);
+    else if(planningRange==="week") planningAnchorDate = addDays(planningAnchorDate,7);
+    else if(planningRange==="jaar") planningAnchorDate = addMonths(planningAnchorDate,12);
+    else planningAnchorDate = addMonths(planningAnchorDate,1);
+    renderPlanningPage();
+  });
+  document.getElementById("planning-today").addEventListener("click", function(){
+    planningAnchorDate = new Date();
+    renderPlanningPage();
   });
   function enterProject(id){
     projectsState.activeId = id;
@@ -2000,7 +2239,8 @@
     });
     document.getElementById("info-description").value = proj.description || "";
     document.getElementById("info-planning-date").value = proj.planningDate || "";
-    document.getElementById("info-duration").value = state.durationEstimate || "";
+    document.getElementById("info-duration-value").value = state.durationValue != null ? state.durationValue : "";
+    document.getElementById("info-duration-unit").value = state.durationUnit || "weken";
     document.getElementById("svc-gyproc").checked = !!state.services.gyproc;
     document.getElementById("svc-verven").checked = !!state.services.verven;
     document.getElementById("svc-primer").checked = !!state.services.primer;
@@ -2063,8 +2303,12 @@
     proj.planningDate = this.value;
     scheduleSave();
   });
-  document.getElementById("info-duration").addEventListener("input", function(){
-    state.durationEstimate = this.value;
+  document.getElementById("info-duration-value").addEventListener("input", function(){
+    state.durationValue = Math.max(0, parseFloat(this.value)||0);
+    scheduleSave();
+  });
+  document.getElementById("info-duration-unit").addEventListener("change", function(){
+    state.durationUnit = this.value;
     scheduleSave();
   });
   document.getElementById("svc-gyproc").addEventListener("change", function(){
@@ -2407,6 +2651,24 @@
     state.gridStep = parseInt(this.value,10);
     scheduleSave();
     render();
+  });
+
+  // Export lives in the shared topbar (reachable from any tab, like
+  // Berekenen/Wis alles already are) - if the Grondplan tab was never
+  // opened this session its #stage has zero layout size (display:none
+  // ancestor), so switch to it first and wait a frame for the browser to
+  // apply the layout change before resizing/capturing the canvas.
+  document.getElementById("export-btn").addEventListener("click", function(){
+    if(activePTab !== "grondplan") showPTab("grondplan");
+    requestAnimationFrame(function(){
+      resizeCanvas();
+      var proj = getActiveProject();
+      var name = ((proj && proj.name) || "grondplan").trim().replace(/[^a-z0-9]+/gi, "_").toLowerCase() || "grondplan";
+      var link = document.createElement("a");
+      link.download = name + "-grondplan.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    });
   });
 
   document.getElementById("clear-btn").addEventListener("click", function(){
