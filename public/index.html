@@ -349,6 +349,15 @@
   .info-addr-country{grid-area:country;}
   .info-distance-hint{font-size:12.5px;color:var(--muted);margin-top:10px;min-height:16px;}
   .info-distance-hint.warn{color:#b45309;}
+  .settings-address-grid{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:12px;
+    grid-template-areas:"street street street number" "postal city city country";
+  }
+  .settings-addr-street{grid-area:street;}
+  .settings-addr-number{grid-area:number;}
+  .settings-addr-postal{grid-area:postal;}
+  .settings-addr-city{grid-area:city;}
+  .settings-addr-country{grid-area:country;}
   .info-image-grid{display:flex;flex-wrap:wrap;gap:10px;}
   .info-img-add,.info-img-thumb{width:84px;height:84px;border-radius:10px;flex-shrink:0;}
   .info-img-add{border:1.5px dashed var(--line);background:var(--bg);color:var(--muted);font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;}
@@ -424,6 +433,7 @@
     .info-grid-3{grid-template-columns:1fr 1fr;gap:14px;}
     .info-tab-inner,.offerte-inner{padding:18px 14px 48px;}
     .info-address-grid{grid-template-columns:1fr 1fr;grid-template-areas:"street street" "number addition" "postal city" "country country";gap:10px;}
+    .settings-address-grid{grid-template-columns:1fr 1fr;grid-template-areas:"street street" "number postal" "city country";gap:10px;}
   }
 </style>
 </head>
@@ -690,7 +700,13 @@
             <div class="info-field"><label>Zaaknaam</label><input type="text" id="settings-company-name" maxlength="120"></div>
             <div class="info-field"><label>Email</label><input type="email" id="settings-email" maxlength="120"></div>
           </div>
-          <div class="info-field" style="margin-top:16px;"><label>Adres</label><input type="text" id="settings-address" maxlength="160"></div>
+          <div class="settings-address-grid" style="margin-top:16px;">
+            <div class="info-field settings-addr-street"><label>Straat</label><input type="text" id="settings-street" maxlength="80"></div>
+            <div class="info-field settings-addr-number"><label>Nr.</label><input type="text" id="settings-house-number" maxlength="10"></div>
+            <div class="info-field settings-addr-postal"><label>Postcode</label><input type="text" id="settings-postal-code" maxlength="10"></div>
+            <div class="info-field settings-addr-city"><label>Stad</label><input type="text" id="settings-city" maxlength="60"></div>
+            <div class="info-field settings-addr-country"><label>Land</label><input type="text" id="settings-country" maxlength="60"></div>
+          </div>
           <div class="info-grid-2" style="margin-top:16px;">
             <div class="info-field"><label>Telefoonnummer</label><input type="text" id="settings-phone" maxlength="40"></div>
             <div class="info-field"><label>BTW nummer</label><input type="text" id="settings-vat" maxlength="30"></div>
@@ -1774,7 +1790,10 @@
   // up in the project list, planning view, or anywhere else that iterates
   // real projects.
   var SETTINGS_ROW_ID = "__app_settings__";
-  var DEFAULT_APP_SETTINGS = { companyName:"", email:"", address:"", phone:"", vatNumber:"", hourlyRate:0, kmRate:0 };
+  var DEFAULT_APP_SETTINGS = {
+    companyName:"", email:"", phone:"", vatNumber:"", hourlyRate:0, kmRate:0,
+    street:"", houseNumber:"", postalCode:"", city:"", country:"België"
+  };
   var appSettings = Object.assign({}, DEFAULT_APP_SETTINGS);
   var settingsSaveTimer = null;
   function scheduleSettingsSave(){
@@ -2062,17 +2081,28 @@
   function renderSettingsPage(){
     document.getElementById("settings-company-name").value = appSettings.companyName || "";
     document.getElementById("settings-email").value = appSettings.email || "";
-    document.getElementById("settings-address").value = appSettings.address || "";
+    document.getElementById("settings-street").value = appSettings.street || "";
+    document.getElementById("settings-house-number").value = appSettings.houseNumber || "";
+    document.getElementById("settings-postal-code").value = appSettings.postalCode || "";
+    document.getElementById("settings-city").value = appSettings.city || "";
+    document.getElementById("settings-country").value = appSettings.country || "";
     document.getElementById("settings-phone").value = appSettings.phone || "";
     document.getElementById("settings-vat").value = appSettings.vatNumber || "";
     document.getElementById("settings-hourly-rate").value = appSettings.hourlyRate || 0;
     document.getElementById("settings-km-rate").value = appSettings.kmRate || 0;
   }
-  [["settings-company-name","companyName",false],["settings-email","email",false],
-   ["settings-address","address",false],["settings-phone","phone",false],["settings-vat","vatNumber",false],
-   ["settings-hourly-rate","hourlyRate",true],["settings-km-rate","kmRate",true]].forEach(function(cfg){
+  // homeAddressField marks the ones that feed assembleHomeAddress(), so
+  // editing any of them invalidates the cached geocode (getHomeGeo()
+  // compares the assembled string itself, but clearing the cache eagerly
+  // here avoids holding onto a stale lat/lng object needlessly).
+  [["settings-company-name","companyName",false,false],["settings-email","email",false,false],
+   ["settings-street","street",false,true],["settings-house-number","houseNumber",false,true],
+   ["settings-postal-code","postalCode",false,true],["settings-city","city",false,true],["settings-country","country",false,true],
+   ["settings-phone","phone",false,false],["settings-vat","vatNumber",false,false],
+   ["settings-hourly-rate","hourlyRate",true,false],["settings-km-rate","kmRate",true,false]].forEach(function(cfg){
     document.getElementById(cfg[0]).addEventListener("input", function(){
       appSettings[cfg[1]] = cfg[2] ? Math.max(0, parseFloat(this.value)||0) : this.value;
+      if(cfg[3]) homeGeoCache = null;
       scheduleSettingsSave();
     });
   });
@@ -2279,8 +2309,11 @@
      changes, not on every render - shared between the Info tab's distance
      hint and the Offerte tab's Verplaatsingsvergoeding card.
   ===================================================================== */
-  var HOME_ADDRESS = "Waardstraat 71A, 3520 Zonhoven, België";
+  // Home base is the Instellingen address (not hardcoded) - homeGeoCache is
+  // invalidated whenever that address changes (see the settings field
+  // handlers below) so a stale geocode of the OLD address never lingers.
   var homeGeoCache = null;
+  var homeGeoCacheAddress = null;
 
   function assembleClientAddress(){
     var line1 = (state.clientStreet||"").trim();
@@ -2291,6 +2324,16 @@
     var line2 = [(state.clientPostalCode||"").trim(), (state.clientCity||"").trim()].filter(Boolean).join(" ");
     if(line2) parts.push(line2);
     if(state.clientCountry && state.clientCountry.trim()) parts.push(state.clientCountry.trim());
+    return parts.join(", ");
+  }
+  function assembleHomeAddress(){
+    var line1 = (appSettings.street||"").trim();
+    if(appSettings.houseNumber && appSettings.houseNumber.trim()) line1 += (line1?" ":"")+appSettings.houseNumber.trim();
+    var parts = [];
+    if(line1) parts.push(line1);
+    var line2 = [(appSettings.postalCode||"").trim(), (appSettings.city||"").trim()].filter(Boolean).join(" ");
+    if(line2) parts.push(line2);
+    if(appSettings.country && appSettings.country.trim()) parts.push(appSettings.country.trim());
     return parts.join(", ");
   }
   async function geocodeAddress(address){
@@ -2329,7 +2372,10 @@
     }catch(e){ return null; }
   }
   async function getHomeGeo(){
-    if(!homeGeoCache) homeGeoCache = await geocodeAddress(HOME_ADDRESS);
+    var addr = assembleHomeAddress();
+    if(homeGeoCache && homeGeoCacheAddress===addr) return homeGeoCache;
+    homeGeoCache = await geocodeAddress(addr);
+    homeGeoCacheAddress = addr;
     return homeGeoCache;
   }
   function updateDistanceHint(){
@@ -2341,7 +2387,7 @@
       return;
     }
     var stale = state.travelDistanceAddress !== assembleClientAddress();
-    hintEl.textContent = "≈ "+state.travelDistanceKm.toFixed(1)+" km (heen + terug) van "+HOME_ADDRESS
+    hintEl.textContent = "≈ "+state.travelDistanceKm.toFixed(1)+" km (heen + terug) van "+assembleHomeAddress()
       + (state.travelDistanceIsEstimate ? " (schatting, geen routedienst beschikbaar)" : "")
       + (stale ? " — adres gewijzigd, wordt herberekend…" : "");
     hintEl.classList.toggle("warn", false);
@@ -2363,6 +2409,10 @@
     var btn = document.getElementById("offerte-travel-recalc-btn");
     if(!state.clientPostalCode.trim() || !state.clientCity.trim()){
       setTravelStatusText("Vul minstens postcode en gemeente in bij Info.", true);
+      return;
+    }
+    if(!appSettings.postalCode.trim() || !appSettings.city.trim()){
+      setTravelStatusText("Vul eerst je thuisadres in bij Instellingen.", true);
       return;
     }
     if(btn) btn.disabled = true;
@@ -4486,10 +4536,10 @@
         travelNoteEl.textContent = "⚠ Vul het aantal dagen in bij Arbeid om de verplaatsingskost te berekenen.";
         travelNoteEl.classList.add("warn");
       } else if(state.travelDistanceIsEstimate){
-        travelNoteEl.textContent = "Schatting (hemelsbrede afstand) — routedienst niet beschikbaar. Thuisadres: "+HOME_ADDRESS;
+        travelNoteEl.textContent = "Schatting (hemelsbrede afstand) — routedienst niet beschikbaar. Thuisadres: "+assembleHomeAddress();
         travelNoteEl.classList.remove("warn");
       } else {
-        travelNoteEl.textContent = "Rijafstand, thuisadres: "+HOME_ADDRESS;
+        travelNoteEl.textContent = "Rijafstand, thuisadres: "+assembleHomeAddress();
         travelNoteEl.classList.remove("warn");
       }
     } else {
