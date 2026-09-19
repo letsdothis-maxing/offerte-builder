@@ -420,7 +420,6 @@
     <span id="save-status" style="display:none;"></span>
     <div class="tb-group" style="margin-left:auto;">
       <button class="tbtn" id="gyproc-btn"><span class="ic">🧮</span><span class="lbl">Berekenen</span></button>
-      <button class="tbtn" id="export-btn"><span class="ic">🖼️</span><span class="lbl">Exporteer</span></button>
       <button class="tbtn" id="clear-btn"><span class="ic">🗑</span><span class="lbl">Wis alles</span></button>
     </div>
   </div>
@@ -2651,24 +2650,6 @@
     state.gridStep = parseInt(this.value,10);
     scheduleSave();
     render();
-  });
-
-  // Export lives in the shared topbar (reachable from any tab, like
-  // Berekenen/Wis alles already are) - if the Grondplan tab was never
-  // opened this session its #stage has zero layout size (display:none
-  // ancestor), so switch to it first and wait a frame for the browser to
-  // apply the layout change before resizing/capturing the canvas.
-  document.getElementById("export-btn").addEventListener("click", function(){
-    if(activePTab !== "grondplan") showPTab("grondplan");
-    requestAnimationFrame(function(){
-      resizeCanvas();
-      var proj = getActiveProject();
-      var name = ((proj && proj.name) || "grondplan").trim().replace(/[^a-z0-9]+/gi, "_").toLowerCase() || "grondplan";
-      var link = document.createElement("a");
-      link.download = name + "-grondplan.png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-    });
   });
 
   document.getElementById("clear-btn").addEventListener("click", function(){
