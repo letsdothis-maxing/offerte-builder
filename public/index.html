@@ -598,8 +598,8 @@
   <div id="gyproc-price-footer" style="display:none;">
     <div class="gpf-row"><span>Gyproc platen</span><span id="gpf-gyproc">€ 0,00</span></div>
     <div class="gpf-row"><span>Metal studs</span><span id="gpf-studs">€ 0,00</span></div>
-    <div class="gpf-row" id="gpf-paint-row" style="display:none;"><span>Verf (<span id="gpf-paint-pots">0</span> potten)</span><span id="gpf-paint">€ 0,00</span></div>
-    <div class="gpf-row" id="gpf-primer-row" style="display:none;"><span>Primer (<span id="gpf-primer-pots">0</span> potten)</span><span id="gpf-primer">€ 0,00</span></div>
+    <div class="gpf-row" id="gpf-paint-row" style="display:none;"><span>Verf (<span id="gpf-paint-pots">0</span> potten<span id="gpf-paint-liters"></span>)</span><span id="gpf-paint">€ 0,00</span></div>
+    <div class="gpf-row" id="gpf-primer-row" style="display:none;"><span>Primer (<span id="gpf-primer-pots">0</span> potten<span id="gpf-primer-liters"></span>)</span><span id="gpf-primer">€ 0,00</span></div>
     <div class="gpf-total"><span>Totaal</span><span id="gpf-total">€ 0,00</span></div>
     <div class="gpf-warn" id="gpf-warn" style="display:none;">⚠ Vul materiaalprijzen in bij Materialen voor een volledige offerte</div>
   </div>
@@ -1989,23 +1989,28 @@
     if(potPrice==null || potYield==null || potYield<=0) return null;
     return potPrice/potYield;
   }
-  function coatingComputedText(potPriceKey, potYieldKey){
+  function coatingComputedText(potPriceKey, potYieldKey, potLitersKey){
     var perM2 = computeCoatingPricePerM2(potPriceKey, potYieldKey);
-    return perM2!=null ? "Berekende prijs: ("+fmtEuro(perM2)+" / m²)" : "Vul prijs per pot en opbrengst per pot in om de prijs per m² te berekenen.";
+    var liters = materialPrices[potLitersKey];
+    var parts = [];
+    if(perM2!=null) parts.push(fmtEuro(perM2)+" / m²");
+    if(liters!=null) parts.push(liters+" L per pot");
+    return parts.length ? "Berekend: ("+parts.join(" · ")+")" : "Vul prijs per pot, opbrengst per pot en aantal liter in.";
   }
-  function coatingMaterialSectionHtml(sectionTitle, potPriceKey, potYieldKey, computedElId){
+  function coatingMaterialSectionHtml(sectionTitle, potPriceKey, potYieldKey, potLitersKey, computedElId){
     return '<h2 class="mat-section-title">'+sectionTitle+'</h2>'
       + '<div class="mat-grid">'
       +   materialCardHtml(potPriceKey, "Prijs per pot", "Aankoopprijs per pot")
       +   materialCardHtml(potYieldKey, "Opbrengst per pot", "Aantal m² dat 1 pot dekt (per laag)", "m²")
+      +   materialCardHtml(potLitersKey, "Aantal liter", "Inhoud van 1 pot", "L")
       + '</div>'
-      + '<div class="mat-computed" id="'+computedElId+'">'+coatingComputedText(potPriceKey, potYieldKey)+'</div>';
+      + '<div class="mat-computed" id="'+computedElId+'">'+coatingComputedText(potPriceKey, potYieldKey, potLitersKey)+'</div>';
   }
   function updateCoatingComputedDisplays(){
     var paintEl = document.getElementById("mat-paint-computed");
-    if(paintEl) paintEl.textContent = coatingComputedText("paint:pot_price", "paint:pot_yield_m2");
+    if(paintEl) paintEl.textContent = coatingComputedText("paint:pot_price", "paint:pot_yield_m2", "paint:pot_liters");
     var primerEl = document.getElementById("mat-primer-computed");
-    if(primerEl) primerEl.textContent = coatingComputedText("primer:pot_price", "primer:pot_yield_m2");
+    if(primerEl) primerEl.textContent = coatingComputedText("primer:pot_price", "primer:pot_yield_m2", "primer:pot_liters");
   }
   function renderMaterialsPage(){
     var host = document.getElementById("pl-page-materials");
@@ -2027,8 +2032,8 @@
       + '<div class="mat-grid">' + TRACK_LENGTHS.map(function(l){
           return materialCardHtml("rail:"+l, (l/10)+" cm", "Horizontaal U-profiel, lengte");
         }).join('') + '</div>';
-    html += coatingMaterialSectionHtml("Verf", "paint:pot_price", "paint:pot_yield_m2", "mat-paint-computed");
-    html += coatingMaterialSectionHtml("Primer", "primer:pot_price", "primer:pot_yield_m2", "mat-primer-computed");
+    html += coatingMaterialSectionHtml("Verf", "paint:pot_price", "paint:pot_yield_m2", "paint:pot_liters", "mat-paint-computed");
+    html += coatingMaterialSectionHtml("Primer", "primer:pot_price", "primer:pot_yield_m2", "primer:pot_liters", "mat-primer-computed");
     host.innerHTML = html;
     host.querySelectorAll(".mat-price-input").forEach(function(inp){
       inp.addEventListener("change", function(){
@@ -3430,6 +3435,12 @@
   // stud-length/gauge/track selections - reused both on its own checkout
   // tab (so each wall visibly carries its own subtotal) and summed across
   // every wall for the aggregated footer.
+  // Gyproc/studs/rails only - genuinely a per-wall material (each wall's
+  // own cutting/nesting), unlike paint/primer, which is bought as a shared
+  // pool of pots for the whole room (see updateGyprocPriceFooter /
+  // computeProjectOffer) - rounding pots up per wall and summing would
+  // hugely overcount (e.g. 5 small walls each rounding up to "at least 1
+  // pot" even though their combined area only needs 1).
   function computeWallPriceTotal(ws){
     var active = ws.results[ws.activeIndex] || ws.results[0];
     var szEntry = PANEL_SIZES.find(function(s){ return s.label===active.sizeLabel; });
@@ -3444,26 +3455,10 @@
     var railPrice = materialPrices["rail:"+activeTrack.pieceLenMm];
     var studsSubtotal = (studPrice||0)*studReserve + (railPrice||0)*trackReserve;
 
-    var paintEnabled = !!state.services.verven;
-    var paintPotPrice = materialPrices["paint:pot_price"];
-    var paintPotYield = materialPrices["paint:pot_yield_m2"];
-    var paintPots = computePotsNeeded(ws.paintAreaM2, state.paintCoats, paintPotYield);
-    var paintSubtotal = paintEnabled ? paintPots*(paintPotPrice||0) : 0;
-
-    var primerEnabled = !!state.services.primer;
-    var primerPotPrice = materialPrices["primer:pot_price"];
-    var primerPotYield = materialPrices["primer:pot_yield_m2"];
-    var primerPots = computePotsNeeded(ws.paintAreaM2, state.primerCoats, primerPotYield);
-    var primerSubtotal = primerEnabled ? primerPots*(primerPotPrice||0) : 0;
-
     return {
       gyprocSubtotal: gyprocSubtotal, studsSubtotal: studsSubtotal,
-      paintSubtotal: paintSubtotal, paintPots: paintPots,
-      primerSubtotal: primerSubtotal, primerPots: primerPots,
-      total: gyprocSubtotal+studsSubtotal+paintSubtotal+primerSubtotal,
+      total: gyprocSubtotal+studsSubtotal,
       missingPrice: gyprocPrice==null || studPrice==null || railPrice==null
-        || (paintEnabled && (paintPotPrice==null || paintPotYield==null))
-        || (primerEnabled && (primerPotPrice==null || primerPotYield==null))
     };
   }
 
@@ -3603,27 +3598,45 @@
     }
     footer.style.display = "";
 
-    var gyprocSum = 0, studsSum = 0, paintSum = 0, paintPotsSum = 0, primerSum = 0, primerPotsSum = 0, anyMissing = false;
+    var gyprocSum = 0, studsSum = 0, anyMissing = false, totalAreaM2 = 0;
     gyprocWallIds.forEach(function(id){
       var wsI = gyprocWallStates[id];
       if(!wsI) return;
       var t = computeWallPriceTotal(wsI);
       gyprocSum += t.gyprocSubtotal;
       studsSum += t.studsSubtotal;
-      paintSum += t.paintSubtotal;
-      paintPotsSum += t.paintPots;
-      primerSum += t.primerSubtotal;
-      primerPotsSum += t.primerPots;
       if(t.missingPrice) anyMissing = true;
+      totalAreaM2 += wsI.paintAreaM2;
     });
+
+    // paint/primer are a shared pool of pots for the WHOLE room, not a
+    // per-wall material - pots are computed once from the combined area,
+    // not by summing each wall's own independently-rounded count (which
+    // would overcount badly whenever a pot covers more area than a single
+    // wall needs).
+    var paintPotPrice = materialPrices["paint:pot_price"];
+    var paintPotYield = materialPrices["paint:pot_yield_m2"];
+    var paintLiters = materialPrices["paint:pot_liters"];
+    var paintPotsSum = state.services.verven ? computePotsNeeded(totalAreaM2, state.paintCoats, paintPotYield) : 0;
+    var paintSum = paintPotsSum*(paintPotPrice||0);
+    if(state.services.verven && (paintPotPrice==null || paintPotYield==null)) anyMissing = true;
+
+    var primerPotPrice = materialPrices["primer:pot_price"];
+    var primerPotYield = materialPrices["primer:pot_yield_m2"];
+    var primerLiters = materialPrices["primer:pot_liters"];
+    var primerPotsSum = state.services.primer ? computePotsNeeded(totalAreaM2, state.primerCoats, primerPotYield) : 0;
+    var primerSum = primerPotsSum*(primerPotPrice||0);
+    if(state.services.primer && (primerPotPrice==null || primerPotYield==null)) anyMissing = true;
 
     document.getElementById("gpf-gyproc").textContent = fmtEuro(gyprocSum);
     document.getElementById("gpf-studs").textContent = fmtEuro(studsSum);
     document.getElementById("gpf-paint-row").style.display = state.services.verven ? "" : "none";
     document.getElementById("gpf-paint-pots").textContent = paintPotsSum;
+    document.getElementById("gpf-paint-liters").textContent = paintLiters!=null ? ", "+(paintPotsSum*paintLiters)+" L" : "";
     document.getElementById("gpf-paint").textContent = fmtEuro(paintSum);
     document.getElementById("gpf-primer-row").style.display = state.services.primer ? "" : "none";
     document.getElementById("gpf-primer-pots").textContent = primerPotsSum;
+    document.getElementById("gpf-primer-liters").textContent = primerLiters!=null ? ", "+(primerPotsSum*primerLiters)+" L" : "";
     document.getElementById("gpf-primer").textContent = fmtEuro(primerSum);
     document.getElementById("gpf-total").textContent = fmtEuro(gyprocSum+studsSum+paintSum+primerSum);
     document.getElementById("gpf-warn").style.display = anyMissing ? "" : "none";
@@ -3670,7 +3683,7 @@
     }
 
     var anyWalls = false;
-    var paintAreaTotal = 0, primerAreaTotal = 0, paintPotsTotal = 0, primerPotsTotal = 0;
+    var paintAreaTotal = 0, primerAreaTotal = 0;
     rooms.forEach(function(roomWalls){
       var cornerPlan = computeRoomCornerPlan(roomWalls, gyprocStudGaugeMm);
       roomWalls.forEach(function(w){
@@ -3681,16 +3694,14 @@
         var openingRects = state.openings.filter(function(o){ return o.wallId===w.id; })
           .map(function(o){ return getOpeningLocalRect(o, wallLenMm); });
 
+        // paint/primer are a shared pool of pots for the WHOLE project, not
+        // a per-wall material - just accumulate raw area here and round up
+        // to whole pots ONCE below, so a project with many small walls
+        // doesn't get charged "at least 1 pot" per wall.
         if(state.services.verven || state.services.primer){
           var wallPaintAreaM2 = computeWallPaintAreaM2(wallProfile, wallLenMm, openingRects);
-          if(state.services.verven){
-            paintAreaTotal += wallPaintAreaM2;
-            paintPotsTotal += computePotsNeeded(wallPaintAreaM2, state.paintCoats, materialPrices["paint:pot_yield_m2"]);
-          }
-          if(state.services.primer){
-            primerAreaTotal += wallPaintAreaM2;
-            primerPotsTotal += computePotsNeeded(wallPaintAreaM2, state.primerCoats, materialPrices["primer:pot_yield_m2"]);
-          }
+          if(state.services.verven) paintAreaTotal += wallPaintAreaM2;
+          if(state.services.primer) primerAreaTotal += wallPaintAreaM2;
         }
 
         if(!state.services.gyproc) return;
@@ -3719,11 +3730,13 @@
     });
 
     if(state.services.verven && paintAreaTotal>0){
+      var paintPotsTotal = computePotsNeeded(paintAreaTotal, state.paintCoats, materialPrices["paint:pot_yield_m2"]);
       addLineItem("paint:pots", "Verf ("+state.paintCoats+" "+(state.paintCoats===1?"laag":"lagen")+")",
         paintPotsTotal, materialPrices["paint:pot_price"], "potten");
       if(materialPrices["paint:pot_yield_m2"]==null) lineItems["paint:pots"].missing = true;
     }
     if(state.services.primer && primerAreaTotal>0){
+      var primerPotsTotal = computePotsNeeded(primerAreaTotal, state.primerCoats, materialPrices["primer:pot_yield_m2"]);
       addLineItem("primer:pots", "Primer ("+state.primerCoats+" "+(state.primerCoats===1?"laag":"lagen")+")",
         primerPotsTotal, materialPrices["primer:pot_price"], "potten");
       if(materialPrices["primer:pot_yield_m2"]==null) lineItems["primer:pots"].missing = true;
@@ -3892,12 +3905,16 @@
   // net area and the "Muur" floating stat; coats>1 multiplies the coverage
   // need (see computePotsNeeded), since a 2nd/3rd coat covers the same
   // area again rather than new area.
+  // Deliberately does NOT show a per-wall pot count/subtotal: pots are a
+  // shared pool for the whole room (you don't buy a separate pot per
+  // wall), so that total only makes sense computed once, room-wide - shown
+  // in the price footer below (and per-project in the Offerte tab), not
+  // per wall here.
   function buildCoatingSectionHtml(ws, opts){
     if(!opts.enabled) return '';
     var potPrice = materialPrices[opts.potPriceKey];
     var potYield = materialPrices[opts.potYieldKey];
-    var pots = computePotsNeeded(ws.paintAreaM2, opts.coats, potYield);
-    var subtotal = pots*(potPrice||0);
+    var potLiters = materialPrices[opts.potLitersKey];
     var missing = potPrice==null || potYield==null;
     return ''
       + '<div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line);">'
@@ -3906,24 +3923,23 @@
       +   '<label>Aantal lagen</label>'
       +   '<input type="number" min="1" step="1" class="tb-select" id="'+opts.coatsInputId+'" value="'+opts.coats+'" style="width:100%">'
       + '</div>'
-      + '<div class="row"><span class="k">'+opts.areaLabel+'</span><span class="v">'+ws.paintAreaM2.toFixed(2)+' m² &times; '+opts.coats+' '+(opts.coats===1?'laag':'lagen')+'</span></div>'
-      + (potYield!=null ? '<div class="row"><span class="k">Potten nodig (opbrengst '+potYield+' m²/pot)</span><span class="v">'+pots+'</span></div>' : '')
-      + '<div class="row"><span class="k">Prijs per pot</span><span class="v">'+(potPrice!=null?fmtEuro(potPrice):'—')+'</span></div>'
-      + '<div class="row"><span class="k"><strong>Subtotaal (deze muur)</strong></span><span class="v"><strong>'+(!missing?fmtEuro(subtotal):'—')+'</strong></span></div>'
+      + '<div class="row"><span class="k">'+opts.areaLabel+' (deze muur)</span><span class="v">'+ws.paintAreaM2.toFixed(2)+' m²</span></div>'
+      + '<div class="row"><span class="k">Prijs per pot'+(potYield!=null?' (dekt '+potYield+' m²)':'')+'</span><span class="v">'+(potPrice!=null?fmtEuro(potPrice):'—')+(potLiters!=null?' ('+potLiters+' L)':'')+'</span></div>'
+      + '<div class="row"><span class="k" style="font-style:italic;">Totaal aantal potten en prijs voor de volledige ruimte: zie hieronder</span><span class="v"></span></div>'
       + (missing ? '<div class="row"><span class="k" style="color:#b45309;">⚠ Vul prijs per pot en opbrengst per pot in bij Materialen</span><span class="v"></span></div>' : '')
       + '</div>';
   }
   function buildPaintSectionHtml(ws){
     return buildCoatingSectionHtml(ws, {
       enabled: state.services.verven, title: 'Verven', areaLabel: 'Te verven oppervlak (excl. deuren/ramen)',
-      potPriceKey: 'paint:pot_price', potYieldKey: 'paint:pot_yield_m2',
+      potPriceKey: 'paint:pot_price', potYieldKey: 'paint:pot_yield_m2', potLitersKey: 'paint:pot_liters',
       coats: state.paintCoats, coatsInputId: 'paint-coats-input'
     });
   }
   function buildPrimerSectionHtml(ws){
     return buildCoatingSectionHtml(ws, {
       enabled: state.services.primer, title: 'Primer', areaLabel: 'Te primen oppervlak (excl. deuren/ramen)',
-      potPriceKey: 'primer:pot_price', potYieldKey: 'primer:pot_yield_m2',
+      potPriceKey: 'primer:pot_price', potYieldKey: 'primer:pot_yield_m2', potLitersKey: 'primer:pot_liters',
       coats: state.primerCoats, coatsInputId: 'primer-coats-input'
     });
   }
