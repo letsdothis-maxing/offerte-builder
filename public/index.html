@@ -28,6 +28,7 @@
     flex-shrink:0;z-index:20;flex-wrap:wrap;
   }
   #topbar h1{font-size:15px;font-weight:700;margin:0;white-space:nowrap;}
+  #save-status{font-size:12px;color:#b45309;background:#fef3c7;padding:5px 10px;border-radius:8px;white-space:nowrap;}
   #topbar h1 span{color:var(--blue);}
   #floating-stats{
     position:absolute;top:16px;left:16px;display:flex;gap:8px;flex-wrap:wrap;z-index:15;
@@ -281,6 +282,7 @@
     #stage{background:#0b0f18;}
     select.tb-select,#opening-panel .field input,#gyproc-panel .field input,#project-form-panel .field input,#project-form-panel .field textarea,.mat-price-input{background:#0f1420;color:#e5e7eb;}
     .btn-danger{background:#3b1418;color:#fca5a5;}
+    #save-status{background:#3b2a0f;color:#fbbf24;}
   }
 </style>
 </head>
@@ -289,6 +291,7 @@
   <div id="topbar">
     <button class="tbtn" id="back-to-projects-btn" title="Terug naar projecten"><span class="ic">←</span>Projecten</button>
     <h1 id="app-title">Offerte<span>Builder</span> — Ontwerpmodule</h1>
+    <span id="save-status" style="display:none;"></span>
     <div class="tb-group" style="margin-left:auto;">
       <button class="tbtn" id="undo-btn" disabled title="Ongedaan maken (Ctrl+Z)"><span class="ic">↶</span></button>
       <button class="tbtn" id="redo-btn" disabled title="Opnieuw doen (Ctrl+Shift+Z)"><span class="ic">↷</span></button>
@@ -1279,47 +1282,132 @@
   }
 
   /* =====================================================================
-     PERSISTENCE (localStorage, multi-project)
-     Each project keeps its own walls/openings/zoneCuts/roomHeights blob;
-     scheduleSave() always writes into the CURRENTLY ACTIVE project, never
-     a single global slot, so switching projects can't cross-contaminate
-     another one's drawing.
+     PERSISTENCE (Supabase via the same-origin /api/db proxy in
+     src/worker.js - see there for why the Supabase key never reaches
+     this file). Projects and material prices are the shared, cross-
+     device source of truth; only "which project is open on THIS
+     device" stays in localStorage (a lightweight per-device pointer,
+     not shared data - opening a different project on your phone
+     shouldn't switch what's open on your laptop).
+     Each project keeps its own walls/openings/zoneCuts/roomHeights
+     blob; scheduleSave() always writes into the CURRENTLY ACTIVE
+     project, never a single global slot.
   ===================================================================== */
-  var OLD_SAVE_KEY = "offerte-builder.plan.v1"; // pre-multi-project single save, read once for migration only
-  var PROJECTS_KEY = "offerte-builder.projects.v1";
+  var OLD_SAVE_KEY = "offerte-builder.plan.v1";                     // pre-multi-project single save, read once for migration only
+  var OLD_PROJECTS_KEY = "offerte-builder.projects.v1";             // pre-database multi-project save, read once for migration only
+  var OLD_MATERIAL_PRICES_KEY = "offerte-builder.material-prices.v1"; // pre-database prices, read once for migration only
+  var ACTIVE_PROJECT_KEY = "offerte-builder.active-project-id";     // per-device only, never synced
   var projectsState = { activeId: null, projects: [] };
   var saveTimer = null;
+  var dbUnavailable = false;
 
-  function saveProjectsState(){
-    try{ localStorage.setItem(PROJECTS_KEY, JSON.stringify(projectsState)); }catch(e){}
+  async function dbFetch(path, options){
+    var res = await fetch("/api/db"+path, options);
+    if(!res.ok) throw new Error("DB request failed ("+res.status+"): "+path);
+    var text = await res.text();
+    return text ? JSON.parse(text) : null;
   }
-  function loadProjectsState(){
+  function dbListProjects(){ return dbFetch("/projects?select=*"); }
+  function dbUpsertProject(row){
+    return dbFetch("/projects", {
+      method: "POST",
+      headers: { "Content-Type":"application/json", "Prefer":"resolution=merge-duplicates,return=representation" },
+      body: JSON.stringify(row)
+    });
+  }
+  function dbDeleteProject(id){
+    return dbFetch("/projects?id=eq."+encodeURIComponent(id), { method:"DELETE" });
+  }
+  function dbListMaterialPrices(){ return dbFetch("/material_prices?select=*"); }
+  function dbUpsertMaterialPrice(key, price){
+    return dbFetch("/material_prices", {
+      method: "POST",
+      headers: { "Content-Type":"application/json", "Prefer":"resolution=merge-duplicates,return=representation" },
+      body: JSON.stringify({ key:key, price:price, updated_at:Date.now() })
+    });
+  }
+  function dbDeleteMaterialPrice(key){
+    return dbFetch("/material_prices?key=eq."+encodeURIComponent(key), { method:"DELETE" });
+  }
+
+  function rowToProject(row){
+    return {
+      id: row.id, name: row.name, description: row.description||"", planningDate: row.planning_date||"",
+      createdAt: row.created_at, updatedAt: row.updated_at, data: row.data||{}
+    };
+  }
+  function projectToRow(p){
+    return {
+      id: p.id, name: p.name, description: p.description||"", planning_date: p.planningDate||null,
+      created_at: p.createdAt, updated_at: p.updatedAt, data: p.data||{}
+    };
+  }
+
+  function showSaveError(msg){
+    var el = document.getElementById("save-status");
+    if(!el) return;
+    el.textContent = msg;
+    el.style.display = "";
+    clearTimeout(showSaveError._t);
+    showSaveError._t = setTimeout(function(){ el.style.display = "none"; }, 6000);
+  }
+
+  async function loadProjectsState(){
     try{
-      var raw = localStorage.getItem(PROJECTS_KEY);
-      if(raw){ projectsState = JSON.parse(raw); return; }
-    }catch(e){}
-    // first run since this feature shipped: migrate the old single-blob
-    // save (if any real drawing exists there) into a first project, so
-    // existing work isn't lost.
-    var migrated = null;
-    try{
-      var oldRaw = localStorage.getItem(OLD_SAVE_KEY);
-      if(oldRaw){
-        var oldData = JSON.parse(oldRaw);
-        if((oldData.walls||[]).length){
-          migrated = {
-            id: uid("proj"), name: "Mijn project", description: "", planningDate: "",
-            createdAt: Date.now(), updatedAt: Date.now(),
-            data: {
-              walls: oldData.walls||[], openings: oldData.openings||[], zoneCuts: oldData.zoneCuts||[],
-              roomHeights: oldData.roomHeights||{}, gridStep: oldData.gridStep||100
+      var rows = await dbListProjects();
+      if(rows && rows.length){
+        projectsState.projects = rows.map(rowToProject);
+      } else {
+        // DB reachable but empty - one-time migration of whatever local
+        // data exists (newer multi-project blob preferred, else the
+        // original single-save format) so a returning user never loses
+        // work just because the database is now the source of truth.
+        var toMigrate = [];
+        var migratedActiveId = null;
+        try{
+          var newRaw = localStorage.getItem(OLD_PROJECTS_KEY);
+          if(newRaw){
+            var parsed = JSON.parse(newRaw);
+            (parsed.projects||[]).forEach(function(p){ toMigrate.push(p); });
+            migratedActiveId = parsed.activeId || null;
+          }
+        }catch(e){}
+        if(!toMigrate.length){
+          try{
+            var oldRaw = localStorage.getItem(OLD_SAVE_KEY);
+            if(oldRaw){
+              var oldData = JSON.parse(oldRaw);
+              if((oldData.walls||[]).length){
+                var oneProj = {
+                  id: uid("proj"), name: "Mijn project", description: "", planningDate: "",
+                  createdAt: Date.now(), updatedAt: Date.now(),
+                  data: { walls:oldData.walls||[], openings:oldData.openings||[], zoneCuts:oldData.zoneCuts||[], roomHeights:oldData.roomHeights||{}, gridStep:oldData.gridStep||100 }
+                };
+                toMigrate.push(oneProj);
+                migratedActiveId = oneProj.id;
+              }
             }
-          };
+          }catch(e){}
+        }
+        for(var i=0;i<toMigrate.length;i++){
+          try{ await dbUpsertProject(projectToRow(toMigrate[i])); }catch(e){}
+        }
+        projectsState.projects = toMigrate;
+        // carry the old "which project was open" pointer forward (or, if
+        // there's exactly one migrated project, just open that one) so a
+        // returning user lands back in their work instead of an empty list.
+        if(migratedActiveId && toMigrate.some(function(p){ return p.id===migratedActiveId; })){
+          try{ localStorage.setItem(ACTIVE_PROJECT_KEY, migratedActiveId); }catch(e){}
+        } else if(toMigrate.length===1){
+          try{ localStorage.setItem(ACTIVE_PROJECT_KEY, toMigrate[0].id); }catch(e){}
         }
       }
-    }catch(e){}
-    projectsState = { activeId: migrated ? migrated.id : null, projects: migrated ? [migrated] : [] };
-    saveProjectsState();
+      var savedActive = localStorage.getItem(ACTIVE_PROJECT_KEY);
+      projectsState.activeId = (savedActive && projectsState.projects.some(function(p){ return p.id===savedActive; })) ? savedActive : null;
+    }catch(e){
+      dbUnavailable = true;
+      projectsState = { activeId:null, projects:[] };
+    }
   }
   function getActiveProject(){
     return projectsState.projects.find(function(p){ return p.id===projectsState.activeId; }) || null;
@@ -1334,8 +1422,10 @@
         roomHeights: state.roomHeights, gridStep: state.gridStep
       };
       proj.updatedAt = Date.now();
-      saveProjectsState();
-    }, 250);
+      dbUpsertProject(projectToRow(proj)).catch(function(){
+        showSaveError("⚠ Opslaan mislukt — controleer je internetverbinding");
+      });
+    }, 600);
   }
   function loadActiveProjectIntoState(){
     var proj = getActiveProject();
@@ -1382,7 +1472,7 @@
   });
   function enterProject(id){
     projectsState.activeId = id;
-    saveProjectsState();
+    try{ localStorage.setItem(ACTIVE_PROJECT_KEY, id); }catch(e){}
     loadActiveProjectIntoState();
     undoStack.length = 0; redoStack.length = 0; updateUndoRedoButtons();
     state.selection = null; state.dragState = null; state.drawing = null; state.zoneDraw = null;
@@ -1398,8 +1488,16 @@
 
   function renderProjectList(){
     var grid = document.getElementById("pl-grid");
+    var emptyEl = document.getElementById("pl-empty");
+    if(dbUnavailable){
+      emptyEl.textContent = "⚠ Kan geen verbinding maken met de database. Herlaad de pagina of controleer je internetverbinding.";
+      emptyEl.style.display = "";
+      grid.innerHTML = "";
+      return;
+    }
     var sorted = projectsState.projects.slice().sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
-    document.getElementById("pl-empty").style.display = sorted.length ? "none" : "";
+    emptyEl.textContent = "Nog geen projecten. Maak je eerste project aan om te starten.";
+    emptyEl.style.display = sorted.length ? "none" : "";
     grid.innerHTML = sorted.map(function(p){
       return '<div class="pl-card" data-id="'+p.id+'">'
         + '<button class="edit-btn" data-edit-id="'+p.id+'" title="Bewerken">✎</button>'
@@ -1434,13 +1532,26 @@
      calculator itself uses, so a new standard size added there
      automatically gets its own price card here too.
   ===================================================================== */
-  var MATERIAL_PRICES_KEY = "offerte-builder.material-prices.v1";
   var materialPrices = {};
-  function loadMaterialPrices(){
-    try{ materialPrices = JSON.parse(localStorage.getItem(MATERIAL_PRICES_KEY)) || {}; }catch(e){ materialPrices = {}; }
-  }
-  function saveMaterialPrices(){
-    try{ localStorage.setItem(MATERIAL_PRICES_KEY, JSON.stringify(materialPrices)); }catch(e){}
+  async function loadMaterialPrices(){
+    try{
+      var rows = await dbListMaterialPrices();
+      if(rows && rows.length){
+        materialPrices = {};
+        rows.forEach(function(r){ materialPrices[r.key] = parseFloat(r.price); });
+        return;
+      }
+      // DB reachable but empty - one-time migration of any existing local prices
+      var migrated = {};
+      try{ migrated = JSON.parse(localStorage.getItem(OLD_MATERIAL_PRICES_KEY)) || {}; }catch(e){}
+      var keys = Object.keys(migrated);
+      for(var i=0;i<keys.length;i++){
+        try{ await dbUpsertMaterialPrice(keys[i], migrated[keys[i]]); }catch(e){}
+      }
+      materialPrices = migrated;
+    }catch(e){
+      materialPrices = {};
+    }
   }
   function materialCardHtml(key, title, subtitle){
     var price = materialPrices[key];
@@ -1475,12 +1586,17 @@
       inp.addEventListener("change", function(){
         var key = inp.dataset.key;
         var raw = inp.value.trim();
-        if(raw===""){ delete materialPrices[key]; inp.classList.remove("mat-price-error"); saveMaterialPrices(); return; }
+        if(raw===""){
+          delete materialPrices[key];
+          inp.classList.remove("mat-price-error");
+          dbDeleteMaterialPrice(key).catch(function(){ showSaveError("⚠ Opslaan mislukt — controleer je internetverbinding"); });
+          return;
+        }
         var v = parseFloat(raw.replace(",", "."));
         if(isNaN(v) || v<0){ inp.classList.add("mat-price-error"); return; }
         inp.classList.remove("mat-price-error");
         materialPrices[key] = v;
-        saveMaterialPrices();
+        dbUpsertMaterialPrice(key, v).catch(function(){ showSaveError("⚠ Opslaan mislukt — controleer je internetverbinding"); });
       });
     });
   }
@@ -1506,35 +1622,52 @@
     pfEditingId = null;
   }
   pfBackdrop.addEventListener("click", closeProjectForm);
-  document.getElementById("pf-save").addEventListener("click", function(){
+  document.getElementById("pf-save").addEventListener("click", async function(){
     var name = document.getElementById("pf-name").value.trim();
     if(!name){ document.getElementById("pf-name").focus(); return; }
     var desc = document.getElementById("pf-desc").value.trim();
     var date = document.getElementById("pf-date").value;
-    if(pfEditingId){
-      var proj = projectsState.projects.find(function(p){ return p.id===pfEditingId; });
-      if(proj){ proj.name = name; proj.description = desc; proj.planningDate = date; proj.updatedAt = Date.now(); }
-    } else {
-      projectsState.projects.push({
-        id: uid("proj"), name: name, description: desc, planningDate: date,
-        createdAt: Date.now(), updatedAt: Date.now(),
-        data: { walls:[], openings:[], zoneCuts:[], roomHeights:{}, gridStep:100 }
-      });
+    var saveBtn = this;
+    saveBtn.disabled = true;
+    try{
+      if(pfEditingId){
+        var proj = projectsState.projects.find(function(p){ return p.id===pfEditingId; });
+        if(proj){
+          proj.name = name; proj.description = desc; proj.planningDate = date; proj.updatedAt = Date.now();
+          await dbUpsertProject(projectToRow(proj));
+        }
+        closeProjectForm();
+        renderProjectList();
+      } else {
+        var newProj = {
+          id: uid("proj"), name: name, description: desc, planningDate: date,
+          createdAt: Date.now(), updatedAt: Date.now(),
+          data: { walls:[], openings:[], zoneCuts:[], roomHeights:{}, gridStep:100 }
+        };
+        await dbUpsertProject(projectToRow(newProj));
+        projectsState.projects.push(newProj);
+        closeProjectForm();
+        enterProject(newProj.id);
+      }
+    }catch(e){
+      alert("Opslaan is mislukt — controleer je internetverbinding en probeer opnieuw.");
+    }finally{
+      saveBtn.disabled = false;
     }
-    saveProjectsState();
-    var wasNew = !pfEditingId;
-    var newId = wasNew ? projectsState.projects[projectsState.projects.length-1].id : pfEditingId;
-    closeProjectForm();
-    if(wasNew){ enterProject(newId); } else { renderProjectList(); }
   });
-  document.getElementById("pf-delete").addEventListener("click", function(){
+  document.getElementById("pf-delete").addEventListener("click", async function(){
     if(!pfEditingId) return;
     if(!confirm("Dit project en alle bijhorende tekeningen definitief verwijderen?")) return;
-    projectsState.projects = projectsState.projects.filter(function(p){ return p.id!==pfEditingId; });
-    if(projectsState.activeId===pfEditingId) projectsState.activeId = null;
-    saveProjectsState();
-    closeProjectForm();
-    renderProjectList();
+    var idToDelete = pfEditingId;
+    try{
+      await dbDeleteProject(idToDelete);
+      projectsState.projects = projectsState.projects.filter(function(p){ return p.id!==idToDelete; });
+      if(projectsState.activeId===idToDelete) projectsState.activeId = null;
+      closeProjectForm();
+      renderProjectList();
+    }catch(e){
+      alert("Verwijderen is mislukt — controleer je internetverbinding en probeer opnieuw.");
+    }
   });
   document.getElementById("pl-new-btn").addEventListener("click", function(){ openProjectForm(null); });
   document.getElementById("back-to-projects-btn").addEventListener("click", showProjectList);
@@ -2882,13 +3015,15 @@
   /* =====================================================================
      INIT
   ===================================================================== */
-  loadProjectsState();
-  loadMaterialPrices();
-  if(projectsState.activeId && getActiveProject()){
-    enterProject(projectsState.activeId);
-  } else {
-    showProjectList();
-  }
+  (async function(){
+    await loadProjectsState();
+    await loadMaterialPrices();
+    if(projectsState.activeId && getActiveProject()){
+      enterProject(projectsState.activeId);
+    } else {
+      showProjectList();
+    }
+  })();
 })();
 </script>
 </body>
