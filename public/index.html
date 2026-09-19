@@ -300,6 +300,18 @@
   .info-field input[type=text],.info-field input[type=date]{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
   .info-card textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit;resize:vertical;color:var(--ink);background:var(--panel);}
   .info-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .info-address-grid{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px;
+    grid-template-areas:"street street number addition" "postal city city country";
+  }
+  .info-addr-street{grid-area:street;}
+  .info-addr-number{grid-area:number;}
+  .info-addr-addition{grid-area:addition;}
+  .info-addr-postal{grid-area:postal;}
+  .info-addr-city{grid-area:city;}
+  .info-addr-country{grid-area:country;}
+  .info-distance-hint{font-size:12.5px;color:var(--muted);margin-top:10px;min-height:16px;}
+  .info-distance-hint.warn{color:#b45309;}
   .info-image-grid{display:flex;flex-wrap:wrap;gap:10px;}
   .info-img-add,.info-img-thumb{width:84px;height:84px;border-radius:10px;flex-shrink:0;}
   .info-img-add{border:1.5px dashed var(--line);background:var(--bg);color:var(--muted);font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;}
@@ -336,6 +348,12 @@
   .offerte-totals-row{display:flex;justify-content:space-between;padding:6px 4px;font-size:13.5px;color:var(--muted);}
   .offerte-totals-row.offerte-grand{border-top:1px solid var(--line);margin-top:6px;padding-top:10px;font-size:16px;font-weight:700;color:var(--ink);}
   .offerte-warn{margin-top:16px;font-size:12.5px;color:#b45309;background:#fef3c7;padding:9px 12px;border-radius:8px;}
+  .offerte-subcard{margin-top:16px;}
+  .offerte-subcard-total{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:14px;}
+  .offerte-travel-distance-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .offerte-travel-distance-row span{font-size:14px;font-weight:600;}
+  .offerte-travel-note{font-size:12px;color:var(--muted);margin-top:6px;min-height:16px;}
+  .offerte-travel-note.warn{color:#b45309;}
 
   @media (prefers-color-scheme: dark){
     :root{
@@ -361,6 +379,7 @@
     #floating-topright{display:none;}
     .info-grid-2{grid-template-columns:1fr;gap:14px;}
     .info-tab-inner,.offerte-inner{padding:18px 14px 48px;}
+    .info-address-grid{grid-template-columns:1fr 1fr;grid-template-areas:"street street" "number addition" "postal city" "country country";gap:10px;}
   }
 </style>
 </head>
@@ -399,13 +418,22 @@
             </div>
           </div>
         </div>
-        <div class="info-field">
-          <label>Adres</label>
-          <input type="text" id="info-client-address" placeholder="Straat, postcode, gemeente" maxlength="160">
+        <div class="info-address-grid">
+          <div class="info-field info-addr-street"><label>Straat</label><input type="text" id="info-addr-street" maxlength="80"></div>
+          <div class="info-field info-addr-number"><label>Nr.</label><input type="text" id="info-addr-number" maxlength="10"></div>
+          <div class="info-field info-addr-addition"><label>Toevoeging</label><input type="text" id="info-addr-addition" maxlength="10"></div>
+          <div class="info-field info-addr-postal"><label>Postcode</label><input type="text" id="info-addr-postal" maxlength="10"></div>
+          <div class="info-field info-addr-city"><label>Gemeente</label><input type="text" id="info-addr-city" maxlength="60"></div>
+          <div class="info-field info-addr-country"><label>Land</label><input type="text" id="info-addr-country" maxlength="60"></div>
         </div>
+        <div class="info-distance-hint" id="info-distance-hint"></div>
       </div>
 
       <div class="info-card">
+        <div class="info-field" style="margin-bottom:14px;">
+          <label>Projectnaam</label>
+          <input type="text" id="info-project-name" maxlength="80" placeholder="Naamloos project">
+        </div>
         <label class="info-section-label">Project omschrijving</label>
         <textarea id="info-description" rows="4" placeholder="Beschrijf het project..."></textarea>
       </div>
@@ -510,6 +538,35 @@
           <thead><tr><th>Materiaal</th><th>Aantal</th><th>Eenheidsprijs</th><th>Totaal</th></tr></thead>
           <tbody id="offerte-table-body"></tbody>
         </table>
+      </div>
+
+      <div class="info-card offerte-subcard">
+        <label class="info-section-label">Arbeid</label>
+        <div class="info-grid-2">
+          <div class="info-field">
+            <label>Geschat aantal uren</label>
+            <input type="number" min="0" step="0.5" id="offerte-labor-hours">
+          </div>
+          <div class="info-field">
+            <label>Uurtarief (€/u)</label>
+            <input type="number" min="0" step="0.5" id="offerte-labor-rate">
+          </div>
+        </div>
+        <div class="offerte-subcard-total">Subtotaal arbeid: <strong id="offerte-labor-subtotal">€ 0,00</strong></div>
+      </div>
+
+      <div class="info-card offerte-subcard">
+        <label class="info-section-label">Verplaatsingsvergoeding</label>
+        <div class="offerte-travel-distance-row">
+          <span id="offerte-travel-distance-value">Nog niet berekend</span>
+          <button type="button" class="tbtn" id="offerte-travel-recalc-btn">Bereken afstand</button>
+        </div>
+        <div class="offerte-travel-note" id="offerte-travel-note"></div>
+        <div class="info-field" style="max-width:200px;margin-top:12px;">
+          <label>Tarief per km (€/km)</label>
+          <input type="number" min="0" step="0.01" id="offerte-travel-rate">
+        </div>
+        <div class="offerte-subcard-total">Subtotaal verplaatsing: <strong id="offerte-travel-subtotal">€ 0,00</strong></div>
       </div>
 
       <div class="offerte-totals" id="offerte-totals">
@@ -627,12 +684,20 @@
     roomHeights: {},// key -> heightMm override
     // Info-tab project metadata (per project, saved alongside walls/openings
     // in the same proj.data blob - see loadActiveProjectIntoState/scheduleSave).
-    clientName: "", clientAddress: "", clientType: "particulier",
+    clientName: "", clientType: "particulier",
+    clientStreet: "", clientHouseNumber: "", clientAddressAddition: "",
+    clientPostalCode: "", clientCity: "", clientCountry: "België",
     durationEstimate: "", beforeImages: [], btwRate: 21,
     // gyproc defaults true (pre-existing projects already relied on it being
     // calculated/billed); verven/primer are opt-in add-ons so they default off.
     services: { gyproc: true, verven: false, primer: false },
     paintCoats: 1, primerCoats: 1, // aantal lagen - editable from the drawer + Offerte tab
+    // travel distance is cached (not recomputed on every render) since it's
+    // a real network round-trip to Nominatim/OSRM - travelDistanceAddress
+    // records which assembled address it was computed for, so the UI can
+    // tell the user when it's stale (address edited since).
+    travelDistanceKm: null, travelDistanceAddress: "", travelDistanceIsEstimate: false,
+    travelRatePerKm: 0, laborHours: 0, laborRate: 0,
     camera: { x: 0, y: 0, scale: 0.06 }, // scale = px per mm
     selection: null,
     drawing: null,     // {points:[{x,y}]}
@@ -1661,9 +1726,15 @@
       proj.data = {
         walls: state.walls, openings: state.openings, zoneCuts: state.zoneCuts,
         roomHeights: state.roomHeights, gridStep: state.gridStep,
-        clientName: state.clientName, clientAddress: state.clientAddress, clientType: state.clientType,
+        clientName: state.clientName, clientType: state.clientType,
+        clientStreet: state.clientStreet, clientHouseNumber: state.clientHouseNumber,
+        clientAddressAddition: state.clientAddressAddition, clientPostalCode: state.clientPostalCode,
+        clientCity: state.clientCity, clientCountry: state.clientCountry,
         durationEstimate: state.durationEstimate, beforeImages: state.beforeImages, btwRate: state.btwRate,
-        services: state.services, paintCoats: state.paintCoats, primerCoats: state.primerCoats
+        services: state.services, paintCoats: state.paintCoats, primerCoats: state.primerCoats,
+        travelDistanceKm: state.travelDistanceKm, travelDistanceAddress: state.travelDistanceAddress,
+        travelDistanceIsEstimate: state.travelDistanceIsEstimate, travelRatePerKm: state.travelRatePerKm,
+        laborHours: state.laborHours, laborRate: state.laborRate
       };
       proj.updatedAt = Date.now();
       dbUpsertProject(projectToRow(proj)).catch(function(){
@@ -1688,8 +1759,16 @@
     state.gridStep = data.gridStep || 100;
     document.getElementById("grid-select").value = String(state.gridStep);
     state.clientName = data.clientName || "";
-    state.clientAddress = data.clientAddress || "";
     state.clientType = data.clientType || "particulier";
+    // structured address fields - a project saved before this feature only
+    // has the old single-string clientAddress, so fall back to stuffing
+    // that into "Straat" once rather than losing it outright.
+    state.clientStreet = data.clientStreet != null ? data.clientStreet : (data.clientAddress || "");
+    state.clientHouseNumber = data.clientHouseNumber || "";
+    state.clientAddressAddition = data.clientAddressAddition || "";
+    state.clientPostalCode = data.clientPostalCode || "";
+    state.clientCity = data.clientCity || "";
+    state.clientCountry = data.clientCountry || "België";
     state.durationEstimate = data.durationEstimate || "";
     state.beforeImages = data.beforeImages || [];
     state.btwRate = data.btwRate != null ? data.btwRate : 21;
@@ -1700,6 +1779,12 @@
     };
     state.paintCoats = data.paintCoats || 1;
     state.primerCoats = data.primerCoats || 1;
+    state.travelDistanceKm = data.travelDistanceKm != null ? data.travelDistanceKm : null;
+    state.travelDistanceAddress = data.travelDistanceAddress || "";
+    state.travelDistanceIsEstimate = !!data.travelDistanceIsEstimate;
+    state.travelRatePerKm = data.travelRatePerKm || 0;
+    state.laborHours = data.laborHours || 0;
+    state.laborRate = data.laborRate || 0;
   }
 
   /* =====================================================================
@@ -1770,6 +1855,128 @@
     btn.addEventListener("click", function(){ showPTab(btn.dataset.ptab); });
   });
 
+  /* =====================================================================
+     GEOCODING / TRAVEL DISTANCE
+     Nominatim (OSM) for geocoding + postcode->city lookup, OSRM's public
+     routing server for actual driving distance, falling back to a
+     straight-line (Haversine) estimate if OSRM is unavailable. Both are
+     free, keyless, public APIs - no Worker proxy needed (Nominatim's usage
+     policy is satisfied by the browser's own Referer header). The result
+     is cached on the project (travelDistanceKm/travelDistanceAddress) so
+     it's a real network round-trip only when the address actually
+     changes, not on every render - shared between the Info tab's distance
+     hint and the Offerte tab's Verplaatsingsvergoeding card.
+  ===================================================================== */
+  var HOME_ADDRESS = "Waardstraat 71A, 3520 Zonhoven, België";
+  var homeGeoCache = null;
+
+  function assembleClientAddress(){
+    var line1 = (state.clientStreet||"").trim();
+    if(state.clientHouseNumber && state.clientHouseNumber.trim()) line1 += (line1?" ":"")+state.clientHouseNumber.trim();
+    if(state.clientAddressAddition && state.clientAddressAddition.trim()) line1 += " "+state.clientAddressAddition.trim();
+    var parts = [];
+    if(line1) parts.push(line1);
+    var line2 = [(state.clientPostalCode||"").trim(), (state.clientCity||"").trim()].filter(Boolean).join(" ");
+    if(line2) parts.push(line2);
+    if(state.clientCountry && state.clientCountry.trim()) parts.push(state.clientCountry.trim());
+    return parts.join(", ");
+  }
+  async function geocodeAddress(address){
+    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(address);
+    var res = await fetch(url, { headers: { "Accept-Language": "nl" } });
+    if(!res.ok) throw new Error("geocoding failed ("+res.status+")");
+    var data = await res.json();
+    if(!data || !data.length) return null;
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  }
+  async function lookupCityForPostalCode(postalCode){
+    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&country=Belgium&postalcode="
+      +encodeURIComponent(postalCode)+"&addressdetails=1";
+    var res = await fetch(url, { headers: { "Accept-Language": "nl" } });
+    if(!res.ok) return null;
+    var data = await res.json();
+    if(!data || !data.length) return null;
+    var a = data[0].address || {};
+    return a.city || a.town || a.village || a.municipality || null;
+  }
+  function haversineDistanceKm(a, b){
+    var R = 6371;
+    var dLat = (b.lat-a.lat)*Math.PI/180, dLng = (b.lng-a.lng)*Math.PI/180;
+    var la1 = a.lat*Math.PI/180, la2 = b.lat*Math.PI/180;
+    var h = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)*Math.sin(dLng/2);
+    return 2*R*Math.asin(Math.sqrt(h));
+  }
+  async function fetchDrivingDistanceKm(a, b){
+    try{
+      var url = "https://router.project-osrm.org/route/v1/driving/"+a.lng+","+a.lat+";"+b.lng+","+b.lat+"?overview=false";
+      var res = await fetch(url);
+      if(!res.ok) return null;
+      var data = await res.json();
+      if(data.code!=="Ok" || !data.routes || !data.routes.length) return null;
+      return data.routes[0].distance/1000;
+    }catch(e){ return null; }
+  }
+  async function getHomeGeo(){
+    if(!homeGeoCache) homeGeoCache = await geocodeAddress(HOME_ADDRESS);
+    return homeGeoCache;
+  }
+  function updateDistanceHint(){
+    var hintEl = document.getElementById("info-distance-hint");
+    if(!hintEl) return;
+    if(state.travelDistanceKm==null){
+      hintEl.textContent = "";
+      hintEl.classList.remove("warn");
+      return;
+    }
+    var stale = state.travelDistanceAddress !== assembleClientAddress();
+    hintEl.textContent = "≈ "+state.travelDistanceKm.toFixed(1)+" km (heen + terug) van "+HOME_ADDRESS
+      + (state.travelDistanceIsEstimate ? " (schatting, geen routedienst beschikbaar)" : "")
+      + (stale ? " — adres gewijzigd, wordt herberekend…" : "");
+    hintEl.classList.toggle("warn", false);
+  }
+  var distanceRecalcDebounce = null;
+  function scheduleDistanceRecalc(){
+    clearTimeout(distanceRecalcDebounce);
+    distanceRecalcDebounce = setTimeout(recalcTravelDistance, 900);
+  }
+  function setTravelStatusText(text, isWarn){
+    [document.getElementById("info-distance-hint"), document.getElementById("offerte-travel-note")].forEach(function(el){
+      if(!el) return;
+      el.textContent = text;
+      el.classList.toggle("warn", !!isWarn);
+    });
+  }
+  async function recalcTravelDistance(){
+    var addr = assembleClientAddress();
+    var btn = document.getElementById("offerte-travel-recalc-btn");
+    if(!state.clientPostalCode.trim() || !state.clientCity.trim()){
+      setTravelStatusText("Vul minstens postcode en gemeente in bij Info.", true);
+      return;
+    }
+    if(btn) btn.disabled = true;
+    setTravelStatusText("Afstand berekenen…", false);
+    try{
+      var home = await getHomeGeo();
+      var dest = await geocodeAddress(addr);
+      if(!home || !dest){
+        setTravelStatusText("Kon dit adres niet vinden. Controleer het adres bij Info.", true);
+        return;
+      }
+      var driving = await fetchDrivingDistanceKm(home, dest);
+      var oneWay = driving!=null ? driving : haversineDistanceKm(home, dest);
+      state.travelDistanceKm = oneWay*2; // heen + terug
+      state.travelDistanceAddress = addr;
+      state.travelDistanceIsEstimate = driving==null;
+      scheduleSave();
+      updateDistanceHint();
+      renderOfferteTab();
+    }catch(e){
+      setTravelStatusText("Afstand berekenen mislukt — controleer je internetverbinding.", true);
+    }finally{
+      if(btn) btn.disabled = false;
+    }
+  }
+
   /* ---------- Info tab ---------- */
   function updateInfoAvatar(name){
     var initials = (name||"").trim().split(/\s+/).filter(Boolean).slice(0,2)
@@ -1779,8 +1986,15 @@
   function renderInfoTab(){
     var proj = getActiveProject();
     if(!proj) return;
+    document.getElementById("info-project-name").value = proj.name || "";
     document.getElementById("info-client-name").value = state.clientName || "";
-    document.getElementById("info-client-address").value = state.clientAddress || "";
+    document.getElementById("info-addr-street").value = state.clientStreet || "";
+    document.getElementById("info-addr-number").value = state.clientHouseNumber || "";
+    document.getElementById("info-addr-addition").value = state.clientAddressAddition || "";
+    document.getElementById("info-addr-postal").value = state.clientPostalCode || "";
+    document.getElementById("info-addr-city").value = state.clientCity || "";
+    document.getElementById("info-addr-country").value = state.clientCountry || "";
+    updateDistanceHint();
     document.querySelectorAll(".ctype-btn").forEach(function(btn){
       btn.classList.toggle("active", (state.clientType||"particulier")===btn.dataset.ctype);
     });
@@ -1793,14 +2007,42 @@
     updateInfoAvatar(state.clientName);
     renderInfoImages();
   }
+  document.getElementById("info-project-name").addEventListener("input", function(){
+    var proj = getActiveProject();
+    if(!proj) return;
+    proj.name = this.value;
+    document.getElementById("app-title-name").textContent = this.value;
+    scheduleSave();
+  });
   document.getElementById("info-client-name").addEventListener("input", function(){
     state.clientName = this.value;
     updateInfoAvatar(state.clientName);
     scheduleSave();
   });
-  document.getElementById("info-client-address").addEventListener("input", function(){
-    state.clientAddress = this.value;
-    scheduleSave();
+  [["info-addr-street","clientStreet"],["info-addr-number","clientHouseNumber"],
+   ["info-addr-addition","clientAddressAddition"],["info-addr-postal","clientPostalCode"],
+   ["info-addr-city","clientCity"],["info-addr-country","clientCountry"]].forEach(function(pair){
+    document.getElementById(pair[0]).addEventListener("input", function(){
+      state[pair[1]] = this.value;
+      scheduleSave();
+      scheduleDistanceRecalc();
+    });
+  });
+  // when the postcode is filled in first (gemeente still empty), look up
+  // the municipality so the user doesn't have to type it - only fires for
+  // a plausible 4-digit Belgian postcode, and never overwrites a gemeente
+  // the user already typed themselves.
+  document.getElementById("info-addr-postal").addEventListener("blur", function(){
+    var pc = state.clientPostalCode.trim();
+    if(!pc || state.clientCity.trim() || !/^\d{4}$/.test(pc)) return;
+    lookupCityForPostalCode(pc).then(function(city){
+      if(city && !state.clientCity.trim()){
+        state.clientCity = city;
+        document.getElementById("info-addr-city").value = city;
+        scheduleSave();
+        scheduleDistanceRecalc();
+      }
+    }).catch(function(){});
   });
   document.querySelectorAll(".ctype-btn").forEach(function(btn){
     btn.addEventListener("click", function(){
@@ -3763,7 +4005,8 @@
     document.getElementById("offerte-project-name").textContent = "Offerte — " + (proj.name || "Naamloos project");
     var clientBits = [];
     if(state.clientName) clientBits.push(state.clientName);
-    if(state.clientAddress) clientBits.push(state.clientAddress);
+    var fullAddr = assembleClientAddress();
+    if(fullAddr) clientBits.push(fullAddr);
     document.getElementById("offerte-client-line").textContent = clientBits.join(" · ");
     document.getElementById("offerte-btw-rate").value = String(state.btwRate);
 
@@ -3773,40 +4016,71 @@
     document.getElementById("offerte-primer-coats").value = state.primerCoats;
     document.getElementById("offerte-coats-row").style.display = (state.services.verven || state.services.primer) ? "" : "none";
 
+    // Arbeid - independent of walls/materials-diensten, a quote can be
+    // labor+travel-only (e.g. a consultation visit).
+    document.getElementById("offerte-labor-hours").value = state.laborHours || 0;
+    document.getElementById("offerte-labor-rate").value = state.laborRate || 0;
+    var laborSubtotal = (state.laborHours||0) * (state.laborRate||0);
+    document.getElementById("offerte-labor-subtotal").textContent = fmtEuro(laborSubtotal);
+
+    // Verplaatsingsvergoeding - reads the SAME cached distance the Info
+    // tab's hint uses/computes; only an explicit button click here
+    // triggers a fresh calculation, never a silent one on render.
+    document.getElementById("offerte-travel-rate").value = state.travelRatePerKm || 0;
+    var travelDistanceEl = document.getElementById("offerte-travel-distance-value");
+    var travelNoteEl = document.getElementById("offerte-travel-note");
+    if(state.travelDistanceKm!=null){
+      travelDistanceEl.textContent = state.travelDistanceKm.toFixed(1)+" km (heen + terug)";
+      var stale = state.travelDistanceAddress !== assembleClientAddress();
+      if(stale){
+        travelNoteEl.textContent = "⚠ Adres gewijzigd sinds laatste berekening — klik om te herberekenen.";
+        travelNoteEl.classList.add("warn");
+      } else if(state.travelDistanceIsEstimate){
+        travelNoteEl.textContent = "Schatting (hemelsbrede afstand) — routedienst niet beschikbaar. Thuisadres: "+HOME_ADDRESS;
+        travelNoteEl.classList.remove("warn");
+      } else {
+        travelNoteEl.textContent = "Rijafstand, thuisadres: "+HOME_ADDRESS;
+        travelNoteEl.classList.remove("warn");
+      }
+    } else {
+      travelDistanceEl.textContent = "Nog niet berekend";
+      travelNoteEl.textContent = "";
+      travelNoteEl.classList.remove("warn");
+    }
+    var travelSubtotal = (state.travelDistanceKm||0) * (state.travelRatePerKm||0);
+    document.getElementById("offerte-travel-subtotal").textContent = fmtEuro(travelSubtotal);
+
     var offer = computeProjectOffer();
     var table = document.getElementById("offerte-table");
-    var totalsEl = document.getElementById("offerte-totals");
     var emptyEl = document.getElementById("offerte-empty");
     var warnEl = document.getElementById("offerte-warn");
 
-    if(!offer.hasWalls || offer.noServices){
-      table.style.display = "none";
-      totalsEl.style.display = "none";
-      warnEl.style.display = "none";
+    var showMaterials = offer.hasWalls && !offer.noServices;
+    table.style.display = showMaterials ? "" : "none";
+    emptyEl.style.display = showMaterials ? "none" : "";
+    if(!showMaterials){
       emptyEl.textContent = !offer.hasWalls
         ? "Nog geen muren getekend — ga naar Grondplan om je ontwerp te starten."
-        : "Geen diensten geselecteerd — vink minstens één dienst aan bij Info om een offerte te genereren.";
-      emptyEl.style.display = "";
-      return;
+        : "Geen diensten geselecteerd — vink minstens één dienst aan bij Info voor een materiaaloffer.";
     }
-    emptyEl.style.display = "none";
-    table.style.display = "";
-    totalsEl.style.display = "";
+    if(showMaterials){
+      document.getElementById("offerte-table-body").innerHTML = offer.items.map(function(it){
+        return "<tr><td>"+escapeHtml(it.label)+(it.missing?' <span style="color:#b45309;">(geen prijs)</span>':'')+"</td>"
+          + "<td>"+it.qty+(it.unit?" "+it.unit:"")+"</td>"
+          + "<td>"+(it.missing?"—":fmtEuro(it.unitPrice))+"</td>"
+          + "<td>"+(it.missing?"—":fmtEuro(it.total))+"</td></tr>";
+      }).join("");
+    }
 
-    document.getElementById("offerte-table-body").innerHTML = offer.items.map(function(it){
-      return "<tr><td>"+escapeHtml(it.label)+(it.missing?' <span style="color:#b45309;">(geen prijs)</span>':'')+"</td>"
-        + "<td>"+it.qty+(it.unit?" "+it.unit:"")+"</td>"
-        + "<td>"+(it.missing?"—":fmtEuro(it.unitPrice))+"</td>"
-        + "<td>"+(it.missing?"—":fmtEuro(it.total))+"</td></tr>";
-    }).join("");
-
+    var materialsSubtotal = showMaterials ? offer.subtotal : 0;
+    var combinedSubtotal = materialsSubtotal + laborSubtotal + travelSubtotal;
     var btwRate = state.btwRate || 0;
-    var btwAmount = offer.subtotal * (btwRate/100);
-    document.getElementById("offerte-subtotal").textContent = fmtEuro(offer.subtotal);
+    var btwAmount = combinedSubtotal * (btwRate/100);
+    document.getElementById("offerte-subtotal").textContent = fmtEuro(combinedSubtotal);
     document.getElementById("offerte-btw-label").textContent = "Btw ("+btwRate+"%)";
     document.getElementById("offerte-btw-amount").textContent = fmtEuro(btwAmount);
-    document.getElementById("offerte-grand-total").textContent = fmtEuro(offer.subtotal+btwAmount);
-    warnEl.style.display = offer.anyMissing ? "" : "none";
+    document.getElementById("offerte-grand-total").textContent = fmtEuro(combinedSubtotal+btwAmount);
+    warnEl.style.display = (showMaterials && offer.anyMissing) ? "" : "none";
   }
   document.getElementById("offerte-btw-rate").addEventListener("change", function(){
     state.btwRate = parseFloat(this.value) || 0;
@@ -3822,6 +4096,24 @@
     state.primerCoats = Math.max(1, parseInt(this.value,10)||1);
     scheduleSave();
     renderOfferteTab();
+  });
+  document.getElementById("offerte-labor-hours").addEventListener("input", function(){
+    state.laborHours = Math.max(0, parseFloat(this.value)||0);
+    scheduleSave();
+    renderOfferteTab();
+  });
+  document.getElementById("offerte-labor-rate").addEventListener("input", function(){
+    state.laborRate = Math.max(0, parseFloat(this.value)||0);
+    scheduleSave();
+    renderOfferteTab();
+  });
+  document.getElementById("offerte-travel-rate").addEventListener("input", function(){
+    state.travelRatePerKm = Math.max(0, parseFloat(this.value)||0);
+    scheduleSave();
+    renderOfferteTab();
+  });
+  document.getElementById("offerte-travel-recalc-btn").addEventListener("click", function(){
+    recalcTravelDistance();
   });
 
   // Metal studs are rendered as their OWN section with their OWN diagram
