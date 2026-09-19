@@ -319,7 +319,7 @@
   .ctype-btn{border:1px solid var(--line);background:var(--bg);color:var(--muted);padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;}
   .ctype-btn.active{background:rgba(47,111,235,.12);border-color:var(--blue);color:var(--blue-dark);}
   .status-select-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-  .status-select-row select{flex:1;min-width:160px;height:35px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
+  .status-select-row select{flex:1;min-width:160px;height:35px;border:1px solid var(--line);border-radius:8px;padding:0 32px 0 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
   .status-pill{display:inline-flex;align-items:center;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
   .status-pill.status-aanvraag{background:rgba(107,114,128,.14);color:#4b5563;}
   .status-pill.status-offerte_verstuurd{background:rgba(47,111,235,.14);color:#1f4fb8;}
@@ -379,7 +379,12 @@
   .offerte-client-line{font-size:13px;color:var(--muted);}
   .offerte-btw{display:flex;align-items:center;gap:8px;}
   .offerte-btw label{font-size:12px;color:var(--muted);}
-  .offerte-btw select{height:35px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
+  .offerte-btw select{height:35px;border:1px solid var(--line);border-radius:8px;padding:0 32px 0 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
+  .status-select-row select,.offerte-btw select{
+    -webkit-appearance:none;-moz-appearance:none;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 10px center;background-size:14px 14px;
+  }
   .offerte-empty{padding:30px 0;text-align:center;color:var(--muted);font-size:14px;}
   .offerte-coats-row{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:16px;}
   .offerte-coats-field{display:flex;align-items:center;gap:8px;}
@@ -414,6 +419,10 @@
     #save-status{background:#3b2a0f;color:#fbbf24;}
     .info-field input,.info-card textarea,#offerte-btw-rate,.offerte-coats-field input,.status-select-row select{background:#0f1420;color:#e5e7eb;}
     .info-field input[type=number]:disabled{background:#1a2233;color:#8993a8;}
+    .status-select-row select,.offerte-btw select{
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238993a8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat:no-repeat;background-position:right 10px center;background-size:14px 14px;
+    }
     .offerte-warn{background:#3b2a0f;color:#fbbf24;}
     .offerte-table th{background:#0f1420;}
     .status-pill.status-aanvraag{color:#d1d5db;}
