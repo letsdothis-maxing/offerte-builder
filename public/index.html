@@ -322,6 +322,7 @@
   .info-field input[type=text],.info-field input[type=date]{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
   .info-card textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit;resize:vertical;color:var(--ink);background:var(--panel);}
   .info-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .info-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
   .info-duration-row{display:flex;gap:8px;}
   .info-duration-row input[type=number]{width:80px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;color:var(--ink);background:var(--panel);}
   .info-duration-row select{flex:1;padding:8px 10px;}
@@ -403,6 +404,7 @@
     #floating-nav .tbtn{padding:9px 11px;}
     #floating-topright{display:none;}
     .info-grid-2{grid-template-columns:1fr;gap:14px;}
+    .info-grid-3{grid-template-columns:1fr 1fr;gap:14px;}
     .info-tab-inner,.offerte-inner{padding:18px 14px 48px;}
     .info-address-grid{grid-template-columns:1fr 1fr;grid-template-areas:"street street" "number addition" "postal city" "country country";gap:10px;}
   }
@@ -574,17 +576,21 @@
 
       <div class="info-card offerte-subcard">
         <label class="info-section-label">Arbeid</label>
-        <div class="info-grid-2">
+        <div class="info-grid-3">
           <div class="info-field">
-            <label>Geschat aantal uren</label>
-            <input type="number" min="0" step="0.5" id="offerte-labor-hours">
+            <label>Aantal dagen</label>
+            <input type="number" min="0" step="0.5" id="offerte-labor-days">
+          </div>
+          <div class="info-field">
+            <label>Uren per dag</label>
+            <input type="number" min="0" step="0.5" id="offerte-labor-hours-per-day">
           </div>
           <div class="info-field">
             <label>Uurtarief (€/u)</label>
             <input type="number" min="0" step="0.5" id="offerte-labor-rate">
           </div>
         </div>
-        <div class="offerte-subcard-total">Subtotaal arbeid: <strong id="offerte-labor-subtotal">€ 0,00</strong></div>
+        <div class="offerte-subcard-total">Totaal <strong id="offerte-labor-total-hours">0</strong> uur — Subtotaal arbeid: <strong id="offerte-labor-subtotal">€ 0,00</strong></div>
       </div>
 
       <div class="info-card offerte-subcard">
@@ -747,7 +753,10 @@
     // records which assembled address it was computed for, so the UI can
     // tell the user when it's stale (address edited since).
     travelDistanceKm: null, travelDistanceAddress: "", travelDistanceIsEstimate: false,
-    travelRatePerKm: 0, laborHours: 0, laborRate: 0,
+    // laborDays also drives the Verplaatsingsvergoeding subtotal below (a
+    // round trip per day actually worked, not once per project) - hence
+    // the days/hours-per-day split instead of one flat "total hours" field.
+    travelRatePerKm: 0, laborDays: 0, laborHoursPerDay: 8, laborRate: 0,
     camera: { x: 0, y: 0, scale: 0.06 }, // scale = px per mm
     selection: null,
     drawing: null,     // {points:[{x,y}]}
@@ -1804,7 +1813,7 @@
         services: state.services, paintCoats: state.paintCoats, primerCoats: state.primerCoats,
         travelDistanceKm: state.travelDistanceKm, travelDistanceAddress: state.travelDistanceAddress,
         travelDistanceIsEstimate: state.travelDistanceIsEstimate, travelRatePerKm: state.travelRatePerKm,
-        laborHours: state.laborHours, laborRate: state.laborRate
+        laborDays: state.laborDays, laborHoursPerDay: state.laborHoursPerDay, laborRate: state.laborRate
       };
       proj.updatedAt = Date.now();
       dbUpsertProject(projectToRow(proj)).catch(function(){
@@ -1863,7 +1872,19 @@
     state.travelDistanceAddress = data.travelDistanceAddress || "";
     state.travelDistanceIsEstimate = !!data.travelDistanceIsEstimate;
     state.travelRatePerKm = data.travelRatePerKm || 0;
-    state.laborHours = data.laborHours || 0;
+    // laborHours (flat total) replaced by laborDays x laborHoursPerDay -
+    // best-effort one-time migration for a project saved before this
+    // split existed, treating the old total as a single day's hours.
+    if(data.laborDays != null){
+      state.laborDays = data.laborDays;
+      state.laborHoursPerDay = data.laborHoursPerDay != null ? data.laborHoursPerDay : 8;
+    } else if(data.laborHours){
+      state.laborDays = 1;
+      state.laborHoursPerDay = data.laborHours;
+    } else {
+      state.laborDays = 0;
+      state.laborHoursPerDay = 8;
+    }
     state.laborRate = data.laborRate || 0;
   }
 
@@ -4260,23 +4281,34 @@
     document.getElementById("offerte-coats-row").style.display = (state.services.verven || state.services.primer) ? "" : "none";
 
     // Arbeid - independent of walls/materials-diensten, a quote can be
-    // labor+travel-only (e.g. a consultation visit).
-    document.getElementById("offerte-labor-hours").value = state.laborHours || 0;
+    // labor+travel-only (e.g. a consultation visit). Days x hours/day
+    // (instead of one flat total-hours guess) is what lets Verplaatsings-
+    // vergoeding below know how many round trips to charge for.
+    document.getElementById("offerte-labor-days").value = state.laborDays || 0;
+    document.getElementById("offerte-labor-hours-per-day").value = state.laborHoursPerDay || 0;
     document.getElementById("offerte-labor-rate").value = state.laborRate || 0;
-    var laborSubtotal = (state.laborHours||0) * (state.laborRate||0);
+    var laborDays = state.laborDays || 0;
+    var laborTotalHours = laborDays * (state.laborHoursPerDay||0);
+    var laborSubtotal = laborTotalHours * (state.laborRate||0);
+    document.getElementById("offerte-labor-total-hours").textContent = laborTotalHours;
     document.getElementById("offerte-labor-subtotal").textContent = fmtEuro(laborSubtotal);
 
     // Verplaatsingsvergoeding - reads the SAME cached distance the Info
     // tab's hint uses/computes; only an explicit button click here
-    // triggers a fresh calculation, never a silent one on render.
+    // triggers a fresh calculation, never a silent one on render. The
+    // subtotal is the round-trip distance x rate x days worked (Arbeid
+    // above) - a round trip per day actually on site, not once per quote.
     document.getElementById("offerte-travel-rate").value = state.travelRatePerKm || 0;
     var travelDistanceEl = document.getElementById("offerte-travel-distance-value");
     var travelNoteEl = document.getElementById("offerte-travel-note");
     if(state.travelDistanceKm!=null){
-      travelDistanceEl.textContent = state.travelDistanceKm.toFixed(1)+" km (heen + terug)";
+      travelDistanceEl.textContent = state.travelDistanceKm.toFixed(1)+" km (heen + terug) × "+laborDays+" "+(laborDays===1?"dag":"dagen");
       var stale = state.travelDistanceAddress !== assembleClientAddress();
       if(stale){
         travelNoteEl.textContent = "⚠ Adres gewijzigd sinds laatste berekening — klik om te herberekenen.";
+        travelNoteEl.classList.add("warn");
+      } else if(laborDays<=0){
+        travelNoteEl.textContent = "⚠ Vul het aantal dagen in bij Arbeid om de verplaatsingskost te berekenen.";
         travelNoteEl.classList.add("warn");
       } else if(state.travelDistanceIsEstimate){
         travelNoteEl.textContent = "Schatting (hemelsbrede afstand) — routedienst niet beschikbaar. Thuisadres: "+HOME_ADDRESS;
@@ -4290,7 +4322,7 @@
       travelNoteEl.textContent = "";
       travelNoteEl.classList.remove("warn");
     }
-    var travelSubtotal = (state.travelDistanceKm||0) * (state.travelRatePerKm||0);
+    var travelSubtotal = (state.travelDistanceKm||0) * (state.travelRatePerKm||0) * laborDays;
     document.getElementById("offerte-travel-subtotal").textContent = fmtEuro(travelSubtotal);
 
     var offer = computeProjectOffer();
@@ -4340,8 +4372,13 @@
     scheduleSave();
     renderOfferteTab();
   });
-  document.getElementById("offerte-labor-hours").addEventListener("input", function(){
-    state.laborHours = Math.max(0, parseFloat(this.value)||0);
+  document.getElementById("offerte-labor-days").addEventListener("input", function(){
+    state.laborDays = Math.max(0, parseFloat(this.value)||0);
+    scheduleSave();
+    renderOfferteTab();
+  });
+  document.getElementById("offerte-labor-hours-per-day").addEventListener("input", function(){
+    state.laborHoursPerDay = Math.max(0, parseFloat(this.value)||0);
     scheduleSave();
     renderOfferteTab();
   });
