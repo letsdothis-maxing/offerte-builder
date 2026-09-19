@@ -54,7 +54,6 @@
   .tbtn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
   .tbtn .ic{font-size:15px;line-height:1;}
   .tbtn:disabled{opacity:.4;cursor:not-allowed;}
-  .sep{width:1px;height:24px;background:var(--line);margin:0 4px;}
   .tb-group{display:flex;align-items:center;gap:6px;}
   .tb-label{font-size:11px;color:var(--muted);margin-right:2px;}
   select.tb-select{
@@ -282,20 +281,31 @@
     .btn-danger{background:#3b1418;color:#fca5a5;}
     #save-status{background:#3b2a0f;color:#fbbf24;}
   }
+
+  /* ---------- mobile compaction ---------- */
+  @media (max-width:720px){
+    #topbar{gap:8px;padding:8px 10px;}
+    #topbar .lbl,#floating-nav .lbl{display:none;}
+    #app-title .title-brand{display:none;}
+    #app-title{font-size:14px;}
+    #floating-nav .tbtn{padding:9px 11px;}
+    #floating-topright{display:none;}
+  }
 </style>
 </head>
 <body>
 <div id="app">
   <div id="topbar">
-    <button class="tbtn" id="back-to-projects-btn" title="Terug naar projecten"><span class="ic">←</span>Projecten</button>
-    <h1 id="app-title">Offerte<span>Builder</span> — Ontwerpmodule</h1>
-    <span id="save-status" style="display:none;"></span>
-    <div class="tb-group" style="margin-left:auto;">
+    <button class="tbtn" id="back-to-projects-btn" title="Terug naar projecten"><span class="ic">←</span><span class="lbl">Projecten</span></button>
+    <h1 id="app-title"><span class="title-brand">Offerte<span>Builder</span> — </span><span id="app-title-name">Ontwerpmodule</span></h1>
+    <div class="tb-group" id="undo-redo-group">
       <button class="tbtn" id="undo-btn" disabled title="Ongedaan maken (Ctrl+Z)"><span class="ic">↶</span></button>
       <button class="tbtn" id="redo-btn" disabled title="Opnieuw doen (Ctrl+Shift+Z)"><span class="ic">↷</span></button>
-      <div class="sep"></div>
-      <button class="tbtn" id="gyproc-btn"><span class="ic">🧱</span>Gyproc berekenen</button>
-      <button class="tbtn" id="clear-btn"><span class="ic">🗑</span>Wis alles</button>
+    </div>
+    <span id="save-status" style="display:none;"></span>
+    <div class="tb-group" style="margin-left:auto;">
+      <button class="tbtn" id="gyproc-btn"><span class="ic">🧱</span>Berekenen</button>
+      <button class="tbtn" id="clear-btn"><span class="ic">🗑</span><span class="lbl">Wis alles</span></button>
     </div>
   </div>
 
@@ -309,7 +319,7 @@
     </div>
 
     <div id="floating-topright">
-      <button class="tbtn" id="snap-toggle"><span class="ic">▦</span>Snap to grid</button>
+      <button class="tbtn" id="snap-toggle"><span class="ic">▦</span>Snap</button>
       <select class="tb-select" id="grid-select">
         <option value="50">5 cm</option>
         <option value="100" selected>10 cm</option>
@@ -323,11 +333,11 @@
     <span id="hint">Klik om muurpunten te plaatsen. Klik dicht bij het startpunt om een ruimte te sluiten.</span>
 
     <div id="floating-nav">
-      <button class="tbtn" data-tool="select"><span class="ic">↖</span>Selecteer</button>
-      <button class="tbtn" data-tool="wall"><span class="ic">✏️</span>Muur</button>
-      <button class="tbtn" data-tool="door"><span class="ic">🚪</span>Deur</button>
-      <button class="tbtn" data-tool="window"><span class="ic">🪟</span>Raam</button>
-      <button class="tbtn" data-tool="zone"><span class="ic">✂️</span>Splitsen</button>
+      <button class="tbtn" data-tool="select"><span class="ic">↖</span><span class="lbl">Selecteer</span></button>
+      <button class="tbtn" data-tool="wall"><span class="ic">✏️</span><span class="lbl">Muur</span></button>
+      <button class="tbtn" data-tool="door"><span class="ic">🚪</span><span class="lbl">Deur</span></button>
+      <button class="tbtn" data-tool="window"><span class="ic">🪟</span><span class="lbl">Raam</span></button>
+      <button class="tbtn" data-tool="zone"><span class="ic">✂️</span><span class="lbl">Splitsen</span></button>
     </div>
   </div>
 </div>
@@ -1507,7 +1517,7 @@
     state.selection = null; state.dragState = null; state.drawing = null; state.zoneDraw = null;
     state.camera = { x:0, y:0, scale:0.06 };
     var proj = getActiveProject();
-    document.getElementById("app-title").innerHTML = "Offerte<span>Builder</span> — "+(proj?escapeHtml(proj.name):"");
+    document.getElementById("app-title-name").textContent = proj?proj.name:"";
     document.getElementById("project-list-screen").classList.add("hidden");
     document.getElementById("app").style.display = "flex";
     resizeCanvas();
