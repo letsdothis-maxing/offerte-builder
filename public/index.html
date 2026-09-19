@@ -67,7 +67,6 @@
   #canvas.tool-select{cursor:default;}
   #canvas.tool-door,#canvas.tool-window{cursor:cell;}
   #canvas.panning{cursor:grabbing;}
-  #canvas.tool-gyproc-pick{cursor:pointer;}
 
   /* ---------- floating bottom tool nav ---------- */
   #floating-nav{
@@ -106,20 +105,6 @@
   }
   #delete-selection-btn.show{display:flex;}
   #delete-selection-btn:hover{background:#fecaca;}
-
-  /* ---------- gyproc wall-pick banner ---------- */
-  #gyproc-pick-banner{
-    position:absolute;top:0;left:0;right:0;display:none;align-items:center;gap:14px;
-    background:var(--blue);color:#fff;padding:14px 20px;z-index:30;
-    box-shadow:0 8px 22px rgba(15,23,42,.18);
-  }
-  #gyproc-pick-banner.show{display:flex;}
-  #gyproc-pick-banner .msg{flex:1;font-size:13px;font-weight:600;}
-  #gyproc-pick-banner button{border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;}
-  #gyproc-pick-banner .cancel-btn{background:rgba(255,255,255,.15);color:#fff;}
-  #gyproc-pick-banner .cancel-btn:hover{background:rgba(255,255,255,.25);}
-  #gyproc-pick-banner .confirm-btn{background:#fff;color:var(--blue);}
-  #gyproc-pick-banner .confirm-btn:disabled{opacity:.5;cursor:not-allowed;}
 
   /* inline pill editor (dimension / height) */
   .pill-editor{
@@ -335,12 +320,6 @@
 
     <button id="delete-selection-btn"><span class="ic">🗑</span><span id="delete-selection-label">Verwijderen</span></button>
 
-    <div id="gyproc-pick-banner">
-      <span class="msg">Selecteer de muur die je wilt gebruiken voor de gyproc-berekening.</span>
-      <button class="cancel-btn" id="gyproc-pick-cancel">Annuleren</button>
-      <button class="confirm-btn" id="gyproc-pick-confirm" disabled>Bereken</button>
-    </div>
-
     <span id="hint">Klik om muurpunten te plaatsen. Klik dicht bij het startpunt om een ruimte te sluiten.</span>
 
     <div id="floating-nav">
@@ -460,7 +439,6 @@
     pointer: { world: {x:0,y:0}, screen:{x:0,y:0} },
     panState: null,
     dragState: null,
-    gyprocPickMode: false,
     spaceHeld: false,
     _pillHitboxes: [],
     _lastZones: [],
@@ -875,7 +853,7 @@
 
   function updateSelectionUI(){
     var btn = document.getElementById("delete-selection-btn");
-    var show = !!state.selection && !state.gyprocPickMode;
+    var show = !!state.selection;
     btn.classList.toggle("show", show);
     if(show){
       var labels = { wall:"Muur verwijderen", opening:"Verwijderen", zoneCut:"Splitlijn verwijderen" };
@@ -1850,15 +1828,6 @@
     if(e.button !== 0) return;
     isPrimaryDown = true;
 
-    if(state.tool === "gyproc-pick"){
-      var gHit = findWallHit(world);
-      gyprocPickWallId = gHit ? gHit.wall.id : null;
-      state.selection = gHit ? { type:"wall", id: gHit.wall.id } : null;
-      document.getElementById("gyproc-pick-confirm").disabled = !gyprocPickWallId;
-      render();
-      return;
-    }
-
     // pill click takes priority, but only in select mode - otherwise a pill
     // sitting near a wall would steal clicks meant for the wall/door/zone tools
     if(state.tool === "select"){
@@ -2109,10 +2078,9 @@
       e.preventDefault(); // stop the page from scrolling on spacebar
     }
     if(e.key === "Escape"){
-      if(state.gyprocPickMode) cancelGyprocPickMode();
       state.drawing = null; state.zoneDraw = null; render();
     }
-    if((e.key === "Delete" || e.key === "Backspace") && state.selection && !state.gyprocPickMode && !inField){
+    if((e.key === "Delete" || e.key === "Backspace") && state.selection && !inField){
       deleteSelection();
     }
     var mod = e.metaKey || e.ctrlKey;
@@ -2136,6 +2104,18 @@
     // doesn't always match drawing order.
     var maxOrder = state.walls.reduce(function(m,w){ return Math.max(m, w.order||0); }, 0);
     state.walls.push({ id: uid("w"), x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y, thickness: state.wallThickness, order: maxOrder+1, excludeFromCalc:false });
+  }
+
+  // Keeps the walls still IN the calculation as a clean, gap-free
+  // 1,2,3,... sequence whenever one is excluded or re-included - so
+  // "wall 1 excluded, wall 2 becomes 1, wall 3 becomes 2, ..." instead of
+  // leaving a hole (or a duplicate) in the numbering. Preserves relative
+  // order among the survivors; an excluded wall keeps its old number
+  // (irrelevant while excluded - it shows "✕" on its badge, not a number).
+  function renumberIncludedWalls(){
+    state.walls.filter(function(w){ return !w.excludeFromCalc; })
+      .sort(function(a,b){ return (a.order||0)-(b.order||0); })
+      .forEach(function(w, idx){ w.order = idx+1; });
   }
 
   // Click-vs-drag: a drag gesture shares its pointerdown with plain
@@ -2260,9 +2240,14 @@
     orderInput.focus(); orderInput.select();
     function commit(){
       var n = parseInt(orderInput.value,10);
+      var wasExcluded = w.excludeFromCalc;
       pushUndo();
       if(!isNaN(n) && n>0) w.order = n;
       w.excludeFromCalc = excludeCheckbox.checked;
+      // excluding/re-including shifts the WHOLE sequence so the walls
+      // still in the calculation always form a clean 1,2,3,... with no
+      // gaps or duplicates left behind by the one that just left/rejoined.
+      if(wasExcluded !== w.excludeFromCalc) renumberIncludedWalls();
       scheduleSave();
       closePillEditor();
       render();
@@ -2379,9 +2364,6 @@
 
   var gyprocBackdrop = document.getElementById("gyproc-backdrop");
   var gyprocPanel = document.getElementById("gyproc-panel");
-  var gyprocPickBanner = document.getElementById("gyproc-pick-banner");
-  var gyprocPickConfirm = document.getElementById("gyproc-pick-confirm");
-  var gyprocPickWallId = null;
   // room-wide "checkout": every non-excluded wall of the room the user
   // picked a wall in gets its own full calculation (kept in
   // gyprocWallStates, keyed by wall id), shown as its own checkout tab;
@@ -2398,51 +2380,27 @@
   // across every wall in the checkout (not per-wall) - h.o.h./gauge are
   // whole-room choices, same as the gyproc thickness field already was.
   var gyprocHohMm = 600, gyprocStudGaugeMm = 50;
-  var toolBeforeGyprocPick = "select";
 
+  // A specific wall no longer needs to be picked first: since one click
+  // pulls in its WHOLE room anyway (every non-excluded wall of it), any
+  // wall in that room gives the identical result - so if the currently
+  // selected wall isn't usable (none selected, or it's excluded), just
+  // fall back to the lowest-build-order non-excluded wall in the project
+  // instead of making the user pick one.
   document.getElementById("gyproc-btn").addEventListener("click", function(){
-    // if a wall is already selected, skip the picker banner entirely and
-    // go straight to its calculation
+    var wallId = null;
     if(state.selection && state.selection.type === "wall"){
-      openGyprocDrawer(state.selection.id);
-      return;
+      var sel = state.walls.find(function(w){ return w.id===state.selection.id; });
+      if(sel && !sel.excludeFromCalc) wallId = sel.id;
     }
-    enterGyprocPickMode();
-  });
-  document.getElementById("gyproc-pick-cancel").addEventListener("click", cancelGyprocPickMode);
-  gyprocPickConfirm.addEventListener("click", function(){
-    if(!gyprocPickWallId) return;
-    var wallId = gyprocPickWallId;
-    exitGyprocPickMode();
+    if(!wallId){
+      var candidates = state.walls.filter(function(w){ return !w.excludeFromCalc; })
+        .slice().sort(function(a,b){ return (a.order||0)-(b.order||0); });
+      if(candidates.length) wallId = candidates[0].id;
+    }
+    if(!wallId) return; // no (non-excluded) walls drawn yet - nothing to calculate
     openGyprocDrawer(wallId);
   });
-
-  function enterGyprocPickMode(){
-    toolBeforeGyprocPick = state.tool === "gyproc-pick" ? "select" : state.tool;
-    state.gyprocPickMode = true;
-    state.tool = "gyproc-pick";
-    state.drawing = null; state.zoneDraw = null; state.selection = null;
-    gyprocPickWallId = null;
-    gyprocPickConfirm.disabled = true;
-    canvas.className = "tool-gyproc-pick";
-    document.getElementById("floating-nav").style.display = "none";
-    document.getElementById("floating-topright").style.display = "none";
-    document.getElementById("hint").style.display = "none";
-    gyprocPickBanner.classList.add("show");
-    render();
-  }
-  function cancelGyprocPickMode(){
-    if(!state.gyprocPickMode) return;
-    exitGyprocPickMode();
-  }
-  function exitGyprocPickMode(){
-    state.gyprocPickMode = false;
-    gyprocPickBanner.classList.remove("show");
-    document.getElementById("floating-nav").style.display = "";
-    document.getElementById("floating-topright").style.display = "";
-    document.getElementById("hint").style.display = "";
-    setTool(toolBeforeGyprocPick);
-  }
 
   // Opening the drawer on ONE wall pulls in the WHOLE room it belongs to:
   // every other non-excluded wall sharing that same closed face, sorted by
@@ -2454,11 +2412,7 @@
   // just itself, same as the old single-wall behaviour.
   function openGyprocDrawer(wallId){
     var clicked = state.walls.find(function(ww){ return ww.id===wallId; });
-    if(!clicked) return;
-    if(clicked.excludeFromCalc){
-      alert("Deze muur is uitgesloten van de berekening. Vink dit eerst uit via het volgordebadge op de muur.");
-      return;
-    }
+    if(!clicked || clicked.excludeFromCalc) return; // caller always passes a valid, included wall
     // face-detection runs on EVERY wall (geometry doesn't care which ones
     // are excluded from the calculation) - an excluded wall still
     // physically closes the room shape, it just shouldn't get its own
