@@ -308,6 +308,7 @@
 
   /* ---------- Info tab ---------- */
   .info-tab-inner{max-width:640px;margin:0 auto;padding:28px 20px 60px;display:flex;flex-direction:column;gap:16px;width:100%;}
+  .settings-inner{max-width:640px;margin:0 auto;padding:8px 4px 60px;display:flex;flex-direction:column;gap:16px;width:100%;}
   .info-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
   .info-card-head{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
   .client-avatar{flex-shrink:0;width:52px;height:52px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;letter-spacing:.02em;}
@@ -621,9 +622,10 @@
           </div>
           <div class="info-field">
             <label>Uurtarief (€/u)</label>
-            <input type="number" min="0" step="0.5" id="offerte-labor-rate">
+            <input type="number" min="0" step="0.5" id="offerte-labor-rate" disabled title="Ingesteld bij Instellingen">
           </div>
         </div>
+        <div class="offerte-travel-note">Uurtarief wordt beheerd bij Instellingen.</div>
         <div class="offerte-subcard-total">Totaal <strong id="offerte-labor-total-hours">0</strong> uur — Subtotaal arbeid: <strong id="offerte-labor-subtotal">€ 0,00</strong></div>
       </div>
 
@@ -636,7 +638,7 @@
         <div class="offerte-travel-note" id="offerte-travel-note"></div>
         <div class="info-field" style="max-width:200px;margin-top:12px;">
           <label>Tarief per km (€/km)</label>
-          <input type="number" min="0" step="0.01" id="offerte-travel-rate">
+          <input type="number" min="0" step="0.01" id="offerte-travel-rate" disabled title="Ingesteld bij Instellingen">
         </div>
         <div class="offerte-subcard-total">Subtotaal verplaatsing: <strong id="offerte-travel-subtotal">€ 0,00</strong></div>
       </div>
@@ -680,11 +682,36 @@
       </div>
       <div id="planning-scroll"><div id="planning-grid"></div></div>
     </div>
+    <div id="pl-page-settings" style="display:none;">
+      <div class="settings-inner">
+        <div class="info-card">
+          <label class="info-section-label">Bedrijfsgegevens</label>
+          <div class="info-grid-2">
+            <div class="info-field"><label>Zaaknaam</label><input type="text" id="settings-company-name" maxlength="120"></div>
+            <div class="info-field"><label>Email</label><input type="email" id="settings-email" maxlength="120"></div>
+          </div>
+          <div class="info-field" style="margin-top:16px;"><label>Adres</label><input type="text" id="settings-address" maxlength="160"></div>
+          <div class="info-grid-2" style="margin-top:16px;">
+            <div class="info-field"><label>Telefoonnummer</label><input type="text" id="settings-phone" maxlength="40"></div>
+            <div class="info-field"><label>BTW nummer</label><input type="text" id="settings-vat" maxlength="30"></div>
+          </div>
+        </div>
+        <div class="info-card">
+          <label class="info-section-label">Standaardtarieven</label>
+          <div class="info-grid-2">
+            <div class="info-field"><label>Uurtarief (€/u)</label><input type="number" min="0" step="0.5" id="settings-hourly-rate"></div>
+            <div class="info-field"><label>Km vergoeding (€/km)</label><input type="number" min="0" step="0.01" id="settings-km-rate"></div>
+          </div>
+          <div class="offerte-travel-note" style="margin-top:12px;">Deze tarieven worden automatisch gebruikt in de Offerte-tab van elk project (daar niet meer los instelbaar).</div>
+        </div>
+      </div>
+    </div>
   </div>
   <div id="pl-bottom-nav">
     <button class="pl-nav-btn active" data-page="projects"><span class="ic">🗂️</span>Projecten</button>
     <button class="pl-nav-btn" data-page="planning"><span class="ic">📅</span>Planning</button>
     <button class="pl-nav-btn" data-page="materials"><span class="ic">💶</span>Materialen</button>
+    <button class="pl-nav-btn" data-page="settings"><span class="ic">⚙️</span>Instellingen</button>
   </div>
 </div>
 
@@ -790,7 +817,9 @@
     // laborDays also drives the Verplaatsingsvergoeding subtotal below (a
     // round trip per day actually worked, not once per project) - hence
     // the days/hours-per-day split instead of one flat "total hours" field.
-    travelRatePerKm: 0, laborDays: 0, laborHoursPerDay: 8, laborRate: 0,
+    // Uurtarief/km-tarief themselves are no longer per-project - they're
+    // centralized in appSettings (see Instellingen), read directly.
+    laborDays: 0, laborHoursPerDay: 8,
     camera: { x: 0, y: 0, scale: 0.06 }, // scale = px per mm
     selection: null,
     drawing: null,     // {points:[{x,y}]}
@@ -1736,6 +1765,26 @@
   var saveTimer = null;
   var dbUnavailable = false;
 
+  // App-wide settings (company info + default rates) live as one reserved
+  // "pseudo-project" row in the SAME projects table (id=SETTINGS_ROW_ID),
+  // reusing its existing cross-device-synced JSONB storage rather than
+  // requiring a real schema migration (no direct Postgres access from
+  // here, only the PostgREST proxy). loadProjectsState() strips this row
+  // out of projectsState.projects right after fetching, so it never shows
+  // up in the project list, planning view, or anywhere else that iterates
+  // real projects.
+  var SETTINGS_ROW_ID = "__app_settings__";
+  var DEFAULT_APP_SETTINGS = { companyName:"", email:"", address:"", phone:"", vatNumber:"", hourlyRate:0, kmRate:0 };
+  var appSettings = Object.assign({}, DEFAULT_APP_SETTINGS);
+  var settingsSaveTimer = null;
+  function scheduleSettingsSave(){
+    clearTimeout(settingsSaveTimer);
+    settingsSaveTimer = setTimeout(function(){
+      var row = { id: SETTINGS_ROW_ID, name: "__settings__", description: "", planning_date: null, created_at: Date.now(), updated_at: Date.now(), data: appSettings };
+      dbUpsertProject(row).catch(function(){ showSaveError("⚠ Instellingen opslaan mislukt — controleer je internetverbinding"); });
+    }, 600);
+  }
+
   async function dbFetch(path, options){
     var res = await fetch("/api/db"+path, options);
     if(!res.ok) throw new Error("DB request failed ("+res.status+"): "+path);
@@ -1837,6 +1886,13 @@
           try{ localStorage.setItem(ACTIVE_PROJECT_KEY, toMigrate[0].id); }catch(e){}
         }
       }
+      var settingsIdx = projectsState.projects.findIndex(function(p){ return p.id===SETTINGS_ROW_ID; });
+      if(settingsIdx>=0){
+        appSettings = Object.assign({}, DEFAULT_APP_SETTINGS, projectsState.projects[settingsIdx].data||{});
+        projectsState.projects.splice(settingsIdx,1);
+      } else {
+        appSettings = Object.assign({}, DEFAULT_APP_SETTINGS);
+      }
       var savedActive = localStorage.getItem(ACTIVE_PROJECT_KEY);
       projectsState.activeId = (savedActive && projectsState.projects.some(function(p){ return p.id===savedActive; })) ? savedActive : null;
     }catch(e){
@@ -1865,8 +1921,8 @@
       durationValue: state.durationValue, durationUnit: state.durationUnit, beforeImages: state.beforeImages, btwRate: state.btwRate,
       services: state.services, paintCoats: state.paintCoats, primerCoats: state.primerCoats,
       travelDistanceKm: state.travelDistanceKm, travelDistanceAddress: state.travelDistanceAddress,
-      travelDistanceIsEstimate: state.travelDistanceIsEstimate, travelRatePerKm: state.travelRatePerKm,
-      laborDays: state.laborDays, laborHoursPerDay: state.laborHoursPerDay, laborRate: state.laborRate
+      travelDistanceIsEstimate: state.travelDistanceIsEstimate,
+      laborDays: state.laborDays, laborHoursPerDay: state.laborHoursPerDay
     };
     proj.updatedAt = Date.now();
     clearTimeout(saveTimer);
@@ -1928,7 +1984,6 @@
     state.travelDistanceKm = data.travelDistanceKm != null ? data.travelDistanceKm : null;
     state.travelDistanceAddress = data.travelDistanceAddress || "";
     state.travelDistanceIsEstimate = !!data.travelDistanceIsEstimate;
-    state.travelRatePerKm = data.travelRatePerKm || 0;
     // laborHours (flat total) replaced by laborDays x laborHoursPerDay -
     // best-effort one-time migration for a project saved before this
     // split existed, treating the old total as a single day's hours.
@@ -1942,7 +1997,18 @@
       state.laborDays = 0;
       state.laborHoursPerDay = 8;
     }
-    state.laborRate = data.laborRate || 0;
+    // laborRate/travelRatePerKm used to live per-project - now centralized
+    // in appSettings (Instellingen). One-time adoption: if the central
+    // rate is still unset and this project already had its own value,
+    // carry it over instead of silently dropping it to 0.
+    if(!appSettings.hourlyRate && data.laborRate){
+      appSettings.hourlyRate = data.laborRate;
+      scheduleSettingsSave();
+    }
+    if(!appSettings.kmRate && data.travelRatePerKm){
+      appSettings.kmRate = data.travelRatePerKm;
+      scheduleSettingsSave();
+    }
   }
 
   /* =====================================================================
@@ -1975,15 +2041,40 @@
     document.getElementById("pl-page-projects").style.display = page==="projects" ? "" : "none";
     document.getElementById("pl-page-materials").style.display = page==="materials" ? "" : "none";
     document.getElementById("pl-page-planning").style.display = page==="planning" ? "" : "none";
+    document.getElementById("pl-page-settings").style.display = page==="settings" ? "" : "none";
     document.getElementById("pl-new-btn").style.display = page==="projects" ? "" : "none";
-    var pageTitle = page==="materials" ? "Materialen" : page==="planning" ? "Planning" : "Projecten";
+    var pageTitle = page==="materials" ? "Materialen" : page==="planning" ? "Planning" : page==="settings" ? "Instellingen" : "Projecten";
     document.getElementById("pl-title").innerHTML = "Offerte<span>Builder</span> — "+pageTitle;
     if(page==="projects") renderProjectList();
     else if(page==="materials") renderMaterialsPage();
-    else renderPlanningPage();
+    else if(page==="planning") renderPlanningPage();
+    else renderSettingsPage();
   }
   document.querySelectorAll(".pl-nav-btn").forEach(function(btn){
     btn.addEventListener("click", function(){ showPlPage(btn.dataset.page); });
+  });
+
+  /* =====================================================================
+     SETTINGS PAGE
+     App-wide (not per-project) company info + default rates - see
+     appSettings/SETTINGS_ROW_ID above for how this is persisted.
+  ===================================================================== */
+  function renderSettingsPage(){
+    document.getElementById("settings-company-name").value = appSettings.companyName || "";
+    document.getElementById("settings-email").value = appSettings.email || "";
+    document.getElementById("settings-address").value = appSettings.address || "";
+    document.getElementById("settings-phone").value = appSettings.phone || "";
+    document.getElementById("settings-vat").value = appSettings.vatNumber || "";
+    document.getElementById("settings-hourly-rate").value = appSettings.hourlyRate || 0;
+    document.getElementById("settings-km-rate").value = appSettings.kmRate || 0;
+  }
+  [["settings-company-name","companyName",false],["settings-email","email",false],
+   ["settings-address","address",false],["settings-phone","phone",false],["settings-vat","vatNumber",false],
+   ["settings-hourly-rate","hourlyRate",true],["settings-km-rate","kmRate",true]].forEach(function(cfg){
+    document.getElementById(cfg[0]).addEventListener("input", function(){
+      appSettings[cfg[1]] = cfg[2] ? Math.max(0, parseFloat(this.value)||0) : this.value;
+      scheduleSettingsSave();
+    });
   });
 
   /* =====================================================================
@@ -4368,10 +4459,10 @@
     // vergoeding below know how many round trips to charge for.
     document.getElementById("offerte-labor-days").value = state.laborDays || 0;
     document.getElementById("offerte-labor-hours-per-day").value = state.laborHoursPerDay || 0;
-    document.getElementById("offerte-labor-rate").value = state.laborRate || 0;
+    document.getElementById("offerte-labor-rate").value = appSettings.hourlyRate || 0;
     var laborDays = state.laborDays || 0;
     var laborTotalHours = laborDays * (state.laborHoursPerDay||0);
-    var laborSubtotal = laborTotalHours * (state.laborRate||0);
+    var laborSubtotal = laborTotalHours * (appSettings.hourlyRate||0);
     document.getElementById("offerte-labor-total-hours").textContent = laborTotalHours;
     document.getElementById("offerte-labor-subtotal").textContent = fmtEuro(laborSubtotal);
 
@@ -4380,7 +4471,9 @@
     // triggers a fresh calculation, never a silent one on render. The
     // subtotal is the round-trip distance x rate x days worked (Arbeid
     // above) - a round trip per day actually on site, not once per quote.
-    document.getElementById("offerte-travel-rate").value = state.travelRatePerKm || 0;
+    // Uurtarief/km-tarief are centralized in Instellingen (appSettings),
+    // read-only here.
+    document.getElementById("offerte-travel-rate").value = appSettings.kmRate || 0;
     var travelDistanceEl = document.getElementById("offerte-travel-distance-value");
     var travelNoteEl = document.getElementById("offerte-travel-note");
     if(state.travelDistanceKm!=null){
@@ -4404,7 +4497,7 @@
       travelNoteEl.textContent = "";
       travelNoteEl.classList.remove("warn");
     }
-    var travelSubtotal = (state.travelDistanceKm||0) * (state.travelRatePerKm||0) * laborDays;
+    var travelSubtotal = (state.travelDistanceKm||0) * (appSettings.kmRate||0) * laborDays;
     document.getElementById("offerte-travel-subtotal").textContent = fmtEuro(travelSubtotal);
 
     var offer = computeProjectOffer();
@@ -4461,16 +4554,6 @@
   });
   document.getElementById("offerte-labor-hours-per-day").addEventListener("input", function(){
     state.laborHoursPerDay = Math.max(0, parseFloat(this.value)||0);
-    scheduleSave();
-    renderOfferteTab();
-  });
-  document.getElementById("offerte-labor-rate").addEventListener("input", function(){
-    state.laborRate = Math.max(0, parseFloat(this.value)||0);
-    scheduleSave();
-    renderOfferteTab();
-  });
-  document.getElementById("offerte-travel-rate").addEventListener("input", function(){
-    state.travelRatePerKm = Math.max(0, parseFloat(this.value)||0);
     scheduleSave();
     renderOfferteTab();
   });
