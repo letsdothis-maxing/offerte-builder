@@ -317,6 +317,16 @@
   .client-type-toggle{display:flex;gap:6px;}
   .ctype-btn{border:1px solid var(--line);background:var(--bg);color:var(--muted);padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;}
   .ctype-btn.active{background:rgba(47,111,235,.12);border-color:var(--blue);color:var(--blue-dark);}
+  .status-select-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .status-select-row select{flex:1;min-width:160px;}
+  .status-pill{display:inline-flex;align-items:center;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
+  .status-pill.status-aanvraag{background:rgba(107,114,128,.14);color:#4b5563;}
+  .status-pill.status-offerte_verstuurd{background:rgba(47,111,235,.14);color:#1f4fb8;}
+  .status-pill.status-ingepland{background:rgba(124,58,237,.14);color:#6d28d9;}
+  .status-pill.status-uitgevoerd{background:rgba(8,145,178,.14);color:#0e7490;}
+  .status-pill.status-te_factureren{background:rgba(217,119,6,.16);color:#b45309;}
+  .status-pill.status-betaald{background:rgba(22,163,74,.16);color:#15803d;}
+  .pl-card .status-pill{margin-bottom:8px;}
   .info-section-label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:10px;}
   .info-field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
   .info-field input[type=text],.info-field input[type=date]{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
@@ -393,6 +403,12 @@
     .info-field input,.info-card textarea,#offerte-btw-rate,.offerte-coats-field input{background:#0f1420;color:#e5e7eb;}
     .offerte-warn{background:#3b2a0f;color:#fbbf24;}
     .offerte-table th{background:#0f1420;}
+    .status-pill.status-aanvraag{color:#d1d5db;}
+    .status-pill.status-offerte_verstuurd{color:#93c5fd;}
+    .status-pill.status-ingepland{color:#c4b5fd;}
+    .status-pill.status-uitgevoerd{color:#67e8f9;}
+    .status-pill.status-te_factureren{color:#fcd34d;}
+    .status-pill.status-betaald{color:#86efac;}
   }
 
   /* ---------- mobile compaction ---------- */
@@ -445,6 +461,10 @@
             </div>
           </div>
         </div>
+        <div class="info-field" id="info-vat-field" style="display:none;margin-top:12px;">
+          <label>BTW nummer</label>
+          <input type="text" id="info-client-vat" placeholder="BE 0123.456.789" maxlength="30">
+        </div>
         <div class="info-address-grid">
           <div class="info-field info-addr-street"><label>Straat</label><input type="text" id="info-addr-street" maxlength="80"></div>
           <div class="info-field info-addr-number"><label>Nr.</label><input type="text" id="info-addr-number" maxlength="10"></div>
@@ -460,6 +480,20 @@
         <div class="info-field" style="margin-bottom:14px;">
           <label>Projectnaam</label>
           <input type="text" id="info-project-name" maxlength="80" placeholder="Naamloos project">
+        </div>
+        <div class="info-field" style="margin-bottom:14px;">
+          <label>Status</label>
+          <div class="status-select-row">
+            <select id="info-project-status">
+              <option value="aanvraag">Aanvraag</option>
+              <option value="offerte_verstuurd">Offerte verstuurd</option>
+              <option value="ingepland">Ingepland</option>
+              <option value="uitgevoerd">Uitgevoerd</option>
+              <option value="te_factureren">Te factureren</option>
+              <option value="betaald">Betaald</option>
+            </select>
+            <span class="status-pill" id="info-status-pill"></span>
+          </div>
         </div>
         <label class="info-section-label">Project omschrijving</label>
         <textarea id="info-description" rows="4" placeholder="Beschrijf het project..."></textarea>
@@ -740,7 +774,7 @@
     roomHeights: {},// key -> heightMm override
     // Info-tab project metadata (per project, saved alongside walls/openings
     // in the same proj.data blob - see loadActiveProjectIntoState/scheduleSave).
-    clientName: "", clientType: "particulier",
+    clientName: "", clientType: "particulier", clientVatNumber: "", projectStatus: "aanvraag",
     clientStreet: "", clientHouseNumber: "", clientAddressAddition: "",
     clientPostalCode: "", clientCity: "", clientCountry: "België",
     durationValue: 1, durationUnit: "weken", beforeImages: [], btwRate: 21,
@@ -1162,6 +1196,22 @@
     if(unit==="weken") return v*7;
     if(unit==="maanden") return v*30;
     return v;
+  }
+
+  // Project status pipeline, shown both on the Info tab (editable select)
+  // and as a read-only pill on each project-list card. Keyed here once so
+  // both places always agree on the label text.
+  var PROJECT_STATUS_LABELS = {
+    aanvraag: "Aanvraag",
+    offerte_verstuurd: "Offerte verstuurd",
+    ingepland: "Ingepland",
+    uitgevoerd: "Uitgevoerd",
+    te_factureren: "Te factureren",
+    betaald: "Betaald"
+  };
+  function statusPillHtml(statusKey){
+    var key = PROJECT_STATUS_LABELS[statusKey] ? statusKey : "aanvraag";
+    return '<span class="status-pill status-'+key+'">'+PROJECT_STATUS_LABELS[key]+'</span>';
   }
 
   function render(){
@@ -1797,25 +1847,30 @@
   function getActiveProject(){
     return projectsState.projects.find(function(p){ return p.id===projectsState.activeId; }) || null;
   }
+  // proj.data is reassigned SYNCHRONOUSLY on every call (so anything
+  // reading it - e.g. the project-list cards' status pill - is never
+  // stale, even if the user navigates away within the debounce window);
+  // only the actual network write is debounced, since that's the
+  // expensive/rate-limited part worth throttling.
   function scheduleSave(){
+    var proj = getActiveProject();
+    if(!proj) return;
+    proj.data = {
+      walls: state.walls, openings: state.openings, zoneCuts: state.zoneCuts,
+      roomHeights: state.roomHeights, gridStep: state.gridStep,
+      clientName: state.clientName, clientType: state.clientType, clientVatNumber: state.clientVatNumber, projectStatus: state.projectStatus,
+      clientStreet: state.clientStreet, clientHouseNumber: state.clientHouseNumber,
+      clientAddressAddition: state.clientAddressAddition, clientPostalCode: state.clientPostalCode,
+      clientCity: state.clientCity, clientCountry: state.clientCountry,
+      durationValue: state.durationValue, durationUnit: state.durationUnit, beforeImages: state.beforeImages, btwRate: state.btwRate,
+      services: state.services, paintCoats: state.paintCoats, primerCoats: state.primerCoats,
+      travelDistanceKm: state.travelDistanceKm, travelDistanceAddress: state.travelDistanceAddress,
+      travelDistanceIsEstimate: state.travelDistanceIsEstimate, travelRatePerKm: state.travelRatePerKm,
+      laborDays: state.laborDays, laborHoursPerDay: state.laborHoursPerDay, laborRate: state.laborRate
+    };
+    proj.updatedAt = Date.now();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function(){
-      var proj = getActiveProject();
-      if(!proj) return;
-      proj.data = {
-        walls: state.walls, openings: state.openings, zoneCuts: state.zoneCuts,
-        roomHeights: state.roomHeights, gridStep: state.gridStep,
-        clientName: state.clientName, clientType: state.clientType,
-        clientStreet: state.clientStreet, clientHouseNumber: state.clientHouseNumber,
-        clientAddressAddition: state.clientAddressAddition, clientPostalCode: state.clientPostalCode,
-        clientCity: state.clientCity, clientCountry: state.clientCountry,
-        durationValue: state.durationValue, durationUnit: state.durationUnit, beforeImages: state.beforeImages, btwRate: state.btwRate,
-        services: state.services, paintCoats: state.paintCoats, primerCoats: state.primerCoats,
-        travelDistanceKm: state.travelDistanceKm, travelDistanceAddress: state.travelDistanceAddress,
-        travelDistanceIsEstimate: state.travelDistanceIsEstimate, travelRatePerKm: state.travelRatePerKm,
-        laborDays: state.laborDays, laborHoursPerDay: state.laborHoursPerDay, laborRate: state.laborRate
-      };
-      proj.updatedAt = Date.now();
       dbUpsertProject(projectToRow(proj)).catch(function(){
         showSaveError("⚠ Opslaan mislukt — controleer je internetverbinding");
       });
@@ -1839,6 +1894,8 @@
     document.getElementById("grid-select").value = String(state.gridStep);
     state.clientName = data.clientName || "";
     state.clientType = data.clientType || "particulier";
+    state.clientVatNumber = data.clientVatNumber || "";
+    state.projectStatus = data.projectStatus || "aanvraag";
     // structured address fields - a project saved before this feature only
     // has the old single-string clientAddress, so fall back to stuffing
     // that into "Straat" once rather than losing it outright.
@@ -1901,7 +1958,12 @@
     if(!ms) return "";
     return new Date(ms).toLocaleDateString("nl-BE", {day:"numeric", month:"short", year:"numeric"});
   }
+  // Clears the "last active project" pointer so a reload after navigating
+  // back respects that choice (resumes the list, not the project the user
+  // deliberately left) instead of always re-entering whatever was open.
   function showProjectList(){
+    projectsState.activeId = null;
+    try{ localStorage.removeItem(ACTIVE_PROJECT_KEY); }catch(e){}
     document.getElementById("project-list-screen").classList.remove("hidden");
     document.getElementById("app").style.display = "none";
     showPlPage("projects");
@@ -2246,7 +2308,14 @@
     var proj = getActiveProject();
     if(!proj) return;
     document.getElementById("info-project-name").value = proj.name || "";
+    var statusKey = PROJECT_STATUS_LABELS[state.projectStatus] ? state.projectStatus : "aanvraag";
+    document.getElementById("info-project-status").value = statusKey;
+    var pillEl = document.getElementById("info-status-pill");
+    pillEl.className = "status-pill status-"+statusKey;
+    pillEl.textContent = PROJECT_STATUS_LABELS[statusKey];
     document.getElementById("info-client-name").value = state.clientName || "";
+    document.getElementById("info-client-vat").value = state.clientVatNumber || "";
+    document.getElementById("info-vat-field").style.display = state.clientType==="zakelijk" ? "" : "none";
     document.getElementById("info-addr-street").value = state.clientStreet || "";
     document.getElementById("info-addr-number").value = state.clientHouseNumber || "";
     document.getElementById("info-addr-addition").value = state.clientAddressAddition || "";
@@ -2308,8 +2377,20 @@
     btn.addEventListener("click", function(){
       state.clientType = btn.dataset.ctype;
       document.querySelectorAll(".ctype-btn").forEach(function(b){ b.classList.toggle("active", b===btn); });
+      document.getElementById("info-vat-field").style.display = state.clientType==="zakelijk" ? "" : "none";
       scheduleSave();
     });
+  });
+  document.getElementById("info-client-vat").addEventListener("input", function(){
+    state.clientVatNumber = this.value;
+    scheduleSave();
+  });
+  document.getElementById("info-project-status").addEventListener("change", function(){
+    state.projectStatus = this.value;
+    var pillEl = document.getElementById("info-status-pill");
+    pillEl.className = "status-pill status-"+this.value;
+    pillEl.textContent = PROJECT_STATUS_LABELS[this.value];
+    scheduleSave();
   });
   document.getElementById("info-description").addEventListener("input", function(){
     var proj = getActiveProject();
@@ -2424,6 +2505,7 @@
     grid.innerHTML = sorted.map(function(p){
       return '<div class="pl-card" data-id="'+p.id+'">'
         + '<button class="edit-btn" data-edit-id="'+p.id+'" title="Bewerken">✎</button>'
+        + statusPillHtml(p.data && p.data.projectStatus)
         + '<h3>'+escapeHtml(p.name || "Naamloos project")+'</h3>'
         + (p.description ? '<p>'+escapeHtml(p.description)+'</p>' : '<p></p>')
         + '<div class="meta">'
