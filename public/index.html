@@ -190,6 +190,8 @@
   }
   .pl-nav-btn:hover{background:var(--bg);}
   .pl-nav-btn.active{background:var(--blue);color:#fff;}
+  .pl-topbar-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .pl-header-settings-btn{width:36px;height:36px;padding:0;justify-content:center;border:1px solid var(--line);border-radius:50%;font-size:16px;flex-shrink:0;}
 
   /* ---------- planning page ---------- */
   #planning-controls{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
@@ -330,7 +332,7 @@
   .pl-card .status-pill{margin-bottom:8px;}
   .info-section-label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:10px;}
   .info-field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
-  .info-field input[type=text],.info-field input[type=date],.info-field input[type=number]{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
+  .info-field input[type=text],.info-field input[type=date],.info-field input[type=number],.info-field input[type=email]{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
   .info-field input[type=number]:disabled{background:var(--bg);color:var(--muted);cursor:not-allowed;}
   .info-card textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit;resize:vertical;color:var(--ink);background:var(--panel);}
   .info-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
@@ -546,6 +548,7 @@
           <label class="service-check"><input type="checkbox" id="svc-gyproc"> Gyproc plaatsen</label>
           <label class="service-check"><input type="checkbox" id="svc-verven"> Verven</label>
           <label class="service-check"><input type="checkbox" id="svc-primer"> Primer aanbrengen</label>
+          <label class="service-check"><input type="checkbox" id="svc-plafond"> Plafond / Verlaagd plafond</label>
         </div>
       </div>
 
@@ -679,7 +682,10 @@
 <div id="project-list-screen" class="hidden">
   <div class="pl-topbar">
     <h1 id="pl-title">Offerte<span>Builder</span> — Projecten</h1>
-    <button class="tbtn tbtn-primary" id="pl-new-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;"><span class="ic">+</span>Nieuw project</button>
+    <div class="pl-topbar-actions">
+      <button class="tbtn tbtn-primary" id="pl-new-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;"><span class="ic">+</span>Nieuw project</button>
+      <button class="pl-nav-btn pl-header-settings-btn" data-page="settings" title="Instellingen"><span class="ic">⚙️</span></button>
+    </div>
   </div>
   <div class="pl-body">
     <div id="pl-page-projects">
@@ -739,7 +745,6 @@
     <button class="pl-nav-btn active" data-page="projects"><span class="ic">🗂️</span>Projecten</button>
     <button class="pl-nav-btn" data-page="planning"><span class="ic">📅</span>Planning</button>
     <button class="pl-nav-btn" data-page="materials"><span class="ic">💶</span>Materialen</button>
-    <button class="pl-nav-btn" data-page="settings"><span class="ic">⚙️</span>Instellingen</button>
   </div>
 </div>
 
@@ -835,7 +840,7 @@
     durationValue: 1, durationUnit: "weken", beforeImages: [], btwRate: 21,
     // gyproc defaults true (pre-existing projects already relied on it being
     // calculated/billed); verven/primer are opt-in add-ons so they default off.
-    services: { gyproc: true, verven: false, primer: false },
+    services: { gyproc: true, verven: false, primer: false, plafond: false },
     paintCoats: 1, primerCoats: 1, // aantal lagen - editable from the drawer + Offerte tab
     // travel distance is cached (not recomputed on every render) since it's
     // a real network round-trip to Nominatim/OSRM - travelDistanceAddress
@@ -2008,7 +2013,8 @@
     state.services = {
       gyproc: data.services ? !!data.services.gyproc : true,
       verven: data.services ? !!data.services.verven : false,
-      primer: data.services ? !!data.services.primer : false
+      primer: data.services ? !!data.services.primer : false,
+      plafond: data.services ? !!data.services.plafond : false
     };
     state.paintCoats = data.paintCoats || 1;
     state.primerCoats = data.primerCoats || 1;
@@ -2486,6 +2492,7 @@
     document.getElementById("svc-gyproc").checked = !!state.services.gyproc;
     document.getElementById("svc-verven").checked = !!state.services.verven;
     document.getElementById("svc-primer").checked = !!state.services.primer;
+    document.getElementById("svc-plafond").checked = !!state.services.plafond;
     updateInfoAvatar(state.clientName);
     renderInfoImages();
   }
@@ -2578,6 +2585,10 @@
     state.services.primer = this.checked;
     scheduleSave();
     if(gyprocWallIds.length) runGyprocCalculation();
+  });
+  document.getElementById("svc-plafond").addEventListener("change", function(){
+    state.services.plafond = this.checked;
+    scheduleSave();
   });
 
   /* ---------- before-images (Supabase Storage, via /api/storage proxy) ---------- */
@@ -2773,6 +2784,17 @@
       + '<div class="mat-grid">' + TRACK_LENGTHS.map(function(l){
           return materialCardHtml("rail:"+l, (l/10)+" cm", "Horizontaal U-profiel, lengte");
         }).join('') + '</div>';
+    html += '<h2 class="mat-section-title">Plafond</h2>';
+    html += '<h3 class="mat-subsection-title">CD-profiel</h3>'
+      + '<div class="mat-grid">' + TRACK_LENGTHS.map(function(l){
+          return materialCardHtml("plafond:cd:"+l, (l/10)+" cm", "CD-profiel, lengte");
+        }).join('') + '</div>';
+    html += '<h3 class="mat-subsection-title">UD-randprofiel</h3>'
+      + '<div class="mat-grid">' + TRACK_LENGTHS.map(function(l){
+          return materialCardHtml("plafond:ud:"+l, (l/10)+" cm", "UD-randprofiel, lengte");
+        }).join('') + '</div>';
+    html += '<h3 class="mat-subsection-title">Bevestiging</h3>'
+      + '<div class="mat-grid">' + materialCardHtml("plafond:hanger", "Snelhanger", "Per stuk") + '</div>';
     html += coatingMaterialSectionHtml("Verf", "paint:pot_price", "paint:pot_yield_m2", "paint:pot_liters", "mat-paint-computed");
     html += coatingMaterialSectionHtml("Primer", "primer:pot_price", "primer:pot_yield_m2", "primer:pot_liters", "mat-primer-computed");
     host.innerHTML = html;
@@ -3547,6 +3569,8 @@
   var STUD_GAUGES = [50, 75, 100];        // mm, standard C/U-profile web widths
   var STUD_RESERVE_PCT = 5;               // snijverlies/reserve margin (brainstorm: 5-10%)
   var STUD_MIN_ANCHOR_DIST = 150;         // mm - a regular stud this close to a jamb/corner anchor is redundant (the anchor's own profile already covers that zone) and unscrewable in practice
+  var CEILING_CD_HOH_MM = 400;            // mm - fixed cross-rule for suspended ceilings (tighter than the 600mm wall h.o.h., to prevent gyproc sagging on a horizontal span)
+  var CEILING_HANGER_SPACING_MM = 1000;   // mm - snelhanger spacing along each CD-profile run
 
   var gyprocBackdrop = document.getElementById("gyproc-backdrop");
   var gyprocPanel = document.getElementById("gyproc-panel");
@@ -4126,6 +4150,67 @@
     }).sort(function(a,b){ return a.wastePct-b.wastePct; });
   }
 
+  /* =====================================================================
+     PLAFOND CALCULATOR ("Plafond / Verlaagd plafond")
+     Optional, project-wide service (state.services.plafond). Every closed
+     room zone already computed for the walls (computeZones -> state.
+     _lastZones, with its own editable height via the on-canvas H-pill)
+     doubles as a plafondzone - no separate drawing mode needed. Ceiling
+     panels reuse the exact same 2D nesting engine as the walls
+     (computeGyprocForSize), so a ceiling panel and a wall panel of the
+     same format/thickness land in the SAME line item in computeProject
+     Offer(). CD/UD/hangers follow the fixed 400mm h.o.h. suspended-
+     ceiling rule (tighter than the 600mm wall grid). Height differences
+     between two zones of the same room (state._lastResolvedCuts, already
+     captured by computeZones for exactly this purpose) get an extra
+     UD+CD bulkhead frame plus a vertical gipsstrook, added into the same
+     pool.
+  ===================================================================== */
+  function polygonBBoxMm(poly){
+    var xs = poly.map(function(p){ return p.x; });
+    var ys = poly.map(function(p){ return p.y; });
+    return { width: Math.max.apply(null,xs)-Math.min.apply(null,xs), height: Math.max.apply(null,ys)-Math.min.apply(null,ys) };
+  }
+  // Same bin-packing principle as computeTrackLengthOptions, generalized to
+  // an arbitrary list of raw piece lengths so it can be reused for both the
+  // CD-profile runs and the UD-perimeter of a plafondzone.
+  function packLengthPieces(pieces, candidateLengths){
+    var totalNeeded = pieces.reduce(function(s,p){ return s+p; },0);
+    return candidateLengths.map(function(pieceLenMm){
+      var expanded = [];
+      pieces.forEach(function(p){
+        var remaining = p;
+        while(remaining > 1e-6){
+          var take = Math.min(remaining, pieceLenMm);
+          expanded.push({height:take});
+          remaining -= take;
+        }
+      });
+      var packed = binPackPieces(expanded, pieceLenMm);
+      var totalPieces = packed.binCount;
+      var boughtLength = totalPieces*pieceLenMm;
+      var wastePct = boughtLength>0 ? Math.max(0,(boughtLength-totalNeeded)/boughtLength*100) : 0;
+      return { pieceLenMm:pieceLenMm, totalPieces:totalPieces, wastePct:wastePct };
+    }).sort(function(a,b){ return a.wastePct-b.wastePct; });
+  }
+  // A zone's footprint (bounding box of its polygon) doubles as its ceiling
+  // rectangle: UD runs the perimeter, CD crosses the short way at the fixed
+  // 400mm h.o.h., one hanger every 1000mm along each CD run.
+  function computeCeilingZonePlan(zone){
+    var bbox = polygonBBoxMm(zone.polygon);
+    var lengteMm = Math.max(0, bbox.width), breedteMm = Math.max(0, bbox.height);
+    var cdCount = Math.max(1, Math.ceil(lengteMm/CEILING_CD_HOH_MM)+1);
+    var hangersPerCd = Math.max(1, Math.ceil(breedteMm/CEILING_HANGER_SPACING_MM)+1);
+    var cdPieces = [];
+    for(var i=0;i<cdCount;i++) cdPieces.push(breedteMm);
+    return {
+      lengteMm: lengteMm, breedteMm: breedteMm,
+      udPieces: [lengteMm, lengteMm, breedteMm, breedteMm],
+      cdPieces: cdPieces,
+      hangerCount: cdCount*hangersPerCd
+    };
+  }
+
   // Runs the calculation for ALL standard formats against the currently
   // open wall and renders the comparison + recommendation.
   // Computes EVERY wall in the current checkout (gyprocWallIds), not just
@@ -4483,6 +4568,72 @@
       if(materialPrices["primer:pot_yield_m2"]==null) lineItems["primer:pots"].missing = true;
     }
 
+    // Plafond - each closed room zone already computed for the walls
+    // (state._lastZones, with its own editable height) doubles as a
+    // plafondzone; no separate drawing mode needed. Ceiling panels reuse
+    // the SAME nesting engine/panel-size keys as wall gyproc, so a ceiling
+    // panel of the same format/thickness merges into the same line item
+    // as wall panels (addLineItem merges by key).
+    if(state.services.plafond){
+      state._lastZones.forEach(function(zone){
+        if(zone.area < 10000) return; // skip slivers (<0.01 m²) left over from a zone cut
+        var plan = computeCeilingZonePlan(zone);
+        if(plan.lengteMm<1 || plan.breedteMm<1) return;
+
+        var results = PANEL_SIZES.map(function(sz){
+          return computeGyprocForSize(plan.lengteMm, plan.breedteMm, [], null, sz.w, sz.h, thicknessMm, sz.label);
+        });
+        results.sort(function(a,b){ return a.wastePct-b.wastePct; });
+        var bestPanel = results[0];
+        var szEntry = PANEL_SIZES.find(function(s){ return s.label===bestPanel.sizeLabel; });
+        addLineItem("gyproc:"+szEntry.w+"x"+szEntry.h, "Gyproc "+szEntry.label+" ("+thicknessMm+"mm)",
+          bestPanel.netPanels, materialPrices["gyproc:"+szEntry.w+"x"+szEntry.h]);
+
+        var bestCd = packLengthPieces(plan.cdPieces, TRACK_LENGTHS)[0];
+        var bestUd = packLengthPieces(plan.udPieces, TRACK_LENGTHS)[0];
+        var cdReserve = Math.ceil(bestCd.totalPieces*(1+STUD_RESERVE_PCT/100));
+        var udReserve = Math.ceil(bestUd.totalPieces*(1+STUD_RESERVE_PCT/100));
+        var hangerReserve = Math.ceil(plan.hangerCount*(1+STUD_RESERVE_PCT/100));
+        addLineItem("plafond:cd:"+bestCd.pieceLenMm, "CD-profiel plafond, "+(bestCd.pieceLenMm/10)+" cm",
+          cdReserve, materialPrices["plafond:cd:"+bestCd.pieceLenMm]);
+        addLineItem("plafond:ud:"+bestUd.pieceLenMm, "UD-randprofiel plafond, "+(bestUd.pieceLenMm/10)+" cm",
+          udReserve, materialPrices["plafond:ud:"+bestUd.pieceLenMm]);
+        addLineItem("plafond:hanger", "Snelhanger (plafond)",
+          hangerReserve, materialPrices["plafond:hanger"], "stuks");
+      });
+
+      // Hoogteverschillen ("schotten"/bulkheads) - resolvedCuts already
+      // marks every boundary between two zones of the same room; where
+      // their heights differ, add the vertical UD+CD frame plus the
+      // vertical gipsstrook that closes the height jump, into the same pool.
+      state._lastResolvedCuts.forEach(function(rc){
+        var hDiffMm = Math.abs(rc.zoneA.height - rc.zoneB.height);
+        var lSprongMm = rc.length;
+        if(hDiffMm < 1 || lSprongMm < 1) return;
+
+        var cdCount = Math.max(1, Math.ceil(lSprongMm/CEILING_CD_HOH_MM)+1);
+        var cdPieces = [];
+        for(var i=0;i<cdCount;i++) cdPieces.push(hDiffMm);
+        var bestCd = packLengthPieces(cdPieces, TRACK_LENGTHS)[0];
+        var bestUd = packLengthPieces([lSprongMm, lSprongMm], TRACK_LENGTHS)[0];
+        var cdReserve = Math.ceil(bestCd.totalPieces*(1+STUD_RESERVE_PCT/100));
+        var udReserve = Math.ceil(bestUd.totalPieces*(1+STUD_RESERVE_PCT/100));
+        addLineItem("plafond:cd:"+bestCd.pieceLenMm, "CD-profiel plafond, "+(bestCd.pieceLenMm/10)+" cm",
+          cdReserve, materialPrices["plafond:cd:"+bestCd.pieceLenMm]);
+        addLineItem("plafond:ud:"+bestUd.pieceLenMm, "UD-randprofiel plafond, "+(bestUd.pieceLenMm/10)+" cm",
+          udReserve, materialPrices["plafond:ud:"+bestUd.pieceLenMm]);
+
+        var stripResults = PANEL_SIZES.map(function(sz){
+          return computeGyprocForSize(lSprongMm, hDiffMm, [], null, sz.w, sz.h, thicknessMm, sz.label);
+        });
+        stripResults.sort(function(a,b){ return a.wastePct-b.wastePct; });
+        var bestStrip = stripResults[0];
+        var stripEntry = PANEL_SIZES.find(function(s){ return s.label===bestStrip.sizeLabel; });
+        addLineItem("gyproc:"+stripEntry.w+"x"+stripEntry.h, "Gyproc "+stripEntry.label+" ("+thicknessMm+"mm)",
+          bestStrip.netPanels, materialPrices["gyproc:"+stripEntry.w+"x"+stripEntry.h]);
+      });
+    }
+
     var anyMissing = false;
     var items = Object.keys(lineItems).map(function(k){
       var it = lineItems[k];
@@ -4494,7 +4645,7 @@
     items.sort(function(a,b){ return a.label.localeCompare(b.label); });
     var subtotal = items.reduce(function(s,it){ return s+it.total; }, 0);
 
-    var noServices = !state.services.gyproc && !state.services.verven && !state.services.primer;
+    var noServices = !state.services.gyproc && !state.services.verven && !state.services.primer && !state.services.plafond;
     return { items:items, subtotal:subtotal, anyMissing:anyMissing, hasWalls:anyWalls, noServices:noServices };
   }
 
