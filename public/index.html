@@ -395,6 +395,9 @@
   .info-addr-country{grid-area:country;}
   .info-distance-hint{font-size:12.5px;color:var(--muted);margin-top:10px;min-height:16px;}
   .info-distance-hint.warn{color:#b45309;}
+  .settings-logo-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .settings-logo-preview{display:flex;align-items:center;gap:10px;}
+  .settings-logo-preview img{max-height:64px;max-width:180px;object-fit:contain;border-radius:6px;border:1px solid var(--line);background:var(--panel);padding:4px;}
   .settings-address-grid{
     display:grid;grid-template-columns:repeat(4,1fr);gap:12px;
     grid-template-areas:"street street street number" "postal city city country";
@@ -443,6 +446,9 @@
   .offerte-table td:nth-child(2),.offerte-table th:nth-child(2){text-align:center;width:70px;}
   .offerte-table td:nth-child(3),.offerte-table th:nth-child(3),.offerte-table td:nth-child(4),.offerte-table th:nth-child(4){text-align:right;width:110px;}
   .offerte-section-title{font-size:14px;font-weight:700;margin:0 0 8px;color:var(--ink);}
+  .offerte-hours-row{display:flex;align-items:center;gap:8px;margin:0 0 10px;}
+  .offerte-hours-row label{font-size:12.5px;color:var(--muted);}
+  .offerte-hours-row input{width:70px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13.5px;text-align:center;background:var(--panel);color:var(--ink);}
   .offerte-section-subtotal{display:flex;justify-content:flex-end;gap:8px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--ink);background:var(--bg);border-top:1px solid var(--line);border-radius:0 0 12px 12px;}
   .offerte-totals{margin-top:16px;margin-left:auto;max-width:320px;}
   .offerte-totals-row{display:flex;justify-content:space-between;padding:6px 4px;font-size:13.5px;color:var(--muted);}
@@ -464,7 +470,7 @@
     select.tb-select,#opening-panel .field input,#gyproc-panel .field input,#project-form-panel .field input,#project-form-panel .field textarea,#contact-form-panel .field input,.mat-price-input{background:#0f1420;color:#e5e7eb;}
     .btn-danger{background:#3b1418;color:#fca5a5;}
     #save-status{background:#3b2a0f;color:#fbbf24;}
-    .info-field input,.info-card textarea,#offerte-btw-rate,.offerte-coats-field input,.status-select-row select{background:#0f1420;color:#e5e7eb;}
+    .info-field input,.info-card textarea,#offerte-btw-rate,.offerte-coats-field input,.offerte-hours-row input,.status-select-row select{background:#0f1420;color:#e5e7eb;}
     .info-field input[type=number]:disabled{background:#1a2233;color:#8993a8;}
     .status-select-row select,.offerte-btw select{
       background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238993a8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
@@ -649,9 +655,12 @@
   <div id="ptab-offerte" class="ptab-page">
     <div class="offerte-inner">
       <div class="offerte-head">
-        <div>
-          <h2 id="offerte-project-name">Offerte</h2>
-          <div class="offerte-client-line" id="offerte-client-line"></div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <img id="offerte-logo" src="" alt="Logo" style="display:none;max-height:56px;max-width:160px;object-fit:contain;border-radius:6px;">
+          <div>
+            <h2 id="offerte-project-name">Offerte</h2>
+            <div class="offerte-client-line" id="offerte-client-line"></div>
+          </div>
         </div>
         <div class="offerte-btw">
           <label for="offerte-btw-rate">Btw tarief</label>
@@ -679,23 +688,23 @@
       <div id="offerte-table" style="display:flex;flex-direction:column;gap:16px;"></div>
 
       <div class="info-card offerte-subcard">
-        <label class="info-section-label">Arbeid</label>
+        <label class="info-section-label">Arbeid — totaaloverzicht</label>
         <div class="info-grid-3">
           <div class="info-field">
-            <label>Aantal dagen</label>
+            <label>Aantal dagen (voor verplaatsingskost)</label>
             <input type="text" inputmode="decimal" id="offerte-labor-days">
           </div>
           <div class="info-field">
-            <label>Uren per dag</label>
-            <input type="text" inputmode="decimal" id="offerte-labor-hours-per-day">
+            <label>Totaal uren (alle diensten)</label>
+            <input type="text" id="offerte-labor-total-hours-field" disabled>
           </div>
           <div class="info-field">
             <label>Uurtarief (€/u)</label>
             <input type="text" inputmode="decimal" id="offerte-labor-rate" disabled title="Ingesteld bij Instellingen">
           </div>
         </div>
-        <div class="offerte-travel-note">Uurtarief wordt beheerd bij Instellingen.</div>
-        <div class="offerte-subcard-total">Totaal <strong id="offerte-labor-total-hours">0</strong> uur — Subtotaal arbeid: <strong id="offerte-labor-subtotal">€ 0,00</strong></div>
+        <div class="offerte-travel-note">Optelling van de arbeidsuren die hieronder per dienst zijn ingegeven — puur informatief, telt niet apart mee in het totaal (dat gebeurt al per dienst hierboven).</div>
+        <div class="offerte-subcard-total">Indicatieve waarde: <strong id="offerte-labor-subtotal">€ 0,00</strong></div>
       </div>
 
       <div class="info-card offerte-subcard">
@@ -756,6 +765,19 @@
     </div>
     <div id="pl-page-settings" style="display:none;">
       <div class="settings-inner">
+        <div class="info-card">
+          <label class="info-section-label">Logo</label>
+          <div class="settings-logo-row">
+            <div class="settings-logo-preview" id="settings-logo-preview-wrap" style="display:none;">
+              <img id="settings-logo-preview" src="" alt="Logo">
+              <button type="button" class="btn btn-danger" id="settings-logo-remove-btn">Verwijderen</button>
+            </div>
+            <button type="button" class="btn btn-ghost" id="settings-logo-upload-btn">Logo uploaden</button>
+            <input type="file" id="settings-logo-file" accept="image/*" style="display:none;">
+            <span id="settings-logo-status" class="offerte-travel-note"></span>
+          </div>
+          <div class="offerte-travel-note" style="margin-top:8px;">Wordt getoond bovenaan de Offerte-tab van elk project.</div>
+        </div>
         <div class="info-card">
           <label class="info-section-label">Bedrijfsgegevens</label>
           <div class="info-grid-2">
@@ -953,12 +975,14 @@
     // records which assembled address it was computed for, so the UI can
     // tell the user when it's stale (address edited since).
     travelDistanceKm: null, travelDistanceAddress: "", travelDistanceIsEstimate: false,
-    // laborDays also drives the Verplaatsingsvergoeding subtotal below (a
-    // round trip per day actually worked, not once per project) - hence
-    // the days/hours-per-day split instead of one flat "total hours" field.
-    // Uurtarief/km-tarief themselves are no longer per-project - they're
-    // centralized in appSettings (see Instellingen), read directly.
-    laborDays: 0, laborHoursPerDay: 8,
+    // laborDays now ONLY drives the Verplaatsingsvergoeding round-trip count
+    // (a round trip per day actually worked) - actual labor PRICING moved to
+    // per-service hour inputs (serviceHours below), one per Offerte-tab
+    // section, so the quote shows how long each service takes on its own,
+    // not one lump arbeid figure. Uurtarief/km-tarief are centralized in
+    // appSettings (Instellingen), read directly.
+    laborDays: 0,
+    serviceHours: { gyproc:0, plafond:0, verven:0, primer:0 },
     camera: { x: 0, y: 0, scale: 0.06 }, // scale = px per mm
     selection: null,
     drawing: null,     // {points:[{x,y}]}
@@ -1989,7 +2013,8 @@
   var SETTINGS_ROW_ID = "__app_settings__";
   var DEFAULT_APP_SETTINGS = {
     companyName:"", email:"", phone:"", vatNumber:"", hourlyRate:0, kmRate:0,
-    street:"", houseNumber:"", postalCode:"", city:"", country:"België"
+    street:"", houseNumber:"", postalCode:"", city:"", country:"België",
+    logoUrl:"", logoPath:""
   };
   var appSettings = Object.assign({}, DEFAULT_APP_SETTINGS);
   var settingsSaveTimer = null;
@@ -2190,7 +2215,7 @@
       services: state.services, paintCoats: state.paintCoats, primerCoats: state.primerCoats,
       travelDistanceKm: state.travelDistanceKm, travelDistanceAddress: state.travelDistanceAddress,
       travelDistanceIsEstimate: state.travelDistanceIsEstimate,
-      laborDays: state.laborDays, laborHoursPerDay: state.laborHoursPerDay
+      laborDays: state.laborDays, serviceHours: state.serviceHours
     };
     proj.updatedAt = Date.now();
     clearTimeout(saveTimer);
@@ -2258,19 +2283,16 @@
     state.travelDistanceKm = data.travelDistanceKm != null ? data.travelDistanceKm : null;
     state.travelDistanceAddress = data.travelDistanceAddress || "";
     state.travelDistanceIsEstimate = !!data.travelDistanceIsEstimate;
-    // laborHours (flat total) replaced by laborDays x laborHoursPerDay -
-    // best-effort one-time migration for a project saved before this
-    // split existed, treating the old total as a single day's hours.
-    if(data.laborDays != null){
-      state.laborDays = data.laborDays;
-      state.laborHoursPerDay = data.laborHoursPerDay != null ? data.laborHoursPerDay : 8;
-    } else if(data.laborHours){
-      state.laborDays = 1;
-      state.laborHoursPerDay = data.laborHours;
-    } else {
-      state.laborDays = 0;
-      state.laborHoursPerDay = 8;
-    }
+    // laborDays: kept for the Verplaatsingsvergoeding round-trip count only
+    // (older "laborHours"-only projects, from before the days/hours-per-day
+    // split even existed, are treated as a single day worked).
+    state.laborDays = data.laborDays != null ? data.laborDays : (data.laborHours ? 1 : 0);
+    // Per-service hour inputs (this is what actually prices "arbeid" now -
+    // see the Offerte tab sections). A project saved before this existed
+    // just starts at 0 for every service - there's no principled way to
+    // guess which service an old lump laborHours/laborHoursPerDay figure
+    // belonged to, so it isn't migrated.
+    state.serviceHours = Object.assign({ gyproc:0, plafond:0, verven:0, primer:0 }, data.serviceHours||{});
     // laborRate/travelRatePerKm used to live per-project - now centralized
     // in appSettings (Instellingen). One-time adoption: if the central
     // rate is still unset and this project already had its own value,
@@ -2297,6 +2319,25 @@
   function fmtTimestamp(ms){
     if(!ms) return "";
     return new Date(ms).toLocaleDateString("nl-BE", {day:"numeric", month:"short", year:"numeric"});
+  }
+  // Keeps the URL in sync with whatever's on screen, purely so a page
+  // REFRESH lands back where the user was (not the home page) - uses
+  // replaceState (not location.hash=...) specifically so it never fires a
+  // hashchange event, meaning there's no risk of a render loop from
+  // calling this inside the render functions themselves. Read back once,
+  // on initial load only, by restoreFromUrlOrShowHome() below - this app
+  // doesn't support browser back/forward between views, only refresh-
+  // persistence, so no hashchange listener is needed either.
+  function updateUrlState(){
+    var hash;
+    if(projectsState.activeId && getActiveProject()){
+      hash = "#/project/"+encodeURIComponent(projectsState.activeId)+"/"+activePTab;
+    } else {
+      var activeBtn = document.querySelector(".pl-nav-btn.active");
+      var page = activeBtn ? activeBtn.dataset.page : "projects";
+      hash = page==="projects" ? "#/" : "#/"+page;
+    }
+    if(location.hash !== hash) history.replaceState(null, "", hash);
   }
   // Clears the "last active project" pointer so a reload after navigating
   // back respects that choice (resumes the list, not the project the user
@@ -2325,6 +2366,7 @@
     else if(page==="planning") renderPlanningPage();
     else if(page==="contacts") renderContactsPage();
     else renderSettingsPage();
+    updateUrlState();
   }
   document.querySelectorAll(".pl-nav-btn").forEach(function(btn){
     btn.addEventListener("click", function(){ showPlPage(btn.dataset.page); });
@@ -2347,7 +2389,48 @@
     document.getElementById("settings-vat").value = appSettings.vatNumber || "";
     document.getElementById("settings-hourly-rate").value = appSettings.hourlyRate || 0;
     document.getElementById("settings-km-rate").value = appSettings.kmRate || 0;
+    document.getElementById("settings-logo-preview-wrap").style.display = appSettings.logoUrl ? "" : "none";
+    document.getElementById("settings-logo-preview").src = appSettings.logoUrl || "";
+    document.getElementById("settings-logo-upload-btn").textContent = appSettings.logoUrl ? "Logo vervangen" : "Logo uploaden";
   }
+  document.getElementById("settings-logo-upload-btn").addEventListener("click", function(){
+    document.getElementById("settings-logo-file").click();
+  });
+  document.getElementById("settings-logo-file").addEventListener("change", async function(e){
+    var file = (e.target.files||[])[0];
+    this.value = "";
+    if(!file) return;
+    var statusEl = document.getElementById("settings-logo-status");
+    statusEl.textContent = "Uploaden…";
+    var oldPath = appSettings.logoPath;
+    var extMatch = /\.([a-zA-Z0-9]+)$/.exec(file.name||"");
+    var ext = extMatch ? extMatch[1].toLowerCase() : "png";
+    var path = "_settings/" + uid("logo") + "." + ext;
+    try{
+      var res = await fetch("/api/storage/object/project-images/"+path, {
+        method: "POST",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file
+      });
+      if(!res.ok) throw new Error("upload failed ("+res.status+")");
+      appSettings.logoUrl = "/api/storage/object/public/project-images/"+path;
+      appSettings.logoPath = path;
+      scheduleSettingsSave();
+      renderSettingsPage();
+      statusEl.textContent = "";
+      if(oldPath) fetch("/api/storage/object/project-images/"+oldPath, { method:"DELETE" }).catch(function(){});
+    }catch(err){
+      statusEl.textContent = "";
+      showSaveError("⚠ Logo uploaden mislukt");
+    }
+  });
+  document.getElementById("settings-logo-remove-btn").addEventListener("click", function(){
+    var oldPath = appSettings.logoPath;
+    appSettings.logoUrl = ""; appSettings.logoPath = "";
+    scheduleSettingsSave();
+    renderSettingsPage();
+    if(oldPath) fetch("/api/storage/object/project-images/"+oldPath, { method:"DELETE" }).catch(function(){});
+  });
   // homeAddressField marks the ones that feed assembleHomeAddress(), so
   // editing any of them invalidates the cached geocode (getHomeGeo()
   // compares the assembled string itself, but clearing the cache eagerly
@@ -2366,12 +2449,12 @@
 
   /* =====================================================================
      PLANNING TAB
-     A lightweight horizontal-timeline Gantt (not a wrapping month grid -
-     that would need multi-day bars to wrap across week-row boundaries,
-     which is a lot of extra layout complexity for little real benefit
-     here). Every project with a streefdatum becomes one bar spanning
-     [planningDate, planningDate + doorlooptijd), greedily packed into
-     rows so overlapping projects stack instead of colliding.
+     Maand is a real wrapping month-grid calendar (see renderPlanningMonthGrid);
+     Dag/Week/Jaar keep the horizontal-timeline Gantt layout, which already
+     reads as a standard view at those granularities. Every project with a
+     streefdatum becomes one bar spanning [planningDate, planningDate +
+     doorlooptijd), greedily packed into rows/lanes so overlapping projects
+     stack instead of colliding.
   ===================================================================== */
   var planningRange = "maand"; // 'dag'|'week'|'maand'|'jaar'
   var planningAnchorDate = new Date();
@@ -2640,6 +2723,7 @@
     if(tab==="grondplan") resizeCanvas();
     else if(tab==="info") renderInfoTab();
     else if(tab==="offerte") renderOfferteTab();
+    updateUrlState();
   }
   document.querySelectorAll(".ptab-btn").forEach(function(btn){
     btn.addEventListener("click", function(){ showPTab(btn.dataset.ptab); });
@@ -5482,6 +5566,10 @@
      needed by different walls collapse into one priced line, like a real
      supplier quote.
   ===================================================================== */
+  // Offerte-tab section key -> state.services/state.serviceHours key (the
+  // sections use short Dutch category names, the services object uses the
+  // toggle names - this is the one place that translates between them).
+  var SECTION_SERVICE_MAP = { muur:"gyproc", plafond:"plafond", verf:"verven", primer:"primer" };
   function computeProjectOffer(){
     var thicknessMm = parseFloat(document.getElementById("gyproc-thickness").value) || 12.5;
     var faces = detectFaces(state.walls);
@@ -5653,6 +5741,26 @@
       });
     }
 
+    // Arbeid per dienst - the actual place labor now gets priced (the old
+    // single "Arbeid" card at the top of the Offerte tab is purely
+    // informational now, see renderOfferteTab). Only added when that
+    // service is active AND hours were actually entered, same convention
+    // as the paint/primer pot lines just above.
+    var hourlyRate = appSettings.hourlyRate || 0;
+    var serviceHours = state.serviceHours || {};
+    if(state.services.gyproc && (serviceHours.gyproc||0) > 0){
+      addLineItem("muur", "labor:muur", "Arbeid (uren)", serviceHours.gyproc, hourlyRate, "uur");
+    }
+    if(state.services.plafond && (serviceHours.plafond||0) > 0){
+      addLineItem("plafond", "labor:plafond", "Arbeid (uren)", serviceHours.plafond, hourlyRate, "uur");
+    }
+    if(state.services.verven && (serviceHours.verven||0) > 0){
+      addLineItem("verf", "labor:verf", "Arbeid (uren)", serviceHours.verven, hourlyRate, "uur");
+    }
+    if(state.services.primer && (serviceHours.primer||0) > 0){
+      addLineItem("primer", "labor:primer", "Arbeid (uren)", serviceHours.primer, hourlyRate, "uur");
+    }
+
     function finalizeCategory(bucket){
       var catMissing = false;
       var catItems = Object.keys(bucket).map(function(k){
@@ -5686,6 +5794,9 @@
   function renderOfferteTab(){
     var proj = getActiveProject();
     if(!proj) return;
+    var logoEl = document.getElementById("offerte-logo");
+    logoEl.src = appSettings.logoUrl || "";
+    logoEl.style.display = appSettings.logoUrl ? "" : "none";
     document.getElementById("offerte-project-name").textContent = "Offerte — " + (proj.name || "Naamloos project");
     var clientBits = [];
     if(state.clientName) clientBits.push(state.clientName);
@@ -5700,18 +5811,19 @@
     document.getElementById("offerte-primer-coats").value = state.primerCoats;
     document.getElementById("offerte-coats-row").style.display = (state.services.verven || state.services.primer) ? "" : "none";
 
-    // Arbeid - independent of walls/materials-diensten, a quote can be
-    // labor+travel-only (e.g. a consultation visit). Days x hours/day
-    // (instead of one flat total-hours guess) is what lets Verplaatsings-
-    // vergoeding below know how many round trips to charge for.
+    // Arbeid card is now a READ-ONLY total overview - actual labor pricing
+    // happens per dienst (see the "Arbeid (uren)" input inside each
+    // section below / computeProjectOffer). Aantal dagen is the one field
+    // still genuinely editable here, kept purely for the Verplaatsings-
+    // vergoeding round-trip count below.
     document.getElementById("offerte-labor-days").value = state.laborDays || 0;
-    document.getElementById("offerte-labor-hours-per-day").value = state.laborHoursPerDay || 0;
     document.getElementById("offerte-labor-rate").value = appSettings.hourlyRate || 0;
     var laborDays = state.laborDays || 0;
-    var laborTotalHours = laborDays * (state.laborHoursPerDay||0);
-    var laborSubtotal = laborTotalHours * (appSettings.hourlyRate||0);
-    document.getElementById("offerte-labor-total-hours").textContent = laborTotalHours;
-    document.getElementById("offerte-labor-subtotal").textContent = fmtEuro(laborSubtotal);
+    var svcHours = state.serviceHours || {};
+    var laborTotalHours = (state.services.gyproc?(svcHours.gyproc||0):0) + (state.services.plafond?(svcHours.plafond||0):0)
+      + (state.services.verven?(svcHours.verven||0):0) + (state.services.primer?(svcHours.primer||0):0);
+    document.getElementById("offerte-labor-total-hours-field").value = laborTotalHours;
+    document.getElementById("offerte-labor-subtotal").textContent = fmtEuro(laborTotalHours*(appSettings.hourlyRate||0));
 
     // Verplaatsingsvergoeding - reads the SAME cached distance the Info
     // tab's hint uses/computes; only an explicit button click here
@@ -5761,28 +5873,47 @@
         : "Geen diensten geselecteerd — vink minstens één dienst aan bij Info voor een materiaaloffer.";
     }
     if(showMaterials){
-      table.innerHTML = offer.sections.filter(function(sec){ return sec.items.length; }).map(function(sec){
+      table.innerHTML = offer.sections.filter(function(sec){ return sec.items.length || state.services[SECTION_SERVICE_MAP[sec.key]]; }).map(function(sec){
         var rowsHtml = sec.items.map(function(it){
           return "<tr><td>"+escapeHtml(it.label)+(it.missing?' <span style="color:#b45309;">(geen prijs)</span>':'')+"</td>"
             + "<td>"+it.qty+(it.unit?" "+it.unit:"")+"</td>"
             + "<td>"+(it.missing?"—":fmtEuro(it.unitPrice))+"</td>"
             + "<td>"+(it.missing?"—":fmtEuro(it.total))+"</td></tr>";
         }).join("");
+        // Arbeid-invoer per dienst - dit is wat effectief meetelt in het
+        // totaal (zie computeProjectOffer), zodat direct duidelijk is hoe
+        // lang deze dienst duurt EN wat dat kost, meteen bij de materialen
+        // van diezelfde dienst.
+        var svcKey = SECTION_SERVICE_MAP[sec.key];
+        var hoursFieldHtml = state.services[svcKey] ? (''
+          + '<div class="offerte-hours-row">'
+          +   '<label>Arbeid '+sec.title.toLowerCase()+' (uren)</label>'
+          +   '<input type="text" inputmode="decimal" class="offerte-section-hours-input" data-svc="'+svcKey+'" value="'+(state.serviceHours[svcKey]||0)+'">'
+          + '</div>') : '';
         return '<div>'
           + '<div class="offerte-section-title">'+sec.title+'</div>'
-          + '<div class="offerte-table-wrap" style="overflow-x:auto;">'
-          +   '<table class="offerte-table">'
-          +     '<thead><tr><th>Materiaal</th><th>Aantal</th><th>Eenheidsprijs</th><th>Totaal</th></tr></thead>'
-          +     '<tbody>'+rowsHtml+'</tbody>'
-          +   '</table>'
-          +   '<div class="offerte-section-subtotal"><span>Subtotaal '+sec.title.toLowerCase()+'</span><span>'+fmtEuro(sec.subtotal)+'</span></div>'
-          + '</div>'
+          + hoursFieldHtml
+          + (sec.items.length ? (''
+            + '<div class="offerte-table-wrap" style="overflow-x:auto;">'
+            +   '<table class="offerte-table">'
+            +     '<thead><tr><th>Materiaal</th><th>Aantal</th><th>Eenheidsprijs</th><th>Totaal</th></tr></thead>'
+            +     '<tbody>'+rowsHtml+'</tbody>'
+            +   '</table>'
+            +   '<div class="offerte-section-subtotal"><span>Subtotaal '+sec.title.toLowerCase()+'</span><span>'+fmtEuro(sec.subtotal)+'</span></div>'
+            + '</div>') : '')
           + '</div>';
       }).join("");
+      table.querySelectorAll(".offerte-section-hours-input").forEach(function(inp){
+        inp.addEventListener("input", function(){
+          state.serviceHours[inp.dataset.svc] = Math.max(0, parseFloat(inp.value)||0);
+          scheduleSave();
+          renderOfferteTab();
+        });
+      });
     }
 
     var materialsSubtotal = showMaterials ? offer.subtotal : 0;
-    var combinedSubtotal = materialsSubtotal + laborSubtotal + travelSubtotal;
+    var combinedSubtotal = materialsSubtotal + travelSubtotal;
     var btwRate = state.btwRate || 0;
     var btwAmount = combinedSubtotal * (btwRate/100);
     document.getElementById("offerte-subtotal").textContent = fmtEuro(combinedSubtotal);
@@ -5808,11 +5939,6 @@
   });
   document.getElementById("offerte-labor-days").addEventListener("input", function(){
     state.laborDays = Math.max(0, parseFloat(this.value)||0);
-    scheduleSave();
-    renderOfferteTab();
-  });
-  document.getElementById("offerte-labor-hours-per-day").addEventListener("input", function(){
-    state.laborHoursPerDay = Math.max(0, parseFloat(this.value)||0);
     scheduleSave();
     renderOfferteTab();
   });
@@ -5943,14 +6069,37 @@
   /* =====================================================================
      INIT
   ===================================================================== */
+  // A fresh navigation (typed URL, bookmark, no #hash yet) always lands on
+  // the Projecten overview - that's the one predictable home page. A
+  // REFRESH while already deep in the app (a project's Grondplan tab, the
+  // Planning page, ...) restores that exact view instead, via the #hash
+  // updateUrlState() keeps in sync as you navigate (see above) - refreshing
+  // shouldn't feel like getting bounced back to square one.
+  function restoreFromUrlOrShowHome(){
+    var hash = location.hash || "";
+    var projMatch = /^#\/project\/([^/]+)\/([^/]+)$/.exec(hash);
+    if(projMatch){
+      var pid = decodeURIComponent(projMatch[1]);
+      var tab = projMatch[2];
+      if(["info","grondplan","offerte"].indexOf(tab)>=0 && projectsState.projects.some(function(p){ return p.id===pid; })){
+        enterProject(pid, tab);
+        return;
+      }
+    }
+    var pageMatch = /^#\/([a-z]+)$/.exec(hash);
+    var validPages = ["planning","materials","settings","contacts"];
+    if(pageMatch && validPages.indexOf(pageMatch[1])>=0){
+      document.getElementById("project-list-screen").classList.remove("hidden");
+      document.getElementById("app").style.display = "none";
+      showPlPage(pageMatch[1]);
+      return;
+    }
+    showProjectList();
+  }
   (async function(){
     await loadProjectsState();
     await loadMaterialPrices();
-    // Home page is always the Projecten overview - never auto-resume
-    // straight into whichever project was last open (that made the app
-    // feel like it "remembered" an arbitrary project instead of giving a
-    // predictable landing page every time).
-    showProjectList();
+    restoreFromUrlOrShowHome();
   })();
 })();
 </script>
