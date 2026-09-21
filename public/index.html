@@ -4967,10 +4967,23 @@
   // closed walls drawn).
   function computeCeilingForRoom(includedWalls, thicknessMm){
     if(!state.services.plafond) return null;
-    var wallIdSet = {};
-    includedWalls.forEach(function(w){ wallIdSet[w.id] = true; });
+    if(!includedWalls.length) return null;
+    // Match zones by the room's own key prefix, not by wall membership: a
+    // single wall can border 3+ differently-heighted zones along its length,
+    // and computeZones() can only ever assign that wall's id to ONE of them
+    // (the zone containing the wall's geometric midpoint). Filtering by
+    // wallIds here would silently drop any zone that lost that tie-break,
+    // along with every bulkhead touching it. The room's baseKey is stable
+    // regardless of how zoneCuts split it, so re-deriving it from a fresh
+    // face detection and matching zone.key against it (exact match, or
+    // "baseKey:zN" for a split room) catches every zone that belongs to
+    // this room, whether or not it happens to still list one of our walls.
+    var faces = detectFaces(state.walls);
+    var myFace = faces.find(function(f){ return f.wallIds.indexOf(includedWalls[0].id)>=0; });
+    if(!myFace) return null;
+    var baseKey = faceKey(myFace);
     var roomZones = (state._lastZones||[]).filter(function(z){
-      return z.area>=10000 && z.wallIds.some(function(wid){ return wallIdSet[wid]; });
+      return z.area>=10000 && (z.key===baseKey || z.key.indexOf(baseKey+":z")===0);
     });
     if(!roomZones.length) return null;
 
