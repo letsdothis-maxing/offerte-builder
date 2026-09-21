@@ -2211,11 +2211,24 @@
         showSaveError("⚠ Opslaan mislukt — controleer je internetverbinding");
       });
     }, 600);
-    // Cheap + itself debounced (see upsertContactFromState), so it's safe
-    // to just re-derive on every project save rather than wiring it into
-    // each individual client-field handler separately and risking missing
-    // one - a project save without a client name yet is a no-op.
-    upsertContactFromState();
+    // Deliberately NOT calling upsertContactFromState() here anymore - this
+    // fires on every keystroke across every client field, and
+    // findContactByName() matches on the CURRENT (still-mid-typing) name,
+    // so typing "Jan" character by character created a real, separate
+    // contact object for "J", then another for "Ja", then "Jan" - all of
+    // which sat in contactsState and got persisted by the very next
+    // debounced contacts save, well before the user finished typing.
+    // Client-field blur (see wireContactSyncOnBlur below) is the actual
+    // trigger now: only once the user leaves a field, not per character.
+  }
+  // Syncs the current client info into Contacten once the user actually
+  // leaves a client field (blur), instead of on every keystroke - see the
+  // comment in scheduleSave() above for why "on every input" was wrong.
+  // Shared by the name/vat/address inputs AND the type toggle (a click is
+  // already a single discrete action, not a keystroke stream, but routing
+  // it through the same function keeps the trigger logic in one place).
+  function wireContactSyncOnBlur(el){
+    el.addEventListener("blur", function(){ upsertContactFromState(); });
   }
   function loadActiveProjectIntoState(){
     var proj = getActiveProject();
@@ -2930,7 +2943,7 @@
     document.getElementById("info-addr-city").value = state.clientCity || "";
     document.getElementById("info-addr-country").value = state.clientCountry || "";
     updateDistanceHint();
-    document.querySelectorAll(".ctype-btn").forEach(function(btn){
+    document.querySelectorAll("#ptab-info .ctype-btn").forEach(function(btn){
       btn.classList.toggle("active", (state.clientType||"particulier")===btn.dataset.ctype);
     });
     document.getElementById("info-description").value = proj.description || "";
@@ -2994,11 +3007,12 @@
     // delayed so a click on a suggestion (which also blurs the input)
     // still registers before the list disappears
     setTimeout(function(){ document.getElementById("info-client-suggest").classList.remove("show"); }, 150);
+    upsertContactFromState();
   });
-  // Explicit save - upsertContactFromState() already runs on every
-  // scheduleSave() automatically, but a visible button + confirmation
-  // gives a deliberate "yes, this is saved" moment instead of relying on
-  // an invisible side effect of just typing.
+  // Explicit save - upsertContactFromState() also now runs when a client
+  // field is blurred (see wireContactSyncOnBlur), but a visible button +
+  // confirmation gives a deliberate "yes, this is saved" moment instead of
+  // relying on an invisible side effect of clicking away from a field.
   document.getElementById("info-save-contact-btn").addEventListener("click", function(){
     if(!(state.clientName||"").trim()){
       document.getElementById("info-client-name").focus();
@@ -3013,11 +3027,13 @@
   [["info-addr-street","clientStreet"],["info-addr-number","clientHouseNumber"],
    ["info-addr-addition","clientAddressAddition"],["info-addr-postal","clientPostalCode"],
    ["info-addr-city","clientCity"],["info-addr-country","clientCountry"]].forEach(function(pair){
-    document.getElementById(pair[0]).addEventListener("input", function(){
+    var el = document.getElementById(pair[0]);
+    el.addEventListener("input", function(){
       state[pair[1]] = this.value;
       scheduleSave();
       scheduleDistanceRecalc();
     });
+    wireContactSyncOnBlur(el);
   });
   // when the postcode is filled in first (gemeente still empty), look up
   // the municipality so the user doesn't have to type it - only fires for
@@ -3035,18 +3051,25 @@
       }
     }).catch(function(){});
   });
-  document.querySelectorAll(".ctype-btn").forEach(function(btn){
+  // Scoped to #ptab-info specifically - an unscoped ".ctype-btn" selector
+  // here would ALSO match the separate Contact-form dialog's identical
+  // buttons (same class, own ids) and wrongly overwrite the currently
+  // open PROJECT's own clientType whenever someone toggles Particulier/
+  // Zakelijk while editing an unrelated contact.
+  document.querySelectorAll("#ptab-info .ctype-btn").forEach(function(btn){
     btn.addEventListener("click", function(){
       state.clientType = btn.dataset.ctype;
-      document.querySelectorAll(".ctype-btn").forEach(function(b){ b.classList.toggle("active", b===btn); });
+      document.querySelectorAll("#ptab-info .ctype-btn").forEach(function(b){ b.classList.toggle("active", b===btn); });
       document.getElementById("info-vat-field").style.display = state.clientType==="zakelijk" ? "" : "none";
       scheduleSave();
+      upsertContactFromState();
     });
   });
   document.getElementById("info-client-vat").addEventListener("input", function(){
     state.clientVatNumber = this.value;
     scheduleSave();
   });
+  wireContactSyncOnBlur(document.getElementById("info-client-vat"));
   document.getElementById("info-project-status").addEventListener("change", function(){
     state.projectStatus = this.value;
     var pillEl = document.getElementById("info-status-pill");
