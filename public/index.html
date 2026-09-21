@@ -281,6 +281,12 @@
   .gpf-section{margin-bottom:10px;}
   .gpf-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--ink);margin-bottom:2px;}
   .gpf-subtotal{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--ink);padding:2px 0;margin-top:2px;border-top:1px dashed var(--line);}
+  .gpf-toggle-btn{display:flex;align-items:center;justify-content:space-between;width:100%;border:none;background:none;padding:2px 0 6px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;}
+  .gpf-toggle-btn:hover{color:var(--ink);}
+  .gpf-toggle-icon{transition:transform .15s ease;}
+  .gpf-toggle-btn.expanded .gpf-toggle-icon{transform:rotate(180deg);}
+  .gpf-content{display:none;max-height:260px;overflow-y:auto;padding-right:2px;}
+  .gpf-content.show{display:block;}
   #gyproc-result{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;display:none;}
   #gyproc-result.show{display:block;}
   #gyproc-result .row{display:flex;justify-content:space-between;padding:4px 0;}
@@ -903,7 +909,11 @@
     <div id="gyproc-result"></div>
   </div>
   <div id="gyproc-price-footer" style="display:none;">
-    <div id="gyproc-price-footer-content"></div>
+    <button type="button" class="gpf-toggle-btn" id="gpf-toggle-btn">
+      <span>Materiaalbreakdown</span>
+      <span class="gpf-toggle-icon">▾</span>
+    </button>
+    <div id="gyproc-price-footer-content" class="gpf-content"></div>
     <div class="gpf-total"><span>Totaal</span><span id="gpf-total">€ 0,00</span></div>
     <div class="gpf-warn" id="gpf-warn" style="display:none;">⚠ Vul materiaalprijzen in bij Materialen voor een volledige offerte</div>
   </div>
@@ -5543,6 +5553,18 @@
       + '<div class="gpf-subtotal"><span>Subtotaal '+title.toLowerCase()+'</span><span>'+fmtEuroOrMissing(subtotal, missing)+'</span></div>'
       + '</div>';
   }
+  // Collapsed by default - the full per-section material breakdown was
+  // competing for attention with the actual calculation content above it
+  // (diagrams, panel/CD/UD picks); the grand total always stays visible
+  // either way, the breakdown is one click away when actually wanted.
+  // Persists across re-renders (not reset on every input change) since
+  // it's rebuilt via innerHTML each time.
+  var gpfExpanded = false;
+  document.getElementById("gpf-toggle-btn").addEventListener("click", function(){
+    gpfExpanded = !gpfExpanded;
+    document.getElementById("gyproc-price-footer-content").classList.toggle("show", gpfExpanded);
+    document.getElementById("gpf-toggle-btn").classList.toggle("expanded", gpfExpanded);
+  });
   function updateGyprocPriceFooter(){
     var footer = document.getElementById("gyproc-price-footer");
     if(!gyprocWallIds.length){
