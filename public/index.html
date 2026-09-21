@@ -804,7 +804,8 @@
   </div>
   <div id="gyproc-price-footer" style="display:none;">
     <div class="gpf-row"><span>Gyproc platen</span><span id="gpf-gyproc">€ 0,00</span></div>
-    <div class="gpf-row"><span>Metal studs</span><span id="gpf-studs">€ 0,00</span></div>
+    <div class="gpf-row"><span>Verticale + horizontale studs (muur)</span><span id="gpf-studs">€ 0,00</span></div>
+    <div class="gpf-row" id="gpf-plafond-row" style="display:none;"><span>Verticale + horizontale studs (plafond)</span><span id="gpf-plafond">€ 0,00</span></div>
     <div class="gpf-row" id="gpf-paint-row" style="display:none;"><span>Verf (<span id="gpf-paint-pots">0</span> potten<span id="gpf-paint-liters"></span>)</span><span id="gpf-paint">€ 0,00</span></div>
     <div class="gpf-row" id="gpf-primer-row" style="display:none;"><span>Primer (<span id="gpf-primer-pots">0</span> potten<span id="gpf-primer-liters"></span>)</span><span id="gpf-primer">€ 0,00</span></div>
     <div class="gpf-total"><span>Totaal</span><span id="gpf-total">€ 0,00</span></div>
@@ -2589,6 +2590,7 @@
   document.getElementById("svc-plafond").addEventListener("change", function(){
     state.services.plafond = this.checked;
     scheduleSave();
+    if(gyprocWallIds.length) runGyprocCalculation();
   });
 
   /* ---------- before-images (Supabase Storage, via /api/storage proxy) ---------- */
@@ -2773,23 +2775,24 @@
     // studs of the same LENGTH only differ by dikte (gauge) - price per
     // (lengte, dikte) combination, not two independent flat lists, since
     // a 260cm/50mm profile and a 260cm/100mm profile are different SKUs.
-    html += '<h2 class="mat-section-title">Metal studs</h2>';
+    html += '<h2 class="mat-section-title">Verticale + horizontale studs (muur)</h2>';
+    html += '<h3 class="mat-subsection-title">Verticale studs</h3>';
     STUD_LENGTHS.forEach(function(l){
       html += '<h3 class="mat-subsection-title">'+(l/10)+' cm</h3>'
         + '<div class="mat-grid">' + STUD_GAUGES.map(function(g){
             return materialCardHtml("stud:"+l+":"+g, g+" mm", "Dikte bij "+(l/10)+" cm lengte");
           }).join('') + '</div>';
     });
-    html += '<h3 class="mat-subsection-title">Horizontale rails</h3>'
+    html += '<h3 class="mat-subsection-title">Horizontale studs</h3>'
       + '<div class="mat-grid">' + TRACK_LENGTHS.map(function(l){
           return materialCardHtml("rail:"+l, (l/10)+" cm", "Horizontaal U-profiel, lengte");
         }).join('') + '</div>';
-    html += '<h2 class="mat-section-title">Plafond</h2>';
-    html += '<h3 class="mat-subsection-title">CD-profiel</h3>'
+    html += '<h2 class="mat-section-title">Verticale + horizontale studs (plafond)</h2>';
+    html += '<h3 class="mat-subsection-title">Verticale studs (CD-profiel)</h3>'
       + '<div class="mat-grid">' + TRACK_LENGTHS.map(function(l){
           return materialCardHtml("plafond:cd:"+l, (l/10)+" cm", "CD-profiel, lengte");
         }).join('') + '</div>';
-    html += '<h3 class="mat-subsection-title">UD-randprofiel</h3>'
+    html += '<h3 class="mat-subsection-title">Horizontale studs (UD-randprofiel)</h3>'
       + '<div class="mat-grid">' + TRACK_LENGTHS.map(function(l){
           return materialCardHtml("plafond:ud:"+l, (l/10)+" cm", "UD-randprofiel, lengte");
         }).join('') + '</div>';
@@ -3582,8 +3585,9 @@
   // tabs is a cheap re-render, not a recomputation, and the footer can
   // sum every wall regardless of which one is on screen.
   var gyprocWallIds = [];
-  var gyprocActiveWallIdx = 0;
+  var gyprocActiveWallIdx = 0; // 0..gyprocWallIds.length-1 = a wall; ===gyprocWallIds.length = the ceiling tab (builds last)
   var gyprocWallStates = {};
+  var gyprocCeilingState = null; // computeCeilingForRoom() result for the room currently open, or null
   // moved into the Metal studs section itself (so stud controls live
   // together): read/written directly as module state rather than via DOM
   // lookups, since the controls are rebuilt on every render. Shared
@@ -3838,6 +3842,38 @@
     });
 
     svg.push('<polygon points="'+poly.full+'" fill="none" stroke="#1f2937" stroke-width="'+(unit*0.008)+'"/>');
+    svg.push('</svg>');
+    return svg.join('');
+  }
+
+  // Ceiling equivalent of buildStudDiagramSVG - a plan (top-down) view of
+  // one plafondzone: the horizontale studs (UD-randprofiel) framing the
+  // perimeter, the verticale studs (CD-profiel) evenly spread across the
+  // fixed 400mm h.o.h. grid. No openings/anchors here (a ceiling has none),
+  // so this stays much simpler than the wall version.
+  function buildCeilingGridDiagramSVG(lengteMm, breedteMm, cdCount){
+    var vbW = Math.max(1,lengteMm), vbH = Math.max(1,breedteMm);
+    var unit = Math.max(vbW, vbH);
+    var pad = unit*0.05;
+    var railH = Math.max(unit*0.02, 20);
+    var studW = Math.max(unit*0.012, 14);
+
+    var svg = [];
+    svg.push('<svg viewBox="'+(-pad)+' '+(-pad)+' '+(vbW+2*pad)+' '+(vbH+2*pad)+'" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;">');
+    svg.push('<rect x="'+(-pad)+'" y="'+(-pad)+'" width="'+(vbW+2*pad)+'" height="'+(vbH+2*pad)+'" fill="#f8fafc"/>');
+    svg.push('<rect x="0" y="0" width="'+vbW+'" height="'+vbH+'" fill="rgba(148,163,184,0.16)"/>');
+    // horizontale stud (UD) - full perimeter
+    [[0,0,vbW,railH],[0,vbH-railH,vbW,railH],[0,0,railH,vbH],[vbW-railH,0,railH,vbH]].forEach(function(r){
+      svg.push('<rect x="'+r[0]+'" y="'+r[1]+'" width="'+r[2]+'" height="'+r[3]+'" fill="rgba(234,179,8,0.7)" stroke="#a16207" stroke-width="'+(unit*0.003)+'"/>');
+    });
+    // verticale studs (CD) - evenly spread across the length, same count as
+    // the material calc (Math.ceil(lengte/400)+1)
+    for(var i=0;i<cdCount;i++){
+      var cx = cdCount>1 ? (i*(vbW/(cdCount-1))) : vbW/2;
+      var x = Math.min(vbW-studW, Math.max(0, cx-studW/2));
+      svg.push('<rect x="'+x+'" y="0" width="'+studW+'" height="'+vbH+'" fill="rgba(217,119,6,0.85)" stroke="#92400e" stroke-width="'+(unit*0.003)+'"/>');
+    }
+    svg.push('<rect x="0" y="0" width="'+vbW+'" height="'+vbH+'" fill="none" stroke="#1f2937" stroke-width="'+(unit*0.008)+'"/>');
     svg.push('</svg>');
     return svg.join('');
   }
@@ -4194,21 +4230,128 @@
     }).sort(function(a,b){ return a.wastePct-b.wastePct; });
   }
   // A zone's footprint (bounding box of its polygon) doubles as its ceiling
-  // rectangle: UD runs the perimeter, CD crosses the short way at the fixed
-  // 400mm h.o.h., one hanger every 1000mm along each CD run.
-  function computeCeilingZonePlan(zone){
+  // rectangle: the verticale stud (CD-profiel) crosses the short way at the
+  // fixed 400mm h.o.h., one hanger every 1000mm along each run. The
+  // horizontale stud (UD-randprofiel) runs the room's real wall perimeter
+  // (zone.wallIds), NOT the bbox edges - a wall that's actively being
+  // calculated (gyproc on, not excluded) already carries its own horizontale
+  // stud along that exact run, so buying UD there too would double-count
+  // that material; that wall's length is skipped. A wall that isn't being
+  // calculated (gyproc off entirely, or that one wall excluded) has no such
+  // material in place, so the ceiling needs its own full run there - which
+  // is also exactly what happens when plafond is the ONLY active service:
+  // wallsCoverUd is false, so UD always runs the complete muur-tot-muur
+  // perimeter.
+  function computeCeilingZonePlan(zone, wallsCoverUd){
     var bbox = polygonBBoxMm(zone.polygon);
     var lengteMm = Math.max(0, bbox.width), breedteMm = Math.max(0, bbox.height);
     var cdCount = Math.max(1, Math.ceil(lengteMm/CEILING_CD_HOH_MM)+1);
     var hangersPerCd = Math.max(1, Math.ceil(breedteMm/CEILING_HANGER_SPACING_MM)+1);
     var cdPieces = [];
     for(var i=0;i<cdCount;i++) cdPieces.push(breedteMm);
+    var udPieces = [];
+    zone.wallIds.forEach(function(wid){
+      var w = state.walls.find(function(ww){ return ww.id===wid; });
+      if(!w) return;
+      if(wallsCoverUd && !w.excludeFromCalc) return;
+      udPieces.push(wallLength(w));
+    });
     return {
       lengteMm: lengteMm, breedteMm: breedteMm,
-      udPieces: [lengteMm, lengteMm, breedteMm, breedteMm],
-      cdPieces: cdPieces,
+      udPieces: udPieces, cdPieces: cdPieces, cdCount: cdCount,
       hangerCount: cdCount*hangersPerCd
     };
+  }
+  // Shared best-of-every-standard-format panel result, used by both the
+  // ceiling zones and the height-jump bulkhead strips (both are plain
+  // rectangles with no openings, unlike a wall).
+  function computeBestPanelResults(lenMm, heightMm, thicknessMm){
+    var results = PANEL_SIZES.map(function(sz){
+      return computeGyprocForSize(lenMm, heightMm, [], null, sz.w, sz.h, thicknessMm, sz.label);
+    });
+    results.sort(function(a,b){ return a.wastePct-b.wastePct; });
+    return results;
+  }
+  // The vertical frame + gipsstrook needed where two zones of the SAME room
+  // meet at a height jump (state._lastResolvedCuts already exists for
+  // exactly this - see computeZones). Returns null for a cut with no real
+  // height difference (nothing to build there).
+  function computeBulkheadPlan(rc, thicknessMm){
+    var hDiffMm = Math.abs(rc.zoneA.height - rc.zoneB.height);
+    var lSprongMm = rc.length;
+    if(hDiffMm < 1 || lSprongMm < 1) return null;
+    var cdCount = Math.max(1, Math.ceil(lSprongMm/CEILING_CD_HOH_MM)+1);
+    var cdPieces = [];
+    for(var i=0;i<cdCount;i++) cdPieces.push(hDiffMm);
+    return {
+      hDiffMm: hDiffMm, lSprongMm: lSprongMm,
+      cdPieces: cdPieces, udPieces: [lSprongMm, lSprongMm],
+      results: computeBestPanelResults(lSprongMm, hDiffMm, thicknessMm)
+    };
+  }
+  // Everything the ceiling needs for ONE room (the same room the gyproc
+  // drawer just pulled `includedWalls` in for): one plan per zone plus every
+  // bulkhead strictly between two zones of that same room. Returns null when
+  // the plafond service is off or the room has no zone geometry yet (no
+  // closed walls drawn).
+  function computeCeilingForRoom(includedWalls, thicknessMm){
+    if(!state.services.plafond) return null;
+    var wallIdSet = {};
+    includedWalls.forEach(function(w){ wallIdSet[w.id] = true; });
+    var roomZones = (state._lastZones||[]).filter(function(z){
+      return z.area>=10000 && z.wallIds.some(function(wid){ return wallIdSet[wid]; });
+    });
+    if(!roomZones.length) return null;
+
+    var zonesPlan = roomZones.map(function(zone){
+      var plan = computeCeilingZonePlan(zone, state.services.gyproc);
+      return { zone: zone, plan: plan, results: computeBestPanelResults(plan.lengteMm, plan.breedteMm, thicknessMm) };
+    });
+    var bulkheads = (state._lastResolvedCuts||[]).filter(function(rc){
+      return roomZones.indexOf(rc.zoneA)>=0 && roomZones.indexOf(rc.zoneB)>=0;
+    }).map(function(rc){
+      return { rc: rc, plan: computeBulkheadPlan(rc, thicknessMm) };
+    }).filter(function(b){ return b.plan; });
+
+    var totalAreaM2 = roomZones.reduce(function(s,z){ return s+z.area; },0)/1000000;
+    return { zonesPlan: zonesPlan, bulkheads: bulkheads, totalAreaM2: totalAreaM2 };
+  }
+  // Euro subtotal for the WHOLE ceiling of the currently open room (every
+  // zone + every bulkhead), same shape as computeWallPriceTotal so it can
+  // share the checkout-tab badge / footer-summing code.
+  function computeCeilingPriceTotal(cs){
+    if(!cs) return { gyprocSubtotal:0, studsSubtotal:0, total:0, missingPrice:false };
+    var gyprocSubtotal = 0, studsSubtotal = 0, missingPrice = false;
+    function addPanel(results){
+      var active = results[0];
+      var szEntry = PANEL_SIZES.find(function(s){ return s.label===active.sizeLabel; });
+      var price = szEntry ? materialPrices["gyproc:"+szEntry.w+"x"+szEntry.h] : undefined;
+      gyprocSubtotal += (price||0)*active.netPanels;
+      if(price==null) missingPrice = true;
+    }
+    function addFrame(plan, includeHangers){
+      var bestCd = packLengthPieces(plan.cdPieces, TRACK_LENGTHS)[0];
+      var cdReserve = Math.ceil(bestCd.totalPieces*(1+STUD_RESERVE_PCT/100));
+      var cdPrice = materialPrices["plafond:cd:"+bestCd.pieceLenMm];
+      studsSubtotal += (cdPrice||0)*cdReserve;
+      if(cdPrice==null) missingPrice = true;
+      if(plan.udPieces.length){
+        var bestUd = packLengthPieces(plan.udPieces, TRACK_LENGTHS)[0];
+        var udReserve = Math.ceil(bestUd.totalPieces*(1+STUD_RESERVE_PCT/100));
+        var udPrice = materialPrices["plafond:ud:"+bestUd.pieceLenMm];
+        studsSubtotal += (udPrice||0)*udReserve;
+        if(udPrice==null) missingPrice = true;
+      }
+      if(includeHangers){
+        var hangerReserve = Math.ceil(plan.hangerCount*(1+STUD_RESERVE_PCT/100));
+        var hangerPrice = materialPrices["plafond:hanger"];
+        studsSubtotal += (hangerPrice||0)*hangerReserve;
+        if(hangerPrice==null) missingPrice = true;
+      }
+    }
+    cs.zonesPlan.forEach(function(zp){ addPanel(zp.results); addFrame(zp.plan, true); });
+    cs.bulkheads.forEach(function(b){ addPanel(b.plan.results); addFrame(b.plan, false); });
+    return { gyprocSubtotal:gyprocSubtotal, studsSubtotal:studsSubtotal, total:gyprocSubtotal+studsSubtotal, missingPrice:missingPrice };
   }
 
   // Runs the calculation for ALL standard formats against the currently
@@ -4251,6 +4394,12 @@
       };
     });
 
+    // Plafond builds last: computed alongside the walls (same thickness/
+    // gyproc-service inputs), appended as the tab AFTER every wall.
+    gyprocCeilingState = computeCeilingForRoom(includedWalls, thicknessMm);
+    var lastValidIdx = gyprocWallIds.length - (gyprocCeilingState ? 0 : 1);
+    if(gyprocActiveWallIdx > lastValidIdx) gyprocActiveWallIdx = 0;
+
     renderGyprocResults();
   }
   document.getElementById("gyproc-thickness").addEventListener("input", function(){
@@ -4288,8 +4437,69 @@
     };
   }
 
+  // "checkout tabs" - every wall in this room's calculation, in build
+  // order, each carrying its own live subtotal, PLUS a final "Plafond" tab
+  // (the ceiling builds last, after every wall) when the plafond service
+  // is on and this room actually has zone geometry. Switching tabs only
+  // changes which one's full breakdown is shown below; the footer keeps
+  // summing all of them regardless of which is on screen.
+  function buildCheckoutTabsHtml(){
+    var totalTabs = gyprocWallIds.length + (gyprocCeilingState ? 1 : 0);
+    if(totalTabs <= 1) return '';
+    var wallTabsHtml = gyprocWallIds.map(function(id, idx){
+      var wsI = gyprocWallStates[id];
+      var t = computeWallPriceTotal(wsI);
+      return '<button type="button" class="gyproc-tab'+(idx===gyprocActiveWallIdx?' active':'')+'" data-wall-idx="'+idx+'">'
+        + '<div class="sz">Muur '+(wsI.wall.order||idx+1)+'</div>'
+        + '<div class="stat'+(t.missingPrice?' warn':'')+'">'+fmtEuro(t.total)+(t.missingPrice?' ⚠':'')+'</div>'
+        + '</button>';
+    }).join('');
+    var ceilingTabHtml = '';
+    if(gyprocCeilingState){
+      var ct = computeCeilingPriceTotal(gyprocCeilingState);
+      var ceilingActive = gyprocActiveWallIdx === gyprocWallIds.length;
+      ceilingTabHtml = '<button type="button" class="gyproc-tab'+(ceilingActive?' active':'')+'" data-wall-idx="'+gyprocWallIds.length+'">'
+        + '<div class="sz">Plafond</div>'
+        + '<div class="stat'+(ct.missingPrice?' warn':'')+'">'+fmtEuro(ct.total)+(ct.missingPrice?' ⚠':'')+'</div>'
+        + '</button>';
+    }
+    return ''
+      + '<div class="gyproc-checkout-wrap">'
+      +   '<div class="gyproc-checkout-label">Muren in deze berekening</div>'
+      +   '<div class="gyproc-checkout-tabs">'+wallTabsHtml+ceilingTabHtml+'</div>'
+      + '</div>';
+  }
+  // Listeners shared by BOTH the wall and ceiling render paths (tab
+  // switching + verf/primer aantal-lagen inputs) - factored out so neither
+  // path has to duplicate the wiring.
+  function wireGyprocResultCommon(resultEl){
+    resultEl.querySelectorAll(".gyproc-tab[data-wall-idx]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        gyprocActiveWallIdx = parseInt(btn.dataset.wallIdx,10);
+        renderGyprocResults();
+      });
+    });
+    var paintCoatsEl = document.getElementById("paint-coats-input");
+    if(paintCoatsEl) paintCoatsEl.addEventListener("change", function(){
+      state.paintCoats = Math.max(1, parseInt(paintCoatsEl.value,10)||1);
+      scheduleSave();
+      renderGyprocResults();
+    });
+    var primerCoatsEl = document.getElementById("primer-coats-input");
+    if(primerCoatsEl) primerCoatsEl.addEventListener("change", function(){
+      state.primerCoats = Math.max(1, parseInt(primerCoatsEl.value,10)||1);
+      scheduleSave();
+      renderGyprocResults();
+    });
+    updateGyprocPriceFooter();
+  }
+
   function renderGyprocResults(){
     if(!gyprocWallIds.length) return;
+    if(gyprocCeilingState && gyprocActiveWallIdx === gyprocWallIds.length){
+      renderCeilingResults();
+      return;
+    }
     var activeWallId = gyprocWallIds[gyprocActiveWallIdx];
     var ws = gyprocWallStates[activeWallId];
     if(!ws) return;
@@ -4300,24 +4510,7 @@
       "Muur "+(ws.wall.order||(gyprocActiveWallIdx+1))+": "+fmtM(ws.wallLenMm)+" breed x "+fmtM(ws.wallHeightMm)+" hoog"
       +(stepped ? " (hoogteverschil in deze muur)" : "")+" ("+areaM2.toFixed(2)+" m²)";
 
-    // "checkout tabs" - every wall in this room's calculation, in build
-    // order, each carrying its own live subtotal; switching tabs only
-    // changes which wall's full breakdown is shown below, the footer
-    // keeps summing every wall regardless.
-    var checkoutTabsHtml = gyprocWallIds.length > 1 ? (''
-      + '<div class="gyproc-checkout-wrap">'
-      +   '<div class="gyproc-checkout-label">Muren in deze berekening</div>'
-      +   '<div class="gyproc-checkout-tabs">'
-      +     gyprocWallIds.map(function(id, idx){
-              var wsI = gyprocWallStates[id];
-              var t = computeWallPriceTotal(wsI);
-              return '<button type="button" class="gyproc-tab'+(idx===gyprocActiveWallIdx?' active':'')+'" data-wall-idx="'+idx+'">'
-                + '<div class="sz">Muur '+(wsI.wall.order||idx+1)+'</div>'
-                + '<div class="stat'+(t.missingPrice?' warn':'')+'">'+fmtEuro(t.total)+(t.missingPrice?' ⚠':'')+'</div>'
-                + '</button>';
-            }).join('')
-      +   '</div>'
-      + '</div>') : '';
+    var checkoutTabsHtml = buildCheckoutTabsHtml();
 
     var best = ws.results[0];
     var active = ws.results[ws.activeIndex];
@@ -4352,12 +4545,6 @@
     var resultEl = document.getElementById("gyproc-result");
     resultEl.innerHTML = html;
     resultEl.classList.add("show");
-    resultEl.querySelectorAll(".gyproc-tab[data-wall-idx]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        gyprocActiveWallIdx = parseInt(btn.dataset.wallIdx,10);
-        renderGyprocResults();
-      });
-    });
     resultEl.querySelectorAll(".gyproc-tab[data-idx]").forEach(function(btn){
       btn.addEventListener("click", function(){
         ws.activeIndex = parseInt(btn.dataset.idx,10);
@@ -4391,22 +4578,87 @@
       gyprocStudGaugeMm = parseInt(gaugeEl.value,10) || 50;
       runGyprocCalculation();
     });
-    // coat counts don't affect the geometric layout (only the price/pot
-    // count math), so a plain re-render is enough - no need to redo the
-    // full panel/stud calculation.
-    var paintCoatsEl = document.getElementById("paint-coats-input");
-    if(paintCoatsEl) paintCoatsEl.addEventListener("change", function(){
-      state.paintCoats = Math.max(1, parseInt(paintCoatsEl.value,10)||1);
-      scheduleSave();
-      renderGyprocResults();
+    wireGyprocResultCommon(resultEl);
+  }
+
+  // Ceiling's own render path - appended as the last checkout tab. Every
+  // zone of the room gets its own panel-nesting + CD/UD-grid diagram (same
+  // visual pattern as a wall's plate/stud diagrams, just plan-view instead
+  // of front-view); any height-jump bulkheads between those zones get their
+  // own summary block; verven/primeren reuse the exact same
+  // buildCoatingSectionHtml() a wall tab uses, fed the ceiling's own total
+  // area instead of a single wall's.
+  function renderCeilingResults(){
+    var cs = gyprocCeilingState;
+    document.getElementById("gyproc-wall-info").textContent =
+      "Plafond: "+cs.zonesPlan.length+" "+(cs.zonesPlan.length===1?"zone":"zones")+", "+cs.totalAreaM2.toFixed(2)+" m² totaal"
+      +(cs.bulkheads.length ? " · "+cs.bulkheads.length+" hoogteverschil"+(cs.bulkheads.length===1?"":"len") : "");
+
+    var checkoutTabsHtml = buildCheckoutTabsHtml();
+
+    var zonesHtml = cs.zonesPlan.map(function(zp, idx){
+      var active = zp.results[0];
+      var diagramSVG = buildGyprocDiagramSVG(zp.plan.lengteMm, zp.plan.breedteMm, active, null);
+      var gridSVG = buildCeilingGridDiagramSVG(zp.plan.lengteMm, zp.plan.breedteMm, zp.plan.cdCount);
+      var bestCd = packLengthPieces(zp.plan.cdPieces, TRACK_LENGTHS)[0];
+      var cdReserve = Math.ceil(bestCd.totalPieces*(1+STUD_RESERVE_PCT/100));
+      var hangerReserve = Math.ceil(zp.plan.hangerCount*(1+STUD_RESERVE_PCT/100));
+      var udHtml = '';
+      if(zp.plan.udPieces.length){
+        var bestUd = packLengthPieces(zp.plan.udPieces, TRACK_LENGTHS)[0];
+        var udReserve = Math.ceil(bestUd.totalPieces*(1+STUD_RESERVE_PCT/100));
+        udHtml = ''
+          + '<div class="row"><span class="k">Aan te kopen profielen ('+(bestUd.pieceLenMm/10)+' cm)</span><span class="v">'+bestUd.totalPieces+'</span></div>'
+          + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+udReserve+' stuks</span></div>';
+      }
+      return ''
+        + '<div style="margin-top:'+(idx>0?'22px;padding-top:16px;border-top:1px solid var(--line);':'0;')+'">'
+        + (cs.zonesPlan.length>1 ? '<h3 style="font-size:14px;margin:0 0 10px;">Zone '+(idx+1)+' - '+(zp.plan.lengteMm/1000).toFixed(2)+' x '+(zp.plan.breedteMm/1000).toFixed(2)+' m</h3>' : '')
+        + '<div class="reco">Aanbevolen: <strong>'+active.sizeLabel+'</strong> — '+active.netPanels+' platen, '+active.wastePct.toFixed(0)+'% verlies (minste materiaalverlies)</div>'
+        + '<div class="big">'+active.netPanels+' '+(active.netPanels===1?'plaat':'platen')+'</div>'
+        + '<div class="gyproc-diagram-box">'+diagramSVG+'</div>'
+        + '<div class="row"><span class="k">Plafondoppervlak</span><span class="v">'+(zp.zone.area/1000000).toFixed(2)+' m²</span></div>'
+        + '<div class="row"><span class="k">Plaatformaat</span><span class="v">'+active.panelW+' x '+active.panelH+' mm, '+active.thicknessMm+' mm dik</span></div>'
+        + '<div class="row"><span class="k">Snijverlies</span><span class="v">'+active.wastePct.toFixed(0)+'%</span></div>'
+        + '<div class="gyproc-diagram-box">'+gridSVG+'</div>'
+        + '<div id="gyproc-legend">'
+        +   '<span><i style="background:rgba(217,119,6,0.85);border:1.5px solid #92400e;"></i>Verticale stud (CD-profiel, '+(CEILING_CD_HOH_MM/10)+'cm h.o.h.)</span>'
+        +   '<span><i style="background:rgba(234,179,8,0.7);border:1.5px solid #a16207;"></i>Horizontale stud (UD-randprofiel)</span>'
+        + '</div>'
+        + '<div class="row"><span class="k">Verticale studs (h.o.h. max. '+(CEILING_CD_HOH_MM/10)+' cm)</span><span class="v">'+zp.plan.cdPieces.length+'</span></div>'
+        + '<div class="row"><span class="k">Aan te kopen profielen ('+(bestCd.pieceLenMm/10)+' cm)</span><span class="v">'+bestCd.totalPieces+'</span></div>'
+        + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+cdReserve+' stuks</span></div>'
+        + '<div class="row" style="margin-top:12px;"><span class="k"><strong>Horizontale studs</strong>'+(!zp.plan.udPieces.length?' (volledig gedekt door de horizontale studs van de muren zelf)':'')+'</span><span class="v"></span></div>'
+        + udHtml
+        + '<div class="row" style="margin-top:12px;"><span class="k">Snelhangers (om de '+(CEILING_HANGER_SPACING_MM/10)+' cm)</span><span class="v">'+zp.plan.hangerCount+'</span></div>'
+        + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+hangerReserve+' stuks</span></div>'
+        + '</div>';
+    }).join('');
+
+    var bulkheadsHtml = cs.bulkheads.length ? (''
+      + '<div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line);">'
+      + '<h3 style="font-size:14px;margin:0 0 10px;">Hoogteverschillen (schotten tussen plafondzones)</h3>'
+      + cs.bulkheads.map(function(b, idx){
+          var active = b.plan.results[0];
+          return '<div class="row"><span class="k">Sprong '+(idx+1)+' - '+(b.plan.hDiffMm/10)+' cm hoog, '+(b.plan.lSprongMm/1000).toFixed(2)+' m lang</span><span class="v">'+active.netPanels+' pl.</span></div>';
+        }).join('')
+      + '</div>') : '';
+
+    var paintHtml = buildCoatingSectionHtml({paintAreaM2: cs.totalAreaM2}, {
+      enabled: state.services.verven, title: 'Verven (plafond)', areaLabel: 'Te verven oppervlak',
+      potPriceKey: 'paint:pot_price', potYieldKey: 'paint:pot_yield_m2', potLitersKey: 'paint:pot_liters',
+      coats: state.paintCoats, coatsInputId: 'paint-coats-input'
     });
-    var primerCoatsEl = document.getElementById("primer-coats-input");
-    if(primerCoatsEl) primerCoatsEl.addEventListener("change", function(){
-      state.primerCoats = Math.max(1, parseInt(primerCoatsEl.value,10)||1);
-      scheduleSave();
-      renderGyprocResults();
+    var primerHtml = buildCoatingSectionHtml({paintAreaM2: cs.totalAreaM2}, {
+      enabled: state.services.primer, title: 'Primer (plafond)', areaLabel: 'Te primen oppervlak',
+      potPriceKey: 'primer:pot_price', potYieldKey: 'primer:pot_yield_m2', potLitersKey: 'primer:pot_liters',
+      coats: state.primerCoats, coatsInputId: 'primer-coats-input'
     });
-    updateGyprocPriceFooter();
+
+    var resultEl = document.getElementById("gyproc-result");
+    resultEl.innerHTML = checkoutTabsHtml + zonesHtml + bulkheadsHtml + paintHtml + primerHtml;
+    resultEl.classList.add("show");
+    wireGyprocResultCommon(resultEl);
   }
 
   // Fixed footer at the bottom of the gyproc drawer (outside the scrolling
@@ -4424,7 +4676,7 @@
     }
     footer.style.display = "";
 
-    var gyprocSum = 0, studsSum = 0, anyMissing = false, totalAreaM2 = 0;
+    var gyprocSum = 0, studsSum = 0, plafondSum = 0, anyMissing = false, totalAreaM2 = 0;
     gyprocWallIds.forEach(function(id){
       var wsI = gyprocWallStates[id];
       if(!wsI) return;
@@ -4434,6 +4686,18 @@
       if(t.missingPrice) anyMissing = true;
       totalAreaM2 += wsI.paintAreaM2;
     });
+    // Plafond builds last: its own gyproc panels join the SAME "Gyproc
+    // platen" total as the walls (they're the same product), but its
+    // verticale/horizontale studs (CD/UD) are a different material from the
+    // muur-studs, so they get their own footer row. Its area also joins the
+    // shared paint/primer pool - a plafond gets painted/geprimed too.
+    if(gyprocCeilingState){
+      var ct = computeCeilingPriceTotal(gyprocCeilingState);
+      gyprocSum += ct.gyprocSubtotal;
+      plafondSum += ct.studsSubtotal;
+      if(ct.missingPrice) anyMissing = true;
+      totalAreaM2 += gyprocCeilingState.totalAreaM2;
+    }
 
     // paint/primer are a shared pool of pots for the WHOLE room, not a
     // per-wall material - pots are computed once from the combined area,
@@ -4456,6 +4720,8 @@
 
     document.getElementById("gpf-gyproc").textContent = fmtEuro(gyprocSum);
     document.getElementById("gpf-studs").textContent = fmtEuro(studsSum);
+    document.getElementById("gpf-plafond-row").style.display = gyprocCeilingState ? "" : "none";
+    document.getElementById("gpf-plafond").textContent = fmtEuro(plafondSum);
     document.getElementById("gpf-paint-row").style.display = state.services.verven ? "" : "none";
     document.getElementById("gpf-paint-pots").textContent = paintPotsSum;
     document.getElementById("gpf-paint-liters").textContent = paintLiters!=null ? ", "+(paintPotsSum*paintLiters)+" L" : "";
@@ -4464,7 +4730,7 @@
     document.getElementById("gpf-primer-pots").textContent = primerPotsSum;
     document.getElementById("gpf-primer-liters").textContent = primerLiters!=null ? ", "+(primerPotsSum*primerLiters)+" L" : "";
     document.getElementById("gpf-primer").textContent = fmtEuro(primerSum);
-    document.getElementById("gpf-total").textContent = fmtEuro(gyprocSum+studsSum+paintSum+primerSum);
+    document.getElementById("gpf-total").textContent = fmtEuro(gyprocSum+studsSum+plafondSum+paintSum+primerSum);
     document.getElementById("gpf-warn").style.display = anyMissing ? "" : "none";
   }
 
@@ -4548,9 +4814,9 @@
         var bestTrack = trackLengthOptions[0];
         var studReserve = Math.ceil(bestStud.totalPieces*(1+STUD_RESERVE_PCT/100));
         var trackReserve = Math.ceil(bestTrack.totalPieces*(1+STUD_RESERVE_PCT/100));
-        addLineItem("stud:"+bestStud.lengthMm+":"+gyprocStudGaugeMm, "Metal stud "+gyprocStudGaugeMm+"mm, "+(bestStud.lengthMm/10)+" cm",
+        addLineItem("stud:"+bestStud.lengthMm+":"+gyprocStudGaugeMm, "Verticale stud (muur) "+gyprocStudGaugeMm+"mm, "+(bestStud.lengthMm/10)+" cm",
           studReserve, materialPrices["stud:"+bestStud.lengthMm+":"+gyprocStudGaugeMm]);
-        addLineItem("rail:"+bestTrack.pieceLenMm, "Rail (U-profiel), "+(bestTrack.pieceLenMm/10)+" cm",
+        addLineItem("rail:"+bestTrack.pieceLenMm, "Horizontale stud (muur), "+(bestTrack.pieceLenMm/10)+" cm",
           trackReserve, materialPrices["rail:"+bestTrack.pieceLenMm]);
       });
     });
@@ -4568,36 +4834,45 @@
       if(materialPrices["primer:pot_yield_m2"]==null) lineItems["primer:pots"].missing = true;
     }
 
-    // Plafond - each closed room zone already computed for the walls
-    // (state._lastZones, with its own editable height) doubles as a
-    // plafondzone; no separate drawing mode needed. Ceiling panels reuse
-    // the SAME nesting engine/panel-size keys as wall gyproc, so a ceiling
-    // panel of the same format/thickness merges into the same line item
-    // as wall panels (addLineItem merges by key).
+    // Plafond builds last, after every wall - each closed room zone already
+    // computed for the walls (state._lastZones, with its own editable
+    // height) doubles as a plafondzone; no separate drawing mode needed.
+    // Reuses the exact same computeCeilingZonePlan/computeBulkheadPlan/
+    // computeBestPanelResults the interactive drawer's ceiling tab uses, so
+    // this whole-project total always matches what that tab shows for each
+    // individual room. Ceiling panels reuse the SAME nesting engine/panel-
+    // size keys as wall gyproc, so a ceiling panel of the same format/
+    // thickness merges into the same line item as wall panels (addLineItem
+    // merges by key) - literally the "nests alongside the walls" behaviour.
     if(state.services.plafond){
       state._lastZones.forEach(function(zone){
         if(zone.area < 10000) return; // skip slivers (<0.01 m²) left over from a zone cut
-        var plan = computeCeilingZonePlan(zone);
+        var plan = computeCeilingZonePlan(zone, state.services.gyproc);
         if(plan.lengteMm<1 || plan.breedteMm<1) return;
 
-        var results = PANEL_SIZES.map(function(sz){
-          return computeGyprocForSize(plan.lengteMm, plan.breedteMm, [], null, sz.w, sz.h, thicknessMm, sz.label);
-        });
-        results.sort(function(a,b){ return a.wastePct-b.wastePct; });
+        if(state.services.verven || state.services.primer){
+          var zoneAreaM2 = zone.area/1000000;
+          if(state.services.verven) paintAreaTotal += zoneAreaM2;
+          if(state.services.primer) primerAreaTotal += zoneAreaM2;
+        }
+
+        var results = computeBestPanelResults(plan.lengteMm, plan.breedteMm, thicknessMm);
         var bestPanel = results[0];
         var szEntry = PANEL_SIZES.find(function(s){ return s.label===bestPanel.sizeLabel; });
         addLineItem("gyproc:"+szEntry.w+"x"+szEntry.h, "Gyproc "+szEntry.label+" ("+thicknessMm+"mm)",
           bestPanel.netPanels, materialPrices["gyproc:"+szEntry.w+"x"+szEntry.h]);
 
         var bestCd = packLengthPieces(plan.cdPieces, TRACK_LENGTHS)[0];
-        var bestUd = packLengthPieces(plan.udPieces, TRACK_LENGTHS)[0];
         var cdReserve = Math.ceil(bestCd.totalPieces*(1+STUD_RESERVE_PCT/100));
-        var udReserve = Math.ceil(bestUd.totalPieces*(1+STUD_RESERVE_PCT/100));
         var hangerReserve = Math.ceil(plan.hangerCount*(1+STUD_RESERVE_PCT/100));
-        addLineItem("plafond:cd:"+bestCd.pieceLenMm, "CD-profiel plafond, "+(bestCd.pieceLenMm/10)+" cm",
+        addLineItem("plafond:cd:"+bestCd.pieceLenMm, "Verticale stud (plafond) "+(bestCd.pieceLenMm/10)+" cm",
           cdReserve, materialPrices["plafond:cd:"+bestCd.pieceLenMm]);
-        addLineItem("plafond:ud:"+bestUd.pieceLenMm, "UD-randprofiel plafond, "+(bestUd.pieceLenMm/10)+" cm",
-          udReserve, materialPrices["plafond:ud:"+bestUd.pieceLenMm]);
+        if(plan.udPieces.length){
+          var bestUd = packLengthPieces(plan.udPieces, TRACK_LENGTHS)[0];
+          var udReserve = Math.ceil(bestUd.totalPieces*(1+STUD_RESERVE_PCT/100));
+          addLineItem("plafond:ud:"+bestUd.pieceLenMm, "Horizontale stud (plafond) "+(bestUd.pieceLenMm/10)+" cm",
+            udReserve, materialPrices["plafond:ud:"+bestUd.pieceLenMm]);
+        }
         addLineItem("plafond:hanger", "Snelhanger (plafond)",
           hangerReserve, materialPrices["plafond:hanger"], "stuks");
       });
@@ -4607,27 +4882,19 @@
       // their heights differ, add the vertical UD+CD frame plus the
       // vertical gipsstrook that closes the height jump, into the same pool.
       state._lastResolvedCuts.forEach(function(rc){
-        var hDiffMm = Math.abs(rc.zoneA.height - rc.zoneB.height);
-        var lSprongMm = rc.length;
-        if(hDiffMm < 1 || lSprongMm < 1) return;
+        var plan = computeBulkheadPlan(rc, thicknessMm);
+        if(!plan) return;
 
-        var cdCount = Math.max(1, Math.ceil(lSprongMm/CEILING_CD_HOH_MM)+1);
-        var cdPieces = [];
-        for(var i=0;i<cdCount;i++) cdPieces.push(hDiffMm);
-        var bestCd = packLengthPieces(cdPieces, TRACK_LENGTHS)[0];
-        var bestUd = packLengthPieces([lSprongMm, lSprongMm], TRACK_LENGTHS)[0];
+        var bestCd = packLengthPieces(plan.cdPieces, TRACK_LENGTHS)[0];
+        var bestUd = packLengthPieces(plan.udPieces, TRACK_LENGTHS)[0];
         var cdReserve = Math.ceil(bestCd.totalPieces*(1+STUD_RESERVE_PCT/100));
         var udReserve = Math.ceil(bestUd.totalPieces*(1+STUD_RESERVE_PCT/100));
-        addLineItem("plafond:cd:"+bestCd.pieceLenMm, "CD-profiel plafond, "+(bestCd.pieceLenMm/10)+" cm",
+        addLineItem("plafond:cd:"+bestCd.pieceLenMm, "Verticale stud (plafond) "+(bestCd.pieceLenMm/10)+" cm",
           cdReserve, materialPrices["plafond:cd:"+bestCd.pieceLenMm]);
-        addLineItem("plafond:ud:"+bestUd.pieceLenMm, "UD-randprofiel plafond, "+(bestUd.pieceLenMm/10)+" cm",
+        addLineItem("plafond:ud:"+bestUd.pieceLenMm, "Horizontale stud (plafond) "+(bestUd.pieceLenMm/10)+" cm",
           udReserve, materialPrices["plafond:ud:"+bestUd.pieceLenMm]);
 
-        var stripResults = PANEL_SIZES.map(function(sz){
-          return computeGyprocForSize(lSprongMm, hDiffMm, [], null, sz.w, sz.h, thicknessMm, sz.label);
-        });
-        stripResults.sort(function(a,b){ return a.wastePct-b.wastePct; });
-        var bestStrip = stripResults[0];
+        var bestStrip = plan.results[0];
         var stripEntry = PANEL_SIZES.find(function(s){ return s.label===bestStrip.sizeLabel; });
         addLineItem("gyproc:"+stripEntry.w+"x"+stripEntry.h, "Gyproc "+stripEntry.label+" ("+thicknessMm+"mm)",
           bestStrip.netPanels, materialPrices["gyproc:"+stripEntry.w+"x"+stripEntry.h]);
@@ -4811,7 +5078,7 @@
 
     return ''
       + '<div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line);">'
-      + '<h3 style="font-size:14px;margin:0 0 10px;">Metal studs</h3>'
+      + '<h3 style="font-size:14px;margin:0 0 10px;">Verticale + horizontale studs (muur)</h3>'
       + '<div class="field">'
       +   '<label>Tussenafstand studs (h.o.h.)</label>'
       +   '<select class="tb-select" id="stud-hoh" style="width:100%">'
@@ -4826,7 +5093,7 @@
       + '</div>'
       + '<div class="gyproc-diagram-box">'+studDiagramSVG+'</div>'
       + '<div id="gyproc-legend">'
-      +   '<span><i style="background:rgba(234,179,8,0.7);border:1.5px solid #a16207;"></i>Metal stud</span>'
+      +   '<span><i style="background:rgba(234,179,8,0.7);border:1.5px solid #a16207;"></i>Verticale stud</span>'
       +   '<span><i style="background:rgba(217,119,6,0.85);border:1.5px solid #92400e;"></i>Rand-stud (deur/raam/hoek) / latei / onderdorpel</span>'
       +   (hasForeignMarkers ? '<span><i style="background:rgba(219,39,119,0.55);border:1.5px dashed #be185d;"></i>Al aanwezig (stud van eerder geplaatste muur)</span>' : '')
       +   (ws.openingRects.length>0 ? '<span><i style="background:#fde68a;border:1.5px solid #b45309;"></i>Deur/raam</span>' : '')
@@ -4842,7 +5109,7 @@
       + '<div class="row"><span class="k">Totaal fysieke studs op de muur (incl. korte rafelstijlen)</span><span class="v">'+studLayout.totalCount+'</span></div>'
       + '<div class="row"><span class="k">Aan te kopen profielen ('+(activeStud.lengthMm/10)+' cm - korte stukken genest op 1 profiel)</span><span class="v">'+activeStud.totalPieces+'</span></div>'
       + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+studReserve+' stuks</span></div>'
-      + '<div class="row" style="margin-top:12px;"><span class="k"><strong>Horizontale rails</strong> (boven + onder'+(studLayout.horizontalMembers.length>0?' + latei/onderdorpel bij openingen':'')+', samen genest)</span><span class="v"></span></div>'
+      + '<div class="row" style="margin-top:12px;"><span class="k"><strong>Horizontale studs</strong> (boven + onder'+(studLayout.horizontalMembers.length>0?' + latei/onderdorpel bij openingen':'')+', samen genest)</span><span class="v"></span></div>'
       + '<div class="gyproc-tabs-row">'+trackCardsHtml+'</div>'
       + '<div class="row"><span class="k">Railstukken ('+(activeTrack.pieceLenMm/10)+' cm)</span><span class="v">'+activeTrack.totalPieces+'</span></div>'
       + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+trackReserve+' stuks</span></div>'
