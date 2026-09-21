@@ -215,6 +215,26 @@
   .planning-event:hover{background:rgba(47,111,235,.26);}
   #planning-grid .pl-empty{padding:40px 20px;}
 
+  /* ---------- planning: standard month-grid calendar ---------- */
+  .pcal{width:100%;}
+  .pcal-weekday-header{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:2px solid var(--line);margin-bottom:2px;}
+  .pcal-weekday{text-align:center;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;padding:6px 0;}
+  .pcal-weeks{border-top:1px solid var(--line);border-left:1px solid var(--line);}
+  .pcal-week{position:relative;}
+  .pcal-daygrid{display:grid;grid-template-columns:repeat(7,1fr);height:100%;}
+  .pcal-daycell{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 6px;}
+  .pcal-daycell.pcal-outmonth{background:var(--bg);}
+  .pcal-daycell.pcal-outmonth .pcal-daynum{color:var(--muted);opacity:.6;}
+  .pcal-daynum{font-size:12px;font-weight:600;color:var(--ink);display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:50%;}
+  .pcal-daynum.pcal-today{background:var(--blue);color:#fff;}
+  .pcal-bars{position:absolute;left:0;right:0;pointer-events:none;}
+  .pcal-bar{
+    position:absolute;height:18px;line-height:18px;font-size:11px;font-weight:600;padding:0 6px;border-radius:5px;
+    background:rgba(47,111,235,.16);border:1px solid var(--blue);color:var(--blue-dark);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;pointer-events:auto;transition:background .12s;
+  }
+  .pcal-bar:hover{background:rgba(47,111,235,.28);}
+
   /* ---------- materials page ---------- */
   .mat-section-title{font-size:14px;margin:26px 0 12px;}
   .mat-section-title:first-child{margin-top:0;}
@@ -242,6 +262,16 @@
   #project-form-panel.open{transform:translateX(0);}
   #project-form-panel h2{font-size:16px;margin:0 0 18px;}
   #project-form-panel .actions{margin-top:auto;display:flex;gap:8px;}
+  #contact-form-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:69;opacity:0;pointer-events:none;transition:opacity .18s;}
+  #contact-form-backdrop.open{opacity:1;pointer-events:auto;}
+  #contact-form-panel{position:fixed;top:0;right:0;height:100%;width:340px;max-width:88vw;background:var(--panel);box-shadow:-8px 0 30px rgba(0,0,0,.18);transform:translateX(100%);transition:transform .22s ease;z-index:70;display:flex;flex-direction:column;padding:20px;overflow-y:auto;}
+  #contact-form-panel.open{transform:translateX(0);}
+  #contact-form-panel h2{font-size:16px;margin:0 0 18px;}
+  #contact-form-panel .actions{margin-top:auto;display:flex;gap:8px;padding-top:16px;}
+  .contact-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;cursor:pointer;transition:box-shadow .15s,border-color .15s;}
+  .contact-card:hover{box-shadow:0 8px 22px rgba(15,23,42,.12);border-color:var(--blue);}
+  .contact-card h3{font-size:15px;margin:0 0 6px;word-break:break-word;}
+  .contact-card .meta{font-size:12px;color:var(--muted);}
 
   /* ---------- gyproc drawer (reuses .field/.actions/.btn from above) ---------- */
   #gyproc-backdrop{
@@ -323,6 +353,13 @@
   .client-headline{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
   .info-name-input{border:none;background:transparent;font-size:17px;font-weight:700;color:var(--ink);padding:2px 0;width:100%;font-family:inherit;}
   .info-name-input:focus{outline:none;border-bottom:1px solid var(--blue);}
+  .client-name-wrap{position:relative;}
+  .contact-suggest-list{display:none;position:absolute;top:100%;left:0;right:0;margin-top:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 26px rgba(15,23,42,.16);z-index:30;max-height:220px;overflow-y:auto;}
+  .contact-suggest-list.show{display:block;}
+  .contact-suggest-item{padding:8px 12px;cursor:pointer;}
+  .contact-suggest-item:hover{background:var(--bg);}
+  .contact-suggest-item .csi-name{font-size:13px;font-weight:600;color:var(--ink);}
+  .contact-suggest-item .csi-sub{font-size:11px;color:var(--muted);margin-top:1px;}
   .client-type-toggle{display:flex;gap:6px;}
   .ctype-btn{border:1px solid var(--line);background:var(--bg);color:var(--muted);padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;}
   .ctype-btn.active{background:rgba(47,111,235,.12);border-color:var(--blue);color:var(--blue-dark);}
@@ -424,7 +461,7 @@
       --room-fill:rgba(96,165,250,.10);--room-fill-2:rgba(245,158,11,.12);
     }
     #stage{background:#0b0f18;}
-    select.tb-select,#opening-panel .field input,#gyproc-panel .field input,#project-form-panel .field input,#project-form-panel .field textarea,.mat-price-input{background:#0f1420;color:#e5e7eb;}
+    select.tb-select,#opening-panel .field input,#gyproc-panel .field input,#project-form-panel .field input,#project-form-panel .field textarea,#contact-form-panel .field input,.mat-price-input{background:#0f1420;color:#e5e7eb;}
     .btn-danger{background:#3b1418;color:#fca5a5;}
     #save-status{background:#3b2a0f;color:#fbbf24;}
     .info-field input,.info-card textarea,#offerte-btw-rate,.offerte-coats-field input,.status-select-row select{background:#0f1420;color:#e5e7eb;}
@@ -446,7 +483,8 @@
   /* ---------- mobile compaction ---------- */
   @media (max-width:720px){
     #topbar{gap:8px;padding:8px 10px;}
-    #topbar .lbl,#floating-nav .lbl{display:none;}
+    #topbar .lbl,#floating-nav .lbl,#pl-bottom-nav .lbl{display:none;}
+    #pl-bottom-nav .pl-nav-btn{padding:10px 14px;gap:0;}
     #app-title .title-brand{display:none;}
     #app-title{font-size:14px;}
     #floating-nav .tbtn{padding:9px 11px;}
@@ -487,7 +525,10 @@
         <div class="info-card-head">
           <div class="client-avatar" id="info-avatar">?</div>
           <div class="client-headline">
-            <input type="text" id="info-client-name" class="info-name-input" placeholder="Naam klant" maxlength="80">
+            <div class="client-name-wrap">
+              <input type="text" id="info-client-name" class="info-name-input" placeholder="Naam klant" maxlength="80" autocomplete="off">
+              <div id="info-client-suggest" class="contact-suggest-list"></div>
+            </div>
             <div class="client-type-toggle">
               <button type="button" class="ctype-btn" data-ctype="particulier">Particulier</button>
               <button type="button" class="ctype-btn" data-ctype="zakelijk">Zakelijk</button>
@@ -743,11 +784,17 @@
         </div>
       </div>
     </div>
+    <div id="pl-page-contacts" style="display:none;">
+      <button class="btn btn-primary" id="contacts-new-btn" style="margin-bottom:16px;">+ Nieuw contact</button>
+      <div id="contacts-empty" class="pl-empty" style="display:none;">Nog geen contacten. Ze worden automatisch toegevoegd zodra je een klantnaam invult bij een project.</div>
+      <div id="contacts-grid" class="pl-grid"></div>
+    </div>
   </div>
   <div id="pl-bottom-nav">
-    <button class="pl-nav-btn active" data-page="projects"><span class="ic">🗂️</span>Projecten</button>
-    <button class="pl-nav-btn" data-page="planning"><span class="ic">📅</span>Planning</button>
-    <button class="pl-nav-btn" data-page="materials"><span class="ic">💶</span>Materialen</button>
+    <button class="pl-nav-btn active" data-page="projects"><span class="ic">🗂️</span><span class="lbl">Projecten</span></button>
+    <button class="pl-nav-btn" data-page="planning"><span class="ic">📅</span><span class="lbl">Planning</span></button>
+    <button class="pl-nav-btn" data-page="materials"><span class="ic">💶</span><span class="lbl">Materialen</span></button>
+    <button class="pl-nav-btn" data-page="contacts"><span class="ic">👤</span><span class="lbl">Contacten</span></button>
   </div>
 </div>
 
@@ -769,6 +816,47 @@
   <div class="actions">
     <button class="btn btn-danger" id="pf-delete" style="display:none;">Verwijderen</button>
     <button class="btn btn-primary" id="pf-save">Opslaan</button>
+  </div>
+</div>
+
+<div id="contact-form-backdrop"></div>
+<div id="contact-form-panel">
+  <h2 id="cf-title">Nieuw contact</h2>
+  <div class="field">
+    <label>Naam</label>
+    <div class="row"><input type="text" id="cf-name" maxlength="80"></div>
+  </div>
+  <div class="client-type-toggle" style="margin-bottom:14px;">
+    <button type="button" class="ctype-btn" id="cf-ctype-particulier" data-ctype="particulier">Particulier</button>
+    <button type="button" class="ctype-btn" id="cf-ctype-zakelijk" data-ctype="zakelijk">Zakelijk</button>
+  </div>
+  <div class="field" id="cf-vat-field" style="display:none;">
+    <label>BTW nummer</label>
+    <div class="row"><input type="text" id="cf-vat" maxlength="30"></div>
+  </div>
+  <div class="field">
+    <label>Straat</label>
+    <div class="row"><input type="text" id="cf-street" maxlength="80"></div>
+  </div>
+  <div class="field">
+    <label>Nr.</label>
+    <div class="row"><input type="text" id="cf-number" maxlength="10"></div>
+  </div>
+  <div class="field">
+    <label>Postcode</label>
+    <div class="row"><input type="text" id="cf-postal" maxlength="10"></div>
+  </div>
+  <div class="field">
+    <label>Gemeente</label>
+    <div class="row"><input type="text" id="cf-city" maxlength="60"></div>
+  </div>
+  <div class="field">
+    <label>Land</label>
+    <div class="row"><input type="text" id="cf-country" maxlength="60"></div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-danger" id="cf-delete" style="display:none;">Verwijderen</button>
+    <button class="btn btn-primary" id="cf-save">Opslaan</button>
   </div>
 </div>
 
@@ -1913,6 +2001,51 @@
     }, 600);
   }
 
+  // Contacten: same reserved-pseudo-project-row trick as appSettings above
+  // (one row, id=CONTACTS_ROW_ID, the actual list lives in data.contacts) -
+  // avoids a real schema migration for what's otherwise just one more
+  // cross-device-synced JSON blob. Spliced out of projectsState.projects in
+  // loadProjectsState() exactly like the settings row.
+  var CONTACTS_ROW_ID = "__contacts__";
+  var contactsState = []; // [{id,name,clientType,vatNumber,street,houseNumber,addressAddition,postalCode,city,country}]
+  var contactsSaveTimer = null;
+  function scheduleContactsSave(){
+    clearTimeout(contactsSaveTimer);
+    contactsSaveTimer = setTimeout(function(){
+      var row = { id: CONTACTS_ROW_ID, name: "__contacts__", description: "", planning_date: null, created_at: Date.now(), updated_at: Date.now(), data: { contacts: contactsState } };
+      dbUpsertProject(row).catch(function(){ showSaveError("⚠ Contacten opslaan mislukt — controleer je internetverbinding"); });
+    }, 600);
+  }
+  // Case/whitespace-insensitive match so "Jan Peeters" and "jan  peeters"
+  // are treated as the same contact - the whole point is preventing
+  // near-duplicate entries from slightly different typing/casing.
+  function normalizeContactName(s){ return String(s||"").trim().toLowerCase().replace(/\s+/g," "); }
+  function findContactByName(name){
+    var norm = normalizeContactName(name);
+    if(!norm) return null;
+    return contactsState.find(function(c){ return normalizeContactName(c.name)===norm; }) || null;
+  }
+  // Called whenever a project's client fields are saved (scheduleSave) -
+  // creates a new contact the first time a name is seen, or refreshes an
+  // existing one's details so the contact stays in sync with whichever
+  // project last edited that client's info (e.g. an updated address).
+  function upsertContactFromState(){
+    var name = (state.clientName||"").trim();
+    if(!name) return;
+    var fields = {
+      name: name, clientType: state.clientType||"particulier", vatNumber: state.clientVatNumber||"",
+      street: state.clientStreet||"", houseNumber: state.clientHouseNumber||"", addressAddition: state.clientAddressAddition||"",
+      postalCode: state.clientPostalCode||"", city: state.clientCity||"", country: state.clientCountry||""
+    };
+    var existing = findContactByName(name);
+    if(existing){
+      Object.assign(existing, fields);
+    } else {
+      contactsState.push(Object.assign({ id: uid("contact") }, fields));
+    }
+    scheduleContactsSave();
+  }
+
   async function dbFetch(path, options){
     var res = await fetch("/api/db"+path, options);
     if(!res.ok) throw new Error("DB request failed ("+res.status+"): "+path);
@@ -2021,6 +2154,13 @@
       } else {
         appSettings = Object.assign({}, DEFAULT_APP_SETTINGS);
       }
+      var contactsIdx = projectsState.projects.findIndex(function(p){ return p.id===CONTACTS_ROW_ID; });
+      if(contactsIdx>=0){
+        contactsState = (projectsState.projects[contactsIdx].data||{}).contacts || [];
+        projectsState.projects.splice(contactsIdx,1);
+      } else {
+        contactsState = [];
+      }
       var savedActive = localStorage.getItem(ACTIVE_PROJECT_KEY);
       projectsState.activeId = (savedActive && projectsState.projects.some(function(p){ return p.id===savedActive; })) ? savedActive : null;
     }catch(e){
@@ -2059,6 +2199,11 @@
         showSaveError("⚠ Opslaan mislukt — controleer je internetverbinding");
       });
     }, 600);
+    // Cheap + itself debounced (see upsertContactFromState), so it's safe
+    // to just re-derive on every project save rather than wiring it into
+    // each individual client-field handler separately and risking missing
+    // one - a project save without a client name yet is a no-op.
+    upsertContactFromState();
   }
   function loadActiveProjectIntoState(){
     var proj = getActiveProject();
@@ -2171,12 +2316,14 @@
     document.getElementById("pl-page-materials").style.display = page==="materials" ? "" : "none";
     document.getElementById("pl-page-planning").style.display = page==="planning" ? "" : "none";
     document.getElementById("pl-page-settings").style.display = page==="settings" ? "" : "none";
+    document.getElementById("pl-page-contacts").style.display = page==="contacts" ? "" : "none";
     document.getElementById("pl-new-btn").style.display = page==="projects" ? "" : "none";
-    var pageTitle = page==="materials" ? "Materialen" : page==="planning" ? "Planning" : page==="settings" ? "Instellingen" : "Projecten";
+    var pageTitle = page==="materials" ? "Materialen" : page==="planning" ? "Planning" : page==="settings" ? "Instellingen" : page==="contacts" ? "Contacten" : "Projecten";
     document.getElementById("pl-title").innerHTML = "Offerte<span>Builder</span> — "+pageTitle;
     if(page==="projects") renderProjectList();
     else if(page==="materials") renderMaterialsPage();
     else if(page==="planning") renderPlanningPage();
+    else if(page==="contacts") renderContactsPage();
     else renderSettingsPage();
   }
   document.querySelectorAll(".pl-nav-btn").forEach(function(btn){
@@ -2279,20 +2426,22 @@
     }
     return windowStart.toLocaleDateString("nl-BE", {month:"long", year:"numeric"});
   }
-  function renderPlanningPage(){
-    document.querySelectorAll(".planning-view-btn").forEach(function(btn){
-      btn.classList.toggle("active", btn.dataset.range===planningRange);
-    });
+  // Dag/Week/Jaar keep the horizontal timeline (each already reads like a
+  // standard calendar for that granularity - a week IS 7 day-columns, a
+  // day IS one column). Maand gets its own real month-grid (see below):
+  // a horizontal strip of up to 31 day-columns doesn't read as "a month"
+  // the way a calendar app's wrapping week-rows do.
+  function renderPlanningTimeline(events, windowStart, numUnits, unitType){
+    var today = new Date(); today.setHours(0,0,0,0);
+    var todayIdx = -1;
+    if(unitType==="month"){
+      var mdiff = (today.getFullYear()-windowStart.getFullYear())*12+(today.getMonth()-windowStart.getMonth());
+      if(mdiff>=0 && mdiff<numUnits) todayIdx = mdiff;
+    } else {
+      var ddiff = Math.round((today-windowStart)/86400000);
+      if(ddiff>=0 && ddiff<numUnits) todayIdx = ddiff;
+    }
 
-    var windowStart, numUnits, unitType;
-    if(planningRange==="dag"){ windowStart = new Date(planningAnchorDate.getFullYear(),planningAnchorDate.getMonth(),planningAnchorDate.getDate()); numUnits=1; unitType="day"; }
-    else if(planningRange==="week"){ windowStart = startOfWeek(planningAnchorDate); numUnits=7; unitType="day"; }
-    else if(planningRange==="jaar"){ windowStart = new Date(planningAnchorDate.getFullYear(),0,1); numUnits=12; unitType="month"; }
-    else { windowStart = startOfMonth(planningAnchorDate); numUnits=daysInMonth(planningAnchorDate); unitType="day"; }
-
-    document.getElementById("planning-range-label").textContent = formatPlanningRangeLabel(windowStart, unitType, numUnits);
-
-    var events = buildPlanningEvents();
     var visible = events.map(function(ev){
       var s, e;
       if(unitType==="month"){
@@ -2306,17 +2455,7 @@
       return { id:ev.id, name:ev.name, startIdx:Math.max(0,s), endIdx:Math.min(numUnits-1,e) };
     }).filter(Boolean);
 
-    var today = new Date(); today.setHours(0,0,0,0);
-    var todayIdx = -1;
-    if(unitType==="month"){
-      var mdiff = (today.getFullYear()-windowStart.getFullYear())*12+(today.getMonth()-windowStart.getMonth());
-      if(mdiff>=0 && mdiff<numUnits) todayIdx = mdiff;
-    } else {
-      var ddiff = Math.round((today-windowStart)/86400000);
-      if(ddiff>=0 && ddiff<numUnits) todayIdx = ddiff;
-    }
-
-    var colWidth = unitType==="month" ? 90 : (planningRange==="dag" ? 320 : planningRange==="week" ? 140 : 40);
+    var colWidth = unitType==="month" ? 90 : (planningRange==="dag" ? 320 : 140);
     var headerHtml = '<div class="planning-header-row">' + Array.from({length:numUnits}).map(function(_,i){
       var label;
       if(unitType==="month"){
@@ -2347,6 +2486,101 @@
       el.addEventListener("click", function(){ enterProject(el.dataset.projectId); });
     });
   }
+
+  // Standard wrapping month-grid (Ma-Zo columns, week rows, leading/
+  // trailing days from the adjacent months dimmed) - a project's date
+  // range that crosses a week boundary is split into one bar-segment per
+  // row, exactly like Google/Outlook's month view, using the SAME
+  // packEventsIntoRows lane-packer the timeline views use (it only reads
+  // startIdx/endIdx, so segments-within-a-week reuse it unchanged).
+  function renderPlanningMonthGrid(events, monthDate){
+    var som = startOfMonth(monthDate);
+    var eom = addDays(som, daysInMonth(monthDate)-1);
+    var gridStart = startOfWeek(som);
+    var gridEnd = addDays(startOfWeek(eom), 6);
+    var totalDays = Math.round((gridEnd-gridStart)/86400000)+1;
+    var numWeeks = totalDays/7;
+
+    var clipped = events.map(function(ev){
+      var s = Math.round((ev.start-gridStart)/86400000);
+      var e = Math.round((ev.end-gridStart)/86400000);
+      if(e<0 || s>totalDays-1) return null;
+      return { id:ev.id, name:ev.name, startIdx:Math.max(0,s), endIdx:Math.min(totalDays-1,e) };
+    }).filter(Boolean);
+
+    var weekSegments = [];
+    for(var w=0; w<numWeeks; w++) weekSegments.push([]);
+    clipped.forEach(function(ev){
+      var w0 = Math.floor(ev.startIdx/7), w1 = Math.floor(ev.endIdx/7);
+      for(var w=w0; w<=w1; w++){
+        var weekStart = w*7, weekEnd = w*7+6;
+        weekSegments[w].push({
+          id: ev.id, name: ev.name,
+          startIdx: Math.max(ev.startIdx,weekStart)-weekStart, endIdx: Math.min(ev.endIdx,weekEnd)-weekStart
+        });
+      }
+    });
+
+    var today = new Date(); today.setHours(0,0,0,0);
+    var todayIdx = Math.round((today-gridStart)/86400000);
+
+    var weekdayHeaderHtml = '<div class="pcal-weekday-header">' + PLANNING_DAY_NAMES.map(function(n){
+      return '<div class="pcal-weekday">'+n+'</div>';
+    }).join('') + '</div>';
+
+    var weeksHtml = '';
+    for(var w=0; w<numWeeks; w++){
+      var lanes = packEventsIntoRows(weekSegments[w]);
+      var dayCellsHtml = '';
+      for(var c=0;c<7;c++){
+        var dayIdx = w*7+c;
+        var d = addDays(gridStart, dayIdx);
+        var inMonth = d.getMonth()===monthDate.getMonth();
+        dayCellsHtml += '<div class="pcal-daycell'+(inMonth?'':' pcal-outmonth')+'">'
+          + '<div class="pcal-daynum'+(dayIdx===todayIdx?' pcal-today':'')+'">'+d.getDate()+'</div>'
+          + '</div>';
+      }
+      var barsHtml = lanes.map(function(lane, li){
+        return lane.map(function(seg){
+          var leftPct = seg.startIdx/7*100, widthPct = (seg.endIdx-seg.startIdx+1)/7*100;
+          return '<div class="pcal-bar" style="top:'+(li*22)+'px;left:calc('+leftPct+'% + 3px);width:calc('+widthPct+'% - 6px);" data-project-id="'+seg.id+'" title="'+escapeHtml(seg.name)+'">'+escapeHtml(seg.name)+'</div>';
+        }).join('');
+      }).join('');
+      var minHeight = 44 + lanes.length*22;
+      weeksHtml += '<div class="pcal-week" style="min-height:'+minHeight+'px;">'
+        + '<div class="pcal-daygrid">'+dayCellsHtml+'</div>'
+        + '<div class="pcal-bars" style="top:'+22+'px;">'+barsHtml+'</div>'
+        + '</div>';
+    }
+
+    var host = document.getElementById("planning-grid");
+    host.innerHTML = '<div class="pcal">' + weekdayHeaderHtml + '<div class="pcal-weeks">' + weeksHtml + '</div>' + '</div>';
+    host.querySelectorAll(".pcal-bar").forEach(function(el){
+      el.addEventListener("click", function(){ enterProject(el.dataset.projectId); });
+    });
+  }
+
+  function renderPlanningPage(){
+    document.querySelectorAll(".planning-view-btn").forEach(function(btn){
+      btn.classList.toggle("active", btn.dataset.range===planningRange);
+    });
+
+    var events = buildPlanningEvents();
+
+    if(planningRange==="maand"){
+      document.getElementById("planning-range-label").textContent = formatPlanningRangeLabel(startOfMonth(planningAnchorDate), "day", 31);
+      renderPlanningMonthGrid(events, planningAnchorDate);
+      return;
+    }
+
+    var windowStart, numUnits, unitType;
+    if(planningRange==="dag"){ windowStart = new Date(planningAnchorDate.getFullYear(),planningAnchorDate.getMonth(),planningAnchorDate.getDate()); numUnits=1; unitType="day"; }
+    else if(planningRange==="week"){ windowStart = startOfWeek(planningAnchorDate); numUnits=7; unitType="day"; }
+    else { windowStart = new Date(planningAnchorDate.getFullYear(),0,1); numUnits=12; unitType="month"; }
+
+    document.getElementById("planning-range-label").textContent = formatPlanningRangeLabel(windowStart, unitType, numUnits);
+    renderPlanningTimeline(events, windowStart, numUnits, unitType);
+  }
   document.querySelectorAll(".planning-view-btn").forEach(function(btn){
     btn.addEventListener("click", function(){
       planningRange = btn.dataset.range;
@@ -2371,7 +2605,11 @@
     planningAnchorDate = new Date();
     renderPlanningPage();
   });
-  function enterProject(id){
+  // defaultTab: "grondplan" for an EXISTING project (you're coming back to
+  // continue drawing/working on it) vs "info" for a just-created one (you
+  // only just typed its name - the next thing you'd fill in is client/
+  // project details, not jump straight into the empty canvas).
+  function enterProject(id, defaultTab){
     projectsState.activeId = id;
     try{ localStorage.setItem(ACTIVE_PROJECT_KEY, id); }catch(e){}
     loadActiveProjectIntoState();
@@ -2383,7 +2621,7 @@
     document.getElementById("project-list-screen").classList.add("hidden");
     document.getElementById("app").style.display = "flex";
     setTool("wall");
-    showPTab("info");
+    showPTab(defaultTab || "grondplan");
   }
   function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
 
@@ -2595,10 +2833,49 @@
     document.getElementById("app-title-name").textContent = this.value;
     scheduleSave();
   });
+  // Autofill suggestions from the Contacten list as the name is typed -
+  // picking one fills in the whole client card (address/BTW included, not
+  // just the name), which is the actual point: it's what stops a repeat
+  // client turning into a near-duplicate contact from slightly different
+  // typing each time.
+  function renderClientSuggestions(query){
+    var box = document.getElementById("info-client-suggest");
+    var norm = normalizeContactName(query);
+    var matches = norm ? contactsState.filter(function(c){ return normalizeContactName(c.name).indexOf(norm)>=0; }).slice(0,8) : [];
+    if(!matches.length){ box.classList.remove("show"); box.innerHTML = ""; return; }
+    box.innerHTML = matches.map(function(c){
+      var addr = [c.street && (c.street+" "+(c.houseNumber||"")).trim(), c.city].filter(Boolean).join(", ");
+      return '<div class="contact-suggest-item" data-contact-id="'+c.id+'"><div class="csi-name">'+escapeHtml(c.name)+'</div>'+(addr?'<div class="csi-sub">'+escapeHtml(addr)+'</div>':'')+'</div>';
+    }).join('');
+    box.classList.add("show");
+    box.querySelectorAll(".contact-suggest-item").forEach(function(item){
+      item.addEventListener("click", function(){ applyContactToClientFields(item.dataset.contactId); });
+    });
+  }
+  function applyContactToClientFields(contactId){
+    var c = contactsState.find(function(cc){ return cc.id===contactId; });
+    if(!c) return;
+    state.clientName = c.name; state.clientType = c.clientType||"particulier"; state.clientVatNumber = c.vatNumber||"";
+    state.clientStreet = c.street||""; state.clientHouseNumber = c.houseNumber||""; state.clientAddressAddition = c.addressAddition||"";
+    state.clientPostalCode = c.postalCode||""; state.clientCity = c.city||""; state.clientCountry = c.country||"België";
+    renderInfoTab();
+    document.getElementById("info-client-suggest").classList.remove("show");
+    scheduleSave();
+    scheduleDistanceRecalc();
+  }
   document.getElementById("info-client-name").addEventListener("input", function(){
     state.clientName = this.value;
     updateInfoAvatar(state.clientName);
+    renderClientSuggestions(this.value);
     scheduleSave();
+  });
+  document.getElementById("info-client-name").addEventListener("focus", function(){
+    if(this.value.trim()) renderClientSuggestions(this.value);
+  });
+  document.getElementById("info-client-name").addEventListener("blur", function(){
+    // delayed so a click on a suggestion (which also blurs the input)
+    // still registers before the list disappears
+    setTimeout(function(){ document.getElementById("info-client-suggest").classList.remove("show"); }, 150);
   });
   [["info-addr-street","clientStreet"],["info-addr-number","clientHouseNumber"],
    ["info-addr-addition","clientAddressAddition"],["info-addr-postal","clientPostalCode"],
@@ -2786,6 +3063,100 @@
   }
 
   /* =====================================================================
+     CONTACTEN PAGE
+     App-wide (not per-project) address book. Populated automatically as
+     projects are saved (see upsertContactFromState in scheduleSave), and
+     also directly editable/addable here. Same reserved-row storage as
+     appSettings - see CONTACTS_ROW_ID above.
+  ===================================================================== */
+  function renderContactsPage(){
+    var grid = document.getElementById("contacts-grid");
+    var emptyEl = document.getElementById("contacts-empty");
+    var sorted = contactsState.slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
+    emptyEl.style.display = sorted.length ? "none" : "";
+    grid.innerHTML = sorted.map(function(c){
+      var addr = [c.street && (c.street+" "+(c.houseNumber||"")).trim(), c.postalCode, c.city].filter(Boolean).join(" · ");
+      return '<div class="contact-card" data-id="'+c.id+'">'
+        + '<h3>'+escapeHtml(c.name)+'</h3>'
+        + '<div class="meta">'+(c.clientType==="zakelijk"?"Zakelijk":"Particulier")+(addr?' · '+escapeHtml(addr):'')+'</div>'
+        + '</div>';
+    }).join('');
+    grid.querySelectorAll(".contact-card").forEach(function(card){
+      card.addEventListener("click", function(){ openContactForm(card.dataset.id); });
+    });
+  }
+  var cfBackdrop = document.getElementById("contact-form-backdrop");
+  var cfPanel = document.getElementById("contact-form-panel");
+  var cfEditingId = null;
+  function setCfClientType(type){
+    document.querySelectorAll("#contact-form-panel .ctype-btn").forEach(function(b){
+      b.classList.toggle("active", b.dataset.ctype===type);
+    });
+    document.getElementById("cf-vat-field").style.display = type==="zakelijk" ? "" : "none";
+  }
+  function openContactForm(editId){
+    cfEditingId = editId || null;
+    var c = editId ? contactsState.find(function(cc){ return cc.id===editId; }) : null;
+    document.getElementById("cf-title").textContent = c ? "Contact bewerken" : "Nieuw contact";
+    document.getElementById("cf-name").value = c ? c.name : "";
+    setCfClientType(c ? (c.clientType||"particulier") : "particulier");
+    document.getElementById("cf-vat").value = c ? (c.vatNumber||"") : "";
+    document.getElementById("cf-street").value = c ? (c.street||"") : "";
+    document.getElementById("cf-number").value = c ? (c.houseNumber||"") : "";
+    document.getElementById("cf-postal").value = c ? (c.postalCode||"") : "";
+    document.getElementById("cf-city").value = c ? (c.city||"") : "";
+    document.getElementById("cf-country").value = c ? (c.country||"België") : "België";
+    document.getElementById("cf-delete").style.display = c ? "" : "none";
+    cfBackdrop.classList.add("open");
+    cfPanel.classList.add("open");
+    document.getElementById("cf-name").focus();
+  }
+  function closeContactForm(){
+    cfBackdrop.classList.remove("open");
+    cfPanel.classList.remove("open");
+    cfEditingId = null;
+  }
+  cfBackdrop.addEventListener("click", closeContactForm);
+  document.getElementById("contacts-new-btn").addEventListener("click", function(){ openContactForm(null); });
+  document.querySelectorAll("#contact-form-panel .ctype-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){ setCfClientType(btn.dataset.ctype); });
+  });
+  document.getElementById("cf-save").addEventListener("click", function(){
+    var name = document.getElementById("cf-name").value.trim();
+    if(!name){ document.getElementById("cf-name").focus(); return; }
+    var activeCtype = document.querySelector("#contact-form-panel .ctype-btn.active");
+    var fields = {
+      name: name, clientType: activeCtype ? activeCtype.dataset.ctype : "particulier",
+      vatNumber: document.getElementById("cf-vat").value.trim(),
+      street: document.getElementById("cf-street").value.trim(), houseNumber: document.getElementById("cf-number").value.trim(),
+      postalCode: document.getElementById("cf-postal").value.trim(), city: document.getElementById("cf-city").value.trim(),
+      country: document.getElementById("cf-country").value.trim() || "België"
+    };
+    if(cfEditingId){
+      var existing = contactsState.find(function(c){ return c.id===cfEditingId; });
+      if(existing) Object.assign(existing, fields);
+    } else {
+      // guard against a manually-added near-duplicate the same way the
+      // autofill suggestions do - editing the existing one in place rather
+      // than creating a second entry for the same person.
+      var dupe = findContactByName(name);
+      if(dupe){ Object.assign(dupe, fields); }
+      else { contactsState.push(Object.assign({ id: uid("contact") }, fields)); }
+    }
+    scheduleContactsSave();
+    closeContactForm();
+    renderContactsPage();
+  });
+  document.getElementById("cf-delete").addEventListener("click", function(){
+    if(!cfEditingId) return;
+    if(!confirm("Dit contact definitief verwijderen? Projecten die deze klantnaam gebruiken blijven ongewijzigd.")) return;
+    contactsState = contactsState.filter(function(c){ return c.id!==cfEditingId; });
+    scheduleContactsSave();
+    closeContactForm();
+    renderContactsPage();
+  });
+
+  /* =====================================================================
      MATERIALS PAGE ("Materialen lijst")
      App-wide (not per-project) price list for every standard gyproc
      panel size and metal stud length/gauge option, so quotes can be
@@ -2965,7 +3336,7 @@
         await dbUpsertProject(projectToRow(newProj));
         projectsState.projects.push(newProj);
         closeProjectForm();
-        enterProject(newProj.id);
+        enterProject(newProj.id, "info");
       }
     }catch(e){
       alert("Opslaan is mislukt — controleer je internetverbinding en probeer opnieuw.");
@@ -5575,11 +5946,11 @@
   (async function(){
     await loadProjectsState();
     await loadMaterialPrices();
-    if(projectsState.activeId && getActiveProject()){
-      enterProject(projectsState.activeId);
-    } else {
-      showProjectList();
-    }
+    // Home page is always the Projecten overview - never auto-resume
+    // straight into whichever project was last open (that made the app
+    // feel like it "remembered" an arbitrary project instead of giving a
+    // predictable landing page every time).
+    showProjectList();
   })();
 })();
 </script>
