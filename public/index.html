@@ -193,47 +193,32 @@
   .pl-topbar-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;}
   .pl-header-settings-btn{width:36px;height:36px;padding:0;justify-content:center;border:1px solid var(--line);border-radius:50%;font-size:16px;flex-shrink:0;}
 
-  /* ---------- planning page ---------- */
-  #planning-controls{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
-  .planning-view-toggle{display:flex;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;}
-  .planning-view-btn{border:none;background:none;color:var(--muted);padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;}
-  .planning-view-btn.active{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(15,23,42,.15);}
-  .planning-nav{display:flex;align-items:center;gap:10px;}
-  #planning-range-label{font-size:14px;font-weight:700;min-width:140px;text-align:center;}
-  #planning-scroll{overflow-x:auto;padding-bottom:10px;}
-  .planning-timeline{display:inline-block;min-width:100%;}
-  .planning-header-row{display:flex;border-bottom:2px solid var(--line);margin-bottom:6px;}
-  .planning-col-header{flex-shrink:0;text-align:center;font-size:11px;color:var(--muted);padding:6px 4px;font-weight:600;text-transform:capitalize;}
-  .planning-col-header.today{color:var(--blue);}
-  .planning-rows{position:relative;}
-  .planning-row{position:relative;height:38px;}
-  .planning-event{
-    position:absolute;top:4px;height:30px;background:rgba(47,111,235,.14);border:1px solid var(--blue);color:var(--blue-dark);
-    border-radius:8px;font-size:12px;font-weight:600;padding:0 10px;display:flex;align-items:center;
-    overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer;transition:background .12s;
-  }
-  .planning-event:hover{background:rgba(47,111,235,.26);}
-  #planning-grid .pl-empty{padding:40px 20px;}
-
-  /* ---------- planning: standard month-grid calendar ---------- */
-  .pcal{width:100%;}
-  .pcal-weekday-header{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:2px solid var(--line);margin-bottom:2px;}
-  .pcal-weekday{text-align:center;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;padding:6px 0;}
-  .pcal-weeks{border-top:1px solid var(--line);border-left:1px solid var(--line);}
-  .pcal-week{position:relative;}
+  /* ---------- planning page: infinite vertical month-scroll calendar ---------- */
+  #pl-page-planning{display:flex;flex-direction:column;} /* JS sets an explicit height (viewport-derived) on this each time the page is shown */
+  #planning-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;flex-shrink:0;margin-bottom:10px;}
+  #planning-current-label{font-size:17px;font-weight:700;color:var(--ink);text-transform:capitalize;}
+  .planning-topbar-actions{display:flex;align-items:center;gap:8px;}
+  #planning-jump-date{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;background:var(--panel);color:var(--ink);font-family:inherit;}
+  .pcal-weekday-header{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--line);padding-bottom:6px;flex-shrink:0;}
+  .pcal-weekday{text-align:center;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;}
+  #planning-scroll{flex:1;min-height:0;overflow-y:auto;}
+  #planning-months{display:flex;flex-direction:column;}
+  #planning-months .pl-empty{padding:40px 20px;text-align:center;color:var(--muted);}
+  .pcal-month-label{font-size:15px;font-weight:700;color:var(--ink);text-transform:capitalize;margin:14px 0 6px;}
+  .pcal-grid{position:relative;}
   .pcal-daygrid{display:grid;grid-template-columns:repeat(7,1fr);height:100%;}
-  .pcal-daycell{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 6px;}
-  .pcal-daycell.pcal-outmonth{background:var(--bg);}
-  .pcal-daycell.pcal-outmonth .pcal-daynum{color:var(--muted);opacity:.6;}
-  .pcal-daynum{font-size:12px;font-weight:600;color:var(--ink);display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:50%;}
+  .pcal-daycell{padding:6px 6px 0;border-top:1px solid var(--line);}
+  .pcal-daycell.pcal-outmonth{opacity:.35;}
+  .pcal-daynum{font-size:13px;font-weight:700;color:var(--ink);display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:50%;}
   .pcal-daynum.pcal-today{background:var(--blue);color:#fff;}
-  .pcal-bars{position:absolute;left:0;right:0;pointer-events:none;}
+  .pcal-bars{position:absolute;left:0;right:0;top:0;pointer-events:none;}
   .pcal-bar{
-    position:absolute;height:18px;line-height:18px;font-size:11px;font-weight:600;padding:0 6px;border-radius:5px;
+    position:absolute;height:16px;line-height:16px;font-size:10.5px;font-weight:600;padding:0 6px;border-radius:5px;
     background:rgba(47,111,235,.16);border:1px solid var(--blue);color:var(--blue-dark);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;pointer-events:auto;transition:background .12s;
   }
   .pcal-bar:hover{background:rgba(47,111,235,.28);}
+  .pcal-more{position:absolute;font-size:9.5px;font-weight:700;color:var(--muted);pointer-events:none;}
 
   /* ---------- materials page ---------- */
   .mat-section-title{font-size:14px;margin:26px 0 12px;}
@@ -753,21 +738,17 @@
     </div>
     <div id="pl-page-materials" style="display:none;"></div>
     <div id="pl-page-planning" style="display:none;">
-      <div id="planning-controls">
-        <div class="planning-view-toggle">
-          <button type="button" class="planning-view-btn" data-range="dag">Dag</button>
-          <button type="button" class="planning-view-btn" data-range="week">Week</button>
-          <button type="button" class="planning-view-btn active" data-range="maand">Maand</button>
-          <button type="button" class="planning-view-btn" data-range="jaar">Jaar</button>
-        </div>
-        <div class="planning-nav">
-          <button type="button" class="tbtn" id="planning-prev">←</button>
-          <div id="planning-range-label"></div>
-          <button type="button" class="tbtn" id="planning-next">→</button>
+      <div id="planning-topbar">
+        <div id="planning-current-label"></div>
+        <div class="planning-topbar-actions">
+          <button type="button" class="tbtn" id="planning-prev" title="Vorige maand">←</button>
           <button type="button" class="tbtn" id="planning-today">Vandaag</button>
+          <button type="button" class="tbtn" id="planning-next" title="Volgende maand">→</button>
+          <input type="date" id="planning-jump-date" title="Ga naar datum">
         </div>
       </div>
-      <div id="planning-scroll"><div id="planning-grid"></div></div>
+      <div class="pcal-weekday-header" id="planning-weekday-header"></div>
+      <div id="planning-scroll"><div id="planning-months"></div></div>
     </div>
     <div id="pl-page-settings" style="display:none;">
       <div class="settings-inner">
@@ -2455,22 +2436,28 @@
 
   /* =====================================================================
      PLANNING TAB
-     Maand is a real wrapping month-grid calendar (see renderPlanningMonthGrid);
-     Dag/Week/Jaar keep the horizontal-timeline Gantt layout, which already
-     reads as a standard view at those granularities. Every project with a
-     streefdatum becomes one bar spanning [planningDate, planningDate +
-     doorlooptijd), greedily packed into rows/lanes so overlapping projects
-     stack instead of colliding.
+     An infinite vertical scroll of standard month-grid calendars (Ma-Zo
+     columns, wrapping week rows, uniform cell height/width, today's month
+     centered on open) instead of switchable Dag/Week/Maand/Jaar tabs - you
+     scroll through months, you don't click between views. A project with a
+     streefdatum becomes a bar spanning [planningDate, planningDate +
+     doorlooptijd), split into one segment per week row it crosses and
+     greedily packed into lanes so overlapping projects stack instead of
+     colliding; a week with more overlapping projects than fit in the
+     lane cap shows "+N meer" instead of growing that row's height (every
+     row stays the same height - see PCAL_MAX_LANES).
   ===================================================================== */
-  var planningRange = "maand"; // 'dag'|'week'|'maand'|'jaar'
-  var planningAnchorDate = new Date();
   var PLANNING_DAY_NAMES = ["Ma","Di","Wo","Do","Vr","Za","Zo"];
+  var PCAL_MAX_LANES = 3;          // event bars shown per week-row before "+N meer"
+  var PCAL_MONTHS_PER_EXTEND = 6;  // how many months to load when scrolling near an edge
+  var PCAL_EDGE_THRESHOLD = 600;   // px from top/bottom that triggers loading more months
 
   function addDays(d, n){ var r = new Date(d); r.setDate(r.getDate()+n); return r; }
   function addMonths(d, n){ var r = new Date(d); r.setMonth(r.getMonth()+n); return r; }
   function startOfWeek(d){ var r = new Date(d.getFullYear(),d.getMonth(),d.getDate()); var day=(r.getDay()+6)%7; r.setDate(r.getDate()-day); return r; }
   function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
   function daysInMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0).getDate(); }
+  function monthKey(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
   function parseISODate(s){
     if(!s) return null;
     var parts = s.split("-").map(Number);
@@ -2506,83 +2493,16 @@
     });
     return rows;
   }
-  function formatPlanningRangeLabel(windowStart, unitType, numUnits){
-    if(unitType==="month") return windowStart.getFullYear();
-    if(numUnits===1) return windowStart.toLocaleDateString("nl-BE", {day:"numeric", month:"long", year:"numeric"});
-    if(numUnits<=7){
-      var last = addDays(windowStart, numUnits-1);
-      return windowStart.toLocaleDateString("nl-BE",{day:"numeric",month:"short"})+" – "+last.toLocaleDateString("nl-BE",{day:"numeric",month:"short",year:"numeric"});
-    }
-    return windowStart.toLocaleDateString("nl-BE", {month:"long", year:"numeric"});
-  }
-  // Dag/Week/Jaar keep the horizontal timeline (each already reads like a
-  // standard calendar for that granularity - a week IS 7 day-columns, a
-  // day IS one column). Maand gets its own real month-grid (see below):
-  // a horizontal strip of up to 31 day-columns doesn't read as "a month"
-  // the way a calendar app's wrapping week-rows do.
-  function renderPlanningTimeline(events, windowStart, numUnits, unitType){
-    var today = new Date(); today.setHours(0,0,0,0);
-    var todayIdx = -1;
-    if(unitType==="month"){
-      var mdiff = (today.getFullYear()-windowStart.getFullYear())*12+(today.getMonth()-windowStart.getMonth());
-      if(mdiff>=0 && mdiff<numUnits) todayIdx = mdiff;
-    } else {
-      var ddiff = Math.round((today-windowStart)/86400000);
-      if(ddiff>=0 && ddiff<numUnits) todayIdx = ddiff;
-    }
 
-    var visible = events.map(function(ev){
-      var s, e;
-      if(unitType==="month"){
-        s = (ev.start.getFullYear()-windowStart.getFullYear())*12 + (ev.start.getMonth()-windowStart.getMonth());
-        e = (ev.end.getFullYear()-windowStart.getFullYear())*12 + (ev.end.getMonth()-windowStart.getMonth());
-      } else {
-        s = Math.round((ev.start-windowStart)/86400000);
-        e = Math.round((ev.end-windowStart)/86400000);
-      }
-      if(e<0 || s>numUnits-1) return null;
-      return { id:ev.id, name:ev.name, startIdx:Math.max(0,s), endIdx:Math.min(numUnits-1,e) };
-    }).filter(Boolean);
-
-    var colWidth = unitType==="month" ? 90 : (planningRange==="dag" ? 320 : 140);
-    var headerHtml = '<div class="planning-header-row">' + Array.from({length:numUnits}).map(function(_,i){
-      var label;
-      if(unitType==="month"){
-        label = addMonths(windowStart,i).toLocaleDateString("nl-BE",{month:"short"});
-      } else {
-        var d = addDays(windowStart,i);
-        label = planningRange==="week" ? (PLANNING_DAY_NAMES[(d.getDay()+6)%7]+" "+d.getDate()) : String(d.getDate());
-      }
-      return '<div class="planning-col-header'+(i===todayIdx?' today':'')+'" style="width:'+colWidth+'px;">'+label+'</div>';
-    }).join('') + '</div>';
-
-    var rows = packEventsIntoRows(visible);
-    var gridWidth = numUnits*colWidth;
-    var rowsHtml = rows.map(function(row){
-      return '<div class="planning-row">' + row.map(function(ev){
-        var left = ev.startIdx*colWidth;
-        var width = (ev.endIdx-ev.startIdx+1)*colWidth - 6;
-        return '<div class="planning-event" style="left:'+left+'px;width:'+width+'px;" data-project-id="'+ev.id+'" title="'+escapeHtml(ev.name)+'">'+escapeHtml(ev.name)+'</div>';
-      }).join('') + '</div>';
-    }).join('');
-
-    var host = document.getElementById("planning-grid");
-    host.innerHTML = '<div class="planning-timeline" style="min-width:'+gridWidth+'px;">'
-      + headerHtml
-      + (rows.length ? '<div class="planning-rows">'+rowsHtml+'</div>' : '<div class="pl-empty">Geen projecten met een streefdatum in deze periode.</div>')
-      + '</div>';
-    host.querySelectorAll(".planning-event").forEach(function(el){
-      el.addEventListener("click", function(){ enterProject(el.dataset.projectId); });
-    });
-  }
-
-  // Standard wrapping month-grid (Ma-Zo columns, week rows, leading/
-  // trailing days from the adjacent months dimmed) - a project's date
-  // range that crosses a week boundary is split into one bar-segment per
-  // row, exactly like Google/Outlook's month view, using the SAME
-  // packEventsIntoRows lane-packer the timeline views use (it only reads
-  // startIdx/endIdx, so segments-within-a-week reuse it unchanged).
-  function renderPlanningMonthGrid(events, monthDate){
+  // Builds ONE month's HTML block: a bold month/year label, then a fixed-
+  // height grid (rowH x numWeeks, computed by the caller from the actual
+  // available viewport space so every month fills it edge-to-edge
+  // regardless of whether it has 5 or 6 week-rows) with day cells + event
+  // bars overlaid, using the SAME week-segment-splitting + lane-packing
+  // the old design used - only the lane cap (lanes beyond PCAL_MAX_LANES
+  // collapse into a "+N meer" marker instead of growing the row) and the
+  // fixed row height are new.
+  function buildMonthSectionHtml(monthDate, events, rowH){
     var som = startOfMonth(monthDate);
     var eom = addDays(som, daysInMonth(monthDate)-1);
     var gridStart = startOfWeek(som);
@@ -2613,86 +2533,194 @@
     var today = new Date(); today.setHours(0,0,0,0);
     var todayIdx = Math.round((today-gridStart)/86400000);
 
-    var weekdayHeaderHtml = '<div class="pcal-weekday-header">' + PLANNING_DAY_NAMES.map(function(n){
-      return '<div class="pcal-weekday">'+n+'</div>';
-    }).join('') + '</div>';
-
-    var weeksHtml = '';
-    for(var w=0; w<numWeeks; w++){
-      var lanes = packEventsIntoRows(weekSegments[w]);
-      var dayCellsHtml = '';
-      for(var c=0;c<7;c++){
-        var dayIdx = w*7+c;
-        var d = addDays(gridStart, dayIdx);
-        var inMonth = d.getMonth()===monthDate.getMonth();
-        dayCellsHtml += '<div class="pcal-daycell'+(inMonth?'':' pcal-outmonth')+'">'
-          + '<div class="pcal-daynum'+(dayIdx===todayIdx?' pcal-today':'')+'">'+d.getDate()+'</div>'
-          + '</div>';
-      }
-      var barsHtml = lanes.map(function(lane, li){
-        return lane.map(function(seg){
-          var leftPct = seg.startIdx/7*100, widthPct = (seg.endIdx-seg.startIdx+1)/7*100;
-          return '<div class="pcal-bar" style="top:'+(li*22)+'px;left:calc('+leftPct+'% + 3px);width:calc('+widthPct+'% - 6px);" data-project-id="'+seg.id+'" title="'+escapeHtml(seg.name)+'">'+escapeHtml(seg.name)+'</div>';
-        }).join('');
-      }).join('');
-      var minHeight = 44 + lanes.length*22;
-      weeksHtml += '<div class="pcal-week" style="min-height:'+minHeight+'px;">'
-        + '<div class="pcal-daygrid">'+dayCellsHtml+'</div>'
-        + '<div class="pcal-bars" style="top:'+22+'px;">'+barsHtml+'</div>'
+    var dayCellsHtml = '';
+    for(var i=0;i<totalDays;i++){
+      var d = addDays(gridStart, i);
+      var inMonth = d.getMonth()===monthDate.getMonth();
+      dayCellsHtml += '<div class="pcal-daycell'+(inMonth?'':' pcal-outmonth')+'" style="height:'+rowH+'px;">'
+        + '<div class="pcal-daynum'+(i===todayIdx?' pcal-today':'')+'">'+d.getDate()+'</div>'
         + '</div>';
     }
 
-    var host = document.getElementById("planning-grid");
-    host.innerHTML = '<div class="pcal">' + weekdayHeaderHtml + '<div class="pcal-weeks">' + weeksHtml + '</div>' + '</div>';
-    host.querySelectorAll(".pcal-bar").forEach(function(el){
-      el.addEventListener("click", function(){ enterProject(el.dataset.projectId); });
+    var barLaneH = 17, barsTopOffset = 24; // px reserved for the day-number row before bars start
+    var overflowPerCell = {};
+    var barsHtml = '';
+    for(var w=0; w<numWeeks; w++){
+      var lanes = packEventsIntoRows(weekSegments[w]);
+      lanes.forEach(function(lane, li){
+        lane.forEach(function(seg){
+          if(li < PCAL_MAX_LANES){
+            var leftPct = seg.startIdx/7*100, widthPct = (seg.endIdx-seg.startIdx+1)/7*100;
+            var top = w*rowH + barsTopOffset + li*barLaneH;
+            barsHtml += '<div class="pcal-bar" style="top:'+top+'px;left:calc('+leftPct+'% + 3px);width:calc('+widthPct+'% - 6px);" data-project-id="'+seg.id+'" title="'+escapeHtml(seg.name)+'">'+escapeHtml(seg.name)+'</div>';
+          } else {
+            for(var di=seg.startIdx; di<=seg.endIdx; di++){
+              var cellIdx = w*7+di;
+              overflowPerCell[cellIdx] = (overflowPerCell[cellIdx]||0)+1;
+            }
+          }
+        });
+      });
+    }
+    Object.keys(overflowPerCell).forEach(function(idxStr){
+      var idx = parseInt(idxStr,10), w = Math.floor(idx/7), c = idx%7;
+      var leftPct = c/7*100;
+      var top = w*rowH + rowH - 14;
+      barsHtml += '<div class="pcal-more" style="top:'+top+'px;left:calc('+leftPct+'% + 3px);">+'+overflowPerCell[idx]+' meer</div>';
     });
+
+    return '<div class="pcal-month" data-month="'+monthKey(monthDate)+'">'
+      + '<div class="pcal-month-label">'+monthDate.toLocaleDateString("nl-BE",{month:"long",year:"numeric"})+'</div>'
+      + '<div class="pcal-grid" style="height:'+(numWeeks*rowH)+'px;">'
+      +   '<div class="pcal-daygrid">'+dayCellsHtml+'</div>'
+      +   '<div class="pcal-bars">'+barsHtml+'</div>'
+      + '</div>'
+      + '</div>';
   }
 
-  function renderPlanningPage(){
-    document.querySelectorAll(".planning-view-btn").forEach(function(btn){
-      btn.classList.toggle("active", btn.dataset.range===planningRange);
+  // planningFeed tracks the inclusive [minMonth, maxMonth] window of
+  // months currently in the DOM (both first-of-month Date objects), so
+  // scroll-near-edge can extend it without re-rendering months already
+  // there. There's no hashchange-style "current view" state beyond this -
+  // the URL/tab model this app uses elsewhere doesn't apply here, you're
+  // always just "on Planning, scrolled to wherever".
+  var planningFeed = { minMonth: null, maxMonth: null };
+  var planningExtending = false;
+
+  function planningRowHeight(numWeeks){
+    var scrollEl = document.getElementById("planning-scroll");
+    var available = scrollEl.clientHeight || 500;
+    return Math.max(64, Math.floor(available/numWeeks));
+  }
+  function planningWeeksInMonth(monthDate){
+    var som = startOfMonth(monthDate);
+    var eom = addDays(som, daysInMonth(monthDate)-1);
+    var gridStart = startOfWeek(som), gridEnd = addDays(startOfWeek(eom),6);
+    return Math.round((gridEnd-gridStart)/86400000+1)/7;
+  }
+  function buildMonthsHtml(fromMonth, toMonth, events){
+    var html = '', d = new Date(fromMonth);
+    while(d <= toMonth){
+      html += buildMonthSectionHtml(d, events, planningRowHeight(planningWeeksInMonth(d)));
+      d = addMonths(d, 1);
+    }
+    return html;
+  }
+  var planningCurrentMonth = new Date(); // whichever month-section is currently at/near the top of the scroll viewport
+  function updatePlanningCurrentLabel(){
+    var scrollEl = document.getElementById("planning-scroll");
+    var months = scrollEl.querySelectorAll(".pcal-month");
+    var best = null, bestDist = Infinity;
+    months.forEach(function(el){
+      var dist = Math.abs(el.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top - 40);
+      if(dist < bestDist){ bestDist = dist; best = el; }
     });
+    if(best){
+      var label = best.querySelector(".pcal-month-label");
+      document.getElementById("planning-current-label").textContent = label ? label.textContent : "";
+      var parts = best.dataset.month.split("-");
+      planningCurrentMonth = new Date(parseInt(parts[0],10), parseInt(parts[1],10)-1, 1);
+    }
+  }
+  function scrollToMonth(monthDate, behavior){
+    var key = monthKey(monthDate);
+    var el = document.querySelector('.pcal-month[data-month="'+key+'"]');
+    if(el){ el.scrollIntoView({ behavior: behavior||"auto", block: "start" }); return true; }
+    return false;
+  }
+  function planningExtendIfNeeded(){
+    if(planningExtending) return;
+    var scrollEl = document.getElementById("planning-scroll");
+    var nearTop = scrollEl.scrollTop < PCAL_EDGE_THRESHOLD;
+    var nearBottom = scrollEl.scrollTop + scrollEl.clientHeight > scrollEl.scrollHeight - PCAL_EDGE_THRESHOLD;
+    if(!nearTop && !nearBottom) return;
+    planningExtending = true;
+    var events = buildPlanningEvents();
+    var monthsEl = document.getElementById("planning-months");
+    if(nearTop){
+      var newMin = addMonths(planningFeed.minMonth, -PCAL_MONTHS_PER_EXTEND);
+      var html = buildMonthsHtml(newMin, addMonths(planningFeed.minMonth,-1), events);
+      var beforeHeight = monthsEl.scrollHeight;
+      monthsEl.insertAdjacentHTML("afterbegin", html);
+      scrollEl.scrollTop += (monthsEl.scrollHeight - beforeHeight);
+      planningFeed.minMonth = newMin;
+    }
+    if(nearBottom){
+      var newMax = addMonths(planningFeed.maxMonth, PCAL_MONTHS_PER_EXTEND);
+      var htmlB = buildMonthsHtml(addMonths(planningFeed.maxMonth,1), newMax, events);
+      monthsEl.insertAdjacentHTML("beforeend", htmlB);
+      planningFeed.maxMonth = newMax;
+    }
+    planningExtending = false;
+  }
+  var planningScrollTicking = false;
+  document.getElementById("planning-scroll").addEventListener("scroll", function(){
+    if(planningScrollTicking) return;
+    planningScrollTicking = true;
+    requestAnimationFrame(function(){
+      planningExtendIfNeeded();
+      updatePlanningCurrentLabel();
+      planningScrollTicking = false;
+    });
+  });
+  // Event delegation on the (frequently prepended/appended-to) container,
+  // rather than rebinding a listener on every .pcal-bar each time more
+  // months are added.
+  document.getElementById("planning-months").addEventListener("click", function(e){
+    var bar = e.target.closest(".pcal-bar");
+    if(bar) enterProject(bar.dataset.projectId);
+  });
+
+  // Full rebuild centered on `centerMonth` - used on first entering the
+  // Planning page and whenever the user jumps to an arbitrary date (a
+  // long jump would otherwise mean extending the feed one
+  // PCAL_MONTHS_PER_EXTEND chunk at a time; a rebuild is simpler and this
+  // is a small/cheap dataset).
+  function renderPlanningPage(centerMonth){
+    var center = startOfMonth(centerMonth || new Date());
+    planningFeed.minMonth = addMonths(center, -12);
+    planningFeed.maxMonth = addMonths(center, 12);
+
+    document.getElementById("planning-weekday-header").innerHTML = PLANNING_DAY_NAMES.map(function(n){
+      return '<div class="pcal-weekday">'+n+'</div>';
+    }).join('');
+
+    // Bound #pl-page-planning to the actual remaining viewport height (its
+    // own top offset varies with real rendered chrome above it) so
+    // #planning-scroll's flex:1 has real, measured space to fill instead
+    // of growing to fit content - this is what makes the month grid
+    // genuinely take up the full viewport instead of just however tall
+    // its content happens to be.
+    var pageEl = document.getElementById("pl-page-planning");
+    document.getElementById("project-list-screen").scrollTop = 0;
+    var top = pageEl.getBoundingClientRect().top;
+    // .pl-body reserves 90px of its own bottom padding for the floating
+    // #pl-bottom-nav pill (see its CSS rule) - matching that here is what
+    // makes the calendar fill exactly up to that reserve, with no extra
+    // scroll capacity left over on #project-list-screen itself.
+    pageEl.style.height = Math.max(360, window.innerHeight - top - 90) + "px";
 
     var events = buildPlanningEvents();
-
-    if(planningRange==="maand"){
-      document.getElementById("planning-range-label").textContent = formatPlanningRangeLabel(startOfMonth(planningAnchorDate), "day", 31);
-      renderPlanningMonthGrid(events, planningAnchorDate);
-      return;
-    }
-
-    var windowStart, numUnits, unitType;
-    if(planningRange==="dag"){ windowStart = new Date(planningAnchorDate.getFullYear(),planningAnchorDate.getMonth(),planningAnchorDate.getDate()); numUnits=1; unitType="day"; }
-    else if(planningRange==="week"){ windowStart = startOfWeek(planningAnchorDate); numUnits=7; unitType="day"; }
-    else { windowStart = new Date(planningAnchorDate.getFullYear(),0,1); numUnits=12; unitType="month"; }
-
-    document.getElementById("planning-range-label").textContent = formatPlanningRangeLabel(windowStart, unitType, numUnits);
-    renderPlanningTimeline(events, windowStart, numUnits, unitType);
+    document.getElementById("planning-months").innerHTML = buildMonthsHtml(planningFeed.minMonth, planningFeed.maxMonth, events);
+    scrollToMonth(center, "auto");
+    updatePlanningCurrentLabel();
   }
-  document.querySelectorAll(".planning-view-btn").forEach(function(btn){
-    btn.addEventListener("click", function(){
-      planningRange = btn.dataset.range;
-      renderPlanningPage();
-    });
-  });
   document.getElementById("planning-prev").addEventListener("click", function(){
-    if(planningRange==="dag") planningAnchorDate = addDays(planningAnchorDate,-1);
-    else if(planningRange==="week") planningAnchorDate = addDays(planningAnchorDate,-7);
-    else if(planningRange==="jaar") planningAnchorDate = addMonths(planningAnchorDate,-12);
-    else planningAnchorDate = addMonths(planningAnchorDate,-1);
-    renderPlanningPage();
+    var target = addMonths(startOfMonth(planningCurrentMonth), -1);
+    if(target < planningFeed.minMonth) renderPlanningPage(target);
+    else scrollToMonth(target, "smooth");
   });
   document.getElementById("planning-next").addEventListener("click", function(){
-    if(planningRange==="dag") planningAnchorDate = addDays(planningAnchorDate,1);
-    else if(planningRange==="week") planningAnchorDate = addDays(planningAnchorDate,7);
-    else if(planningRange==="jaar") planningAnchorDate = addMonths(planningAnchorDate,12);
-    else planningAnchorDate = addMonths(planningAnchorDate,1);
-    renderPlanningPage();
+    var target = addMonths(startOfMonth(planningCurrentMonth), 1);
+    if(target > planningFeed.maxMonth) renderPlanningPage(target);
+    else scrollToMonth(target, "smooth");
   });
   document.getElementById("planning-today").addEventListener("click", function(){
-    planningAnchorDate = new Date();
-    renderPlanningPage();
+    renderPlanningPage(new Date());
+  });
+  document.getElementById("planning-jump-date").addEventListener("change", function(){
+    var target = parseISODate(this.value);
+    if(target) renderPlanningPage(target);
   });
   // defaultTab: "grondplan" for an EXISTING project (you're coming back to
   // continue drawing/working on it) vs "info" for a just-created one (you
