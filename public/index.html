@@ -3872,7 +3872,17 @@
     result.pieces.forEach(function(p){
       var idx = p.binIdx % GYPROC_FILL_PALETTE.length;
       var py = flipY(p.y2);
-      svg.push('<rect x="'+p.x1+'" y="'+py+'" width="'+(p.x2-p.x1)+'" height="'+(p.y2-p.y1)+'" fill="'+GYPROC_FILL_PALETTE[idx]+'" stroke="'+GYPROC_STROKE_PALETTE[idx]+'" stroke-width="'+(unit*0.003)+'"/>');
+      var pw = p.x2-p.x1, ph = p.y2-p.y1;
+      svg.push('<rect x="'+p.x1+'" y="'+py+'" width="'+pw+'" height="'+ph+'" fill="'+GYPROC_FILL_PALETTE[idx]+'" stroke="'+GYPROC_STROKE_PALETTE[idx]+'" stroke-width="'+(unit*0.003)+'"/>');
+      // Subtle 1-indexed plaatnummer - pieces sharing a binIdx come from the
+      // SAME physical stock panel, so they share this same number too (the
+      // ticket's own example: plate 5 cut into 3 usable pieces -> all 3
+      // marked "5"). Shrinks for slivers so the label doesn't dominate a
+      // small offcut.
+      var labelSize = Math.min(unit*0.035, Math.min(pw,ph)*0.6);
+      if(labelSize > unit*0.006){
+        svg.push('<text x="'+(p.x1+pw/2)+'" y="'+(py+ph/2)+'" font-size="'+labelSize+'" font-weight="700" fill="'+GYPROC_STROKE_PALETTE[idx]+'" text-anchor="middle" dominant-baseline="central" opacity="0.85">'+(p.binIdx+1)+'</text>');
+      }
     });
 
     result.openingRects.forEach(function(o){
