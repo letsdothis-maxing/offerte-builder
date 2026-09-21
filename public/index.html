@@ -540,7 +540,7 @@
         <div class="info-field">
           <label>Geschatte doorlooptijd</label>
           <div class="info-duration-row">
-            <input type="number" min="0" step="1" id="info-duration-value" placeholder="0">
+            <input type="text" inputmode="decimal" id="info-duration-value" placeholder="0">
             <select id="info-duration-unit" class="tb-select">
               <option value="dagen">dagen</option>
               <option value="weken" selected>weken</option>
@@ -627,11 +627,11 @@
       <div class="offerte-coats-row" id="offerte-coats-row">
         <div class="offerte-coats-field" id="offerte-paint-coats-field" style="display:none;">
           <label for="offerte-paint-coats">Aantal lagen verf</label>
-          <input type="number" min="1" step="1" id="offerte-paint-coats">
+          <input type="text" inputmode="decimal" id="offerte-paint-coats">
         </div>
         <div class="offerte-coats-field" id="offerte-primer-coats-field" style="display:none;">
           <label for="offerte-primer-coats">Aantal lagen primer</label>
-          <input type="number" min="1" step="1" id="offerte-primer-coats">
+          <input type="text" inputmode="decimal" id="offerte-primer-coats">
         </div>
       </div>
 
@@ -642,15 +642,15 @@
         <div class="info-grid-3">
           <div class="info-field">
             <label>Aantal dagen</label>
-            <input type="number" min="0" step="0.5" id="offerte-labor-days">
+            <input type="text" inputmode="decimal" id="offerte-labor-days">
           </div>
           <div class="info-field">
             <label>Uren per dag</label>
-            <input type="number" min="0" step="0.5" id="offerte-labor-hours-per-day">
+            <input type="text" inputmode="decimal" id="offerte-labor-hours-per-day">
           </div>
           <div class="info-field">
             <label>Uurtarief (€/u)</label>
-            <input type="number" min="0" step="0.5" id="offerte-labor-rate" disabled title="Ingesteld bij Instellingen">
+            <input type="text" inputmode="decimal" id="offerte-labor-rate" disabled title="Ingesteld bij Instellingen">
           </div>
         </div>
         <div class="offerte-travel-note">Uurtarief wordt beheerd bij Instellingen.</div>
@@ -666,7 +666,7 @@
         <div class="offerte-travel-note" id="offerte-travel-note"></div>
         <div class="info-field" style="max-width:200px;margin-top:12px;">
           <label>Tarief per km (€/km)</label>
-          <input type="number" min="0" step="0.01" id="offerte-travel-rate" disabled title="Ingesteld bij Instellingen">
+          <input type="text" inputmode="decimal" id="offerte-travel-rate" disabled title="Ingesteld bij Instellingen">
         </div>
         <div class="offerte-subcard-total">Subtotaal verplaatsing: <strong id="offerte-travel-subtotal">€ 0,00</strong></div>
       </div>
@@ -736,8 +736,8 @@
         <div class="info-card">
           <label class="info-section-label">Standaardtarieven</label>
           <div class="info-grid-2">
-            <div class="info-field"><label>Uurtarief (€/u)</label><input type="number" min="0" step="0.5" id="settings-hourly-rate"></div>
-            <div class="info-field"><label>Km vergoeding (€/km)</label><input type="number" min="0" step="0.01" id="settings-km-rate"></div>
+            <div class="info-field"><label>Uurtarief (€/u)</label><input type="text" inputmode="decimal" id="settings-hourly-rate"></div>
+            <div class="info-field"><label>Km vergoeding (€/km)</label><input type="text" inputmode="decimal" id="settings-km-rate"></div>
           </div>
           <div class="offerte-travel-note" style="margin-top:12px;">Deze tarieven worden automatisch gebruikt in de Offerte-tab van elk project (daar niet meer los instelbaar).</div>
         </div>
@@ -778,15 +778,15 @@
   <div class="sub" id="op-sub">Vul de afmetingen in voor dit element.</div>
   <div class="field">
     <label>Breedte</label>
-    <div class="row"><input type="number" id="op-width" min="1" step="1"><span class="unit">cm</span></div>
+    <div class="row"><input type="text" inputmode="decimal" id="op-width"><span class="unit">cm</span></div>
   </div>
   <div class="field">
     <label>Hoogte</label>
-    <div class="row"><input type="number" id="op-height" min="1" step="1"><span class="unit">cm</span></div>
+    <div class="row"><input type="text" inputmode="decimal" id="op-height"><span class="unit">cm</span></div>
   </div>
   <div class="field" id="op-sill-field">
     <label>Borstwering (vloer tot onderkant raam)</label>
-    <div class="row"><input type="number" id="op-sill" min="0" step="1"><span class="unit">cm</span></div>
+    <div class="row"><input type="text" inputmode="decimal" id="op-sill"><span class="unit">cm</span></div>
   </div>
   <div class="actions">
     <button class="btn btn-danger" id="op-delete">Verwijderen</button>
@@ -801,7 +801,7 @@
     <div class="sub" id="gyproc-wall-info">Geen muur geselecteerd.</div>
     <div class="field">
       <label>Dikte</label>
-      <div class="row"><input type="number" id="gyproc-thickness" min="1" step="0.5" value="12.5"><span class="unit">mm</span></div>
+      <div class="row"><input type="text" inputmode="decimal" id="gyproc-thickness" value="12.5"><span class="unit">mm</span></div>
     </div>
     <div id="gyproc-result"></div>
   </div>
@@ -815,6 +815,24 @@
 <script>
 (function(){
   "use strict";
+
+  // Every numeric field in this app is a plain text input with inputmode=
+  // "decimal" (NOT type="number") specifically because native number inputs
+  // reject a comma as invalid in most desktop browser locales, even though
+  // Belgian/Dutch users write decimals with a comma (12,50) - the comma
+  // never even reaches JS, it's blocked at the DOM level. This single
+  // capture-phase listener normalizes comma -> period AS THE USER TYPES, on
+  // every such field, so every existing parseFloat(el.value) call site
+  // downstream keeps working unchanged - capture phase means it always
+  // runs before any field's own "input"/"change" handler sees the value.
+  document.addEventListener("input", function(e){
+    var el = e.target;
+    if(el.tagName!=="INPUT" || el.getAttribute("inputmode")!=="decimal") return;
+    if(el.value.indexOf(",")===-1) return;
+    var pos = el.selectionStart;
+    el.value = el.value.replace(/,/g, ".");
+    if(pos!=null) el.setSelectionRange(pos, pos);
+  }, true);
 
   /* =====================================================================
      STATE
@@ -2802,7 +2820,7 @@
     var priceVal = (typeof price==="number" && !isNaN(price)) ? price : "";
     return '<div class="mat-card">'
       + '<div class="mat-info"><div class="mat-name">'+escapeHtml(title)+'</div>'+(subtitle?'<div class="mat-sub">'+escapeHtml(subtitle)+'</div>':'')+'</div>'
-      + '<div class="mat-price"><input type="number" min="0" step="0.01" inputmode="decimal" class="mat-price-input" data-key="'+key+'" value="'+priceVal+'" placeholder="0,00"><span class="mat-unit">'+(unit||"€")+'</span></div>'
+      + '<div class="mat-price"><input type="text" inputmode="decimal" class="mat-price-input" data-key="'+key+'" value="'+priceVal+'" placeholder="0,00"><span class="mat-unit">'+(unit||"€")+'</span></div>'
       + '</div>';
   }
   // Verf/primer are priced per pot (purchase unit) rather than a flat €/m²,
@@ -3472,7 +3490,7 @@
     } else if(pill.type === "zone-height"){
       currentMm = state.roomHeights[pill.id] != null ? state.roomHeights[pill.id] : state.defaultRoomHeight;
     }
-    div.innerHTML = '<input type="number" step="1" value="'+(currentMm/10).toFixed(0)+'"><span>cm</span><button>OK</button>';
+    div.innerHTML = '<input type="text" inputmode="decimal" value="'+(currentMm/10).toFixed(0)+'"><span>cm</span><button>OK</button>';
     document.body.appendChild(div);
     var input = div.querySelector("input");
     input.focus(); input.select();
@@ -3518,11 +3536,11 @@
     div.style.left = sx+"px";
     div.style.top = sy+"px";
     div.innerHTML = ''
-      + '<div class="woe-row"><span>Volgorde</span><input type="number" min="1" step="1" value="'+(w.order||1)+'"></div>'
+      + '<div class="woe-row"><span>Volgorde</span><input type="text" inputmode="decimal" value="'+(w.order||1)+'"></div>'
       + '<label><input type="checkbox"'+(w.excludeFromCalc?' checked':'')+'> Uitsluiten van berekening</label>'
       + '<button>OK</button>';
     document.body.appendChild(div);
-    var orderInput = div.querySelector('input[type="number"]');
+    var orderInput = div.querySelector('.woe-row input');
     var excludeCheckbox = div.querySelector('input[type="checkbox"]');
     orderInput.focus(); orderInput.select();
     function commit(){
@@ -4411,7 +4429,12 @@
 
     var zonesPlan = roomZones.map(function(zone){
       var plan = computeCeilingZonePlan(zone, state.services.gyproc, gyprocCeilingHohMm);
-      return { zone: zone, plan: plan, results: computeBestPanelResults(plan.lengteMm, plan.breedteMm, thicknessMm) };
+      return {
+        zone: zone, plan: plan,
+        results: computeBestPanelResults(plan.lengteMm, plan.breedteMm, thicknessMm), activeIndex: 0,
+        cdLengthOptions: packLengthPieces(plan.cdPieces, TRACK_LENGTHS), cdActiveIndex: 0,
+        udLengthOptions: plan.udPieces.length ? packLengthPieces(plan.udPieces, TRACK_LENGTHS) : [], udActiveIndex: 0
+      };
     });
     var bulkheads = (state._lastResolvedCuts||[]).filter(function(rc){
       return roomZones.indexOf(rc.zoneA)>=0 && roomZones.indexOf(rc.zoneB)>=0;
@@ -4426,13 +4449,13 @@
   // mirroring computeWallPriceTotal) - includes its own CD/UD/hangers,
   // splice couplers where a run needed one, and the same reserve % walls use.
   function computeZonePriceTotal(zp){
-    var active = zp.results[0];
+    var active = zp.results[zp.activeIndex] || zp.results[0];
     var szEntry = PANEL_SIZES.find(function(s){ return s.label===active.sizeLabel; });
     var gyprocPrice = szEntry ? materialPrices["gyproc:"+szEntry.w+"x"+szEntry.h] : undefined;
     var gyprocSubtotal = (gyprocPrice||0)*active.netPanels;
     var missingPrice = gyprocPrice==null;
 
-    var bestCd = packLengthPieces(zp.plan.cdPieces, TRACK_LENGTHS)[0];
+    var bestCd = zp.cdLengthOptions[zp.cdActiveIndex] || zp.cdLengthOptions[0];
     var coupling = computeCdCouplingInfo(zp.plan, bestCd);
     var cdReserve = Math.ceil(bestCd.totalPieces*(1+STUD_RESERVE_PCT/100));
     var cdPrice = materialPrices["plafond:cd:"+bestCd.pieceLenMm+":"+gyprocCeilingGaugeMm];
@@ -4441,7 +4464,7 @@
     if(cdPrice==null) missingPrice = true;
 
     if(zp.plan.udPieces.length){
-      var bestUd = packLengthPieces(zp.plan.udPieces, TRACK_LENGTHS)[0];
+      var bestUd = zp.udLengthOptions[zp.udActiveIndex] || zp.udLengthOptions[0];
       var udReserve = Math.ceil(bestUd.totalPieces*(1+STUD_RESERVE_PCT/100));
       var udPrice = materialPrices["plafond:ud:"+bestUd.pieceLenMm];
       studsSubtotal += (udPrice||0)*udReserve;
@@ -4831,19 +4854,50 @@
     var checkoutTabsHtml = buildTopTabsHtml() + hohGaugeHtml + buildZoneCheckoutTabsHtml(cs);
 
     var zp = cs.zonesPlan[gyprocActiveZoneIdx] || cs.zonesPlan[0];
-    var active = zp.results[0];
+    var bestPanel = zp.results[0];
+    var active = zp.results[zp.activeIndex] || bestPanel;
     var diagramSVG = buildGyprocDiagramSVG(zp.plan.lengteMm, zp.plan.breedteMm, active, null);
     var gridSVG = buildCeilingGridDiagramSVG(zp.plan.lengteMm, zp.plan.breedteMm, zp.plan.cdCount);
-    var bestCd = packLengthPieces(zp.plan.cdPieces, TRACK_LENGTHS)[0];
-    var coupling = computeCdCouplingInfo(zp.plan, bestCd);
-    var cdReserve = Math.ceil(bestCd.totalPieces*(1+STUD_RESERVE_PCT/100));
+
+    // Panel-format tabs - same "Beste" badge + waste% comparison pattern as
+    // a wall's own gyproc-tabs-row, just driven by zp.activeIndex instead
+    // of ws.activeIndex.
+    var panelTabsHtml = zp.results.map(function(r, idx){
+      return '<button type="button" class="gyproc-tab'+(idx===zp.activeIndex?' active':'')+'" data-zone-panel-idx="'+idx+'">'
+        + (r===bestPanel ? '<span class="badge">Beste</span>' : '')
+        + '<div class="sz">'+r.sizeLabel+'</div>'
+        + '<div class="stat">'+r.netPanels+' pl. · '+r.wastePct.toFixed(0)+'% verlies</div>'
+        + '</button>';
+    }).join('');
+
+    var bestCd = zp.cdLengthOptions[0];
+    var activeCd = zp.cdLengthOptions[zp.cdActiveIndex] || bestCd;
+    var coupling = computeCdCouplingInfo(zp.plan, activeCd);
+    var cdReserve = Math.ceil(activeCd.totalPieces*(1+STUD_RESERVE_PCT/100));
     var hangerReserve = Math.ceil((zp.plan.hangerCount+coupling.totalSplices)*(1+STUD_RESERVE_PCT/100));
+    var cdCardsHtml = zp.cdLengthOptions.map(function(r, idx){
+      return '<button type="button" class="gyproc-tab'+(idx===zp.cdActiveIndex?' active':'')+'" data-zone-cd-idx="'+idx+'">'
+        + (r===bestCd ? '<span class="badge">Beste</span>' : '')
+        + '<div class="sz">'+gyprocCeilingGaugeMm+'mm &middot; '+(r.pieceLenMm/10)+' cm</div>'
+        + '<div class="stat">'+r.totalPieces+' pr. · '+r.wastePct.toFixed(0)+'% verlies</div>'
+        + '</button>';
+    }).join('');
+
     var udHtml = '';
     if(zp.plan.udPieces.length){
-      var bestUd = packLengthPieces(zp.plan.udPieces, TRACK_LENGTHS)[0];
-      var udReserve = Math.ceil(bestUd.totalPieces*(1+STUD_RESERVE_PCT/100));
+      var bestUd = zp.udLengthOptions[0];
+      var activeUd = zp.udLengthOptions[zp.udActiveIndex] || bestUd;
+      var udReserve = Math.ceil(activeUd.totalPieces*(1+STUD_RESERVE_PCT/100));
+      var udCardsHtml = zp.udLengthOptions.map(function(r, idx){
+        return '<button type="button" class="gyproc-tab'+(idx===zp.udActiveIndex?' active':'')+'" data-zone-ud-idx="'+idx+'">'
+          + (r===bestUd ? '<span class="badge">Beste</span>' : '')
+          + '<div class="sz">'+(r.pieceLenMm/10)+' cm</div>'
+          + '<div class="stat">'+r.totalPieces+' stuks · '+r.wastePct.toFixed(0)+'% verlies</div>'
+          + '</button>';
+      }).join('');
       udHtml = ''
-        + '<div class="row"><span class="k">Aan te kopen profielen ('+(bestUd.pieceLenMm/10)+' cm)</span><span class="v">'+bestUd.totalPieces+'</span></div>'
+        + '<div class="gyproc-tabs-row">'+udCardsHtml+'</div>'
+        + '<div class="row"><span class="k">Aan te kopen profielen ('+(activeUd.pieceLenMm/10)+' cm)</span><span class="v">'+activeUd.totalPieces+'</span></div>'
         + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+udReserve+' stuks</span></div>';
     }
     var couplingHtml = '';
@@ -4857,7 +4911,8 @@
     }
 
     var zoneHtml = ''
-      + '<div class="reco">Aanbevolen: <strong>'+active.sizeLabel+'</strong> — '+active.netPanels+' platen, '+active.wastePct.toFixed(0)+'% verlies (minste materiaalverlies)</div>'
+      + '<div class="reco">Aanbevolen: <strong>'+bestPanel.sizeLabel+'</strong> — '+bestPanel.netPanels+' platen, '+bestPanel.wastePct.toFixed(0)+'% verlies (minste materiaalverlies)</div>'
+      + '<div class="gyproc-tabs-row">'+panelTabsHtml+'</div>'
       + '<div class="big">'+active.netPanels+' '+(active.netPanels===1?'plaat':'platen')+'</div>'
       + '<div class="gyproc-diagram-box">'+diagramSVG+'</div>'
       + '<div class="row"><span class="k">Plafondoppervlak</span><span class="v">'+(zp.zone.area/1000000).toFixed(2)+' m²</span></div>'
@@ -4869,7 +4924,8 @@
       +   '<span><i style="background:rgba(234,179,8,0.7);border:1.5px solid #a16207;"></i>Horizontale stud (UD-randprofiel)</span>'
       + '</div>'
       + '<div class="row"><span class="k">Verticale studs (h.o.h. max. '+(gyprocCeilingHohMm/10)+' cm)</span><span class="v">'+zp.plan.cdPieces.length+'</span></div>'
-      + '<div class="row"><span class="k">Aan te kopen profielen ('+(bestCd.pieceLenMm/10)+' cm)</span><span class="v">'+bestCd.totalPieces+'</span></div>'
+      + '<div class="gyproc-tabs-row">'+cdCardsHtml+'</div>'
+      + '<div class="row"><span class="k">Aan te kopen profielen ('+(activeCd.pieceLenMm/10)+' cm)</span><span class="v">'+activeCd.totalPieces+'</span></div>'
       + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+cdReserve+' stuks</span></div>'
       + couplingHtml
       + '<div class="row" style="margin-top:12px;"><span class="k"><strong>Horizontale studs</strong>'+(!zp.plan.udPieces.length?' (volledig gedekt door de horizontale studs van de muren zelf)':'')+'</span><span class="v"></span></div>'
@@ -4901,6 +4957,24 @@
     var resultEl = document.getElementById("gyproc-result");
     resultEl.innerHTML = checkoutTabsHtml + zoneHtml + bulkheadsHtml + paintHtml + primerHtml;
     resultEl.classList.add("show");
+    resultEl.querySelectorAll(".gyproc-tab[data-zone-panel-idx]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        zp.activeIndex = parseInt(btn.dataset.zonePanelIdx,10);
+        renderGyprocResults();
+      });
+    });
+    resultEl.querySelectorAll(".gyproc-tab[data-zone-cd-idx]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        zp.cdActiveIndex = parseInt(btn.dataset.zoneCdIdx,10);
+        renderGyprocResults();
+      });
+    });
+    resultEl.querySelectorAll(".gyproc-tab[data-zone-ud-idx]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        zp.udActiveIndex = parseInt(btn.dataset.zoneUdIdx,10);
+        renderGyprocResults();
+      });
+    });
     var ceilingHohEl = document.getElementById("ceiling-hoh");
     if(ceilingHohEl) ceilingHohEl.addEventListener("change", function(){
       gyprocCeilingHohMm = parseInt(ceilingHohEl.value,10) || 400;
@@ -5462,7 +5536,7 @@
       + '<h3 style="font-size:14px;margin:0 0 10px;">'+opts.title+'</h3>'
       + '<div class="field" style="max-width:160px;">'
       +   '<label>Aantal lagen</label>'
-      +   '<input type="number" min="1" step="1" class="tb-select" id="'+opts.coatsInputId+'" value="'+opts.coats+'" style="width:100%">'
+      +   '<input type="text" inputmode="decimal" class="tb-select" id="'+opts.coatsInputId+'" value="'+opts.coats+'" style="width:100%">'
       + '</div>'
       + '<div class="row"><span class="k">'+opts.areaLabel+' (deze muur)</span><span class="v">'+ws.paintAreaM2.toFixed(2)+' m²</span></div>'
       + '<div class="row"><span class="k">Prijs per pot'+(potYield!=null?' (dekt '+potYield+' m²)':'')+'</span><span class="v">'+(potPrice!=null?fmtEuro(potPrice):'—')+(potLiters!=null?' ('+potLiters+' L)':'')+'</span></div>'
