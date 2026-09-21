@@ -395,6 +395,8 @@
   .info-addr-country{grid-area:country;}
   .info-distance-hint{font-size:12.5px;color:var(--muted);margin-top:10px;min-height:16px;}
   .info-distance-hint.warn{color:#b45309;}
+  .info-save-contact-row{display:flex;align-items:center;gap:10px;margin-top:14px;}
+  .info-save-contact-row #info-save-contact-status{font-size:12px;color:#15803d;font-weight:600;}
   .settings-logo-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
   .settings-logo-preview{display:flex;align-items:center;gap:10px;}
   .settings-logo-preview img{max-height:64px;max-width:180px;object-fit:contain;border-radius:6px;border:1px solid var(--line);background:var(--panel);padding:4px;}
@@ -552,6 +554,10 @@
           <div class="info-field info-addr-postal"><label>Postcode</label><input type="text" id="info-addr-postal" maxlength="10"></div>
           <div class="info-field info-addr-city"><label>Gemeente</label><input type="text" id="info-addr-city" maxlength="60"></div>
           <div class="info-field info-addr-country"><label>Land</label><input type="text" id="info-addr-country" maxlength="60"></div>
+        </div>
+        <div class="info-save-contact-row">
+          <button type="button" class="btn btn-ghost" id="info-save-contact-btn">📇 Bewaar als contact</button>
+          <span id="info-save-contact-status"></span>
         </div>
         <div class="info-distance-hint" id="info-distance-hint"></div>
       </div>
@@ -2960,6 +2966,21 @@
     // delayed so a click on a suggestion (which also blurs the input)
     // still registers before the list disappears
     setTimeout(function(){ document.getElementById("info-client-suggest").classList.remove("show"); }, 150);
+  });
+  // Explicit save - upsertContactFromState() already runs on every
+  // scheduleSave() automatically, but a visible button + confirmation
+  // gives a deliberate "yes, this is saved" moment instead of relying on
+  // an invisible side effect of just typing.
+  document.getElementById("info-save-contact-btn").addEventListener("click", function(){
+    if(!(state.clientName||"").trim()){
+      document.getElementById("info-client-name").focus();
+      return;
+    }
+    upsertContactFromState();
+    var statusEl = document.getElementById("info-save-contact-status");
+    statusEl.textContent = "✓ Opgeslagen bij Contacten";
+    clearTimeout(statusEl._t);
+    statusEl._t = setTimeout(function(){ statusEl.textContent = ""; }, 2500);
   });
   [["info-addr-street","clientStreet"],["info-addr-number","clientHouseNumber"],
    ["info-addr-addition","clientAddressAddition"],["info-addr-postal","clientPostalCode"],
@@ -5794,6 +5815,20 @@
   function renderOfferteTab(){
     var proj = getActiveProject();
     if(!proj) return;
+    // The per-service "Arbeid (uren)" inputs live inside #offerte-table,
+    // which this function rebuilds wholesale (table.innerHTML = ...) on
+    // every keystroke (see the input's own "input" listener below) - that
+    // destroys and recreates the actual <input> DOM node, which silently
+    // drops focus after every single character typed. Capture which one
+    // (if any) is focused + its cursor position now, restore it after the
+    // rebuild below, so typing multiple digits in a row actually works.
+    var focusedHoursSvc = null, focusedSelStart = null, focusedSelEnd = null;
+    var activeEl = document.activeElement;
+    if(activeEl && activeEl.classList && activeEl.classList.contains("offerte-section-hours-input")){
+      focusedHoursSvc = activeEl.dataset.svc;
+      focusedSelStart = activeEl.selectionStart;
+      focusedSelEnd = activeEl.selectionEnd;
+    }
     var logoEl = document.getElementById("offerte-logo");
     logoEl.src = appSettings.logoUrl || "";
     logoEl.style.display = appSettings.logoUrl ? "" : "none";
@@ -5921,6 +5956,14 @@
     document.getElementById("offerte-btw-amount").textContent = fmtEuro(btwAmount);
     document.getElementById("offerte-grand-total").textContent = fmtEuro(combinedSubtotal+btwAmount);
     warnEl.style.display = (showMaterials && offer.anyMissing) ? "" : "none";
+
+    if(focusedHoursSvc){
+      var restoredInp = table.querySelector('.offerte-section-hours-input[data-svc="'+focusedHoursSvc+'"]');
+      if(restoredInp){
+        restoredInp.focus();
+        try{ restoredInp.setSelectionRange(focusedSelStart, focusedSelEnd); }catch(e){}
+      }
+    }
   }
   document.getElementById("offerte-btw-rate").addEventListener("change", function(){
     state.btwRate = parseFloat(this.value) || 0;
