@@ -162,6 +162,14 @@
   /* ---------- project list screen ---------- */
   #project-list-screen{position:fixed;inset:0;background:var(--bg);z-index:5;display:flex;flex-direction:column;overflow:auto;}
   #project-list-screen.hidden{display:none;}
+  #contact-detail-screen{position:fixed;inset:0;background:var(--bg);z-index:6;display:flex;flex-direction:column;overflow:auto;}
+  #contact-detail-screen.hidden{display:none;}
+  #contact-tabs{display:flex;gap:6px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;justify-content:center;}
+  .ctab-btn{border:1px solid var(--line);background:var(--bg);color:var(--muted);padding:7px 18px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s,color .12s,border-color .12s;}
+  .ctab-btn:hover{background:#eef2f7;}
+  .ctab-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .ctab-page{display:none;flex:1;min-height:0;padding:20px 24px;overflow:auto;}
+  .ctab-page.active{display:block;}
   .pl-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;}
   .pl-topbar h1{font-size:16px;margin:0;font-weight:700;}
   .pl-topbar h1 span{color:var(--blue);}
@@ -810,6 +818,51 @@
     <button class="pl-nav-btn" data-page="planning"><span class="ic">📅</span><span class="lbl">Planning</span></button>
     <button class="pl-nav-btn" data-page="materials"><span class="ic">💶</span><span class="lbl">Materialen</span></button>
     <button class="pl-nav-btn" data-page="contacts"><span class="ic">👤</span><span class="lbl">Contacten</span></button>
+  </div>
+</div>
+
+<div id="contact-detail-screen" class="hidden">
+  <div class="pl-topbar">
+    <button class="tbtn" id="cd-back-btn" title="Terug naar contacten"><span class="ic">←</span><span class="lbl">Contacten</span></button>
+    <h1 id="cd-title">Contact</h1>
+  </div>
+  <div id="contact-tabs">
+    <button class="ctab-btn active" data-ctab="info">Info</button>
+    <button class="ctab-btn" data-ctab="projecten">Projecten</button>
+  </div>
+  <div id="ctab-info" class="ctab-page active">
+    <div class="info-tab-inner">
+      <div class="info-card">
+        <div class="field">
+          <label>Naam</label>
+          <div class="row"><input type="text" id="cd-name" maxlength="80"></div>
+        </div>
+        <div class="client-type-toggle" style="margin:12px 0 14px;">
+          <button type="button" class="ctype-btn" id="cd-ctype-particulier" data-ctype="particulier">Particulier</button>
+          <button type="button" class="ctype-btn" id="cd-ctype-zakelijk" data-ctype="zakelijk">Zakelijk</button>
+        </div>
+        <div class="field" id="cd-vat-field" style="display:none;">
+          <label>BTW nummer</label>
+          <div class="row"><input type="text" id="cd-vat" maxlength="30"></div>
+        </div>
+        <div class="info-address-grid">
+          <div class="info-field info-addr-street"><label>Straat</label><input type="text" id="cd-street" maxlength="80"></div>
+          <div class="info-field info-addr-number"><label>Nr.</label><input type="text" id="cd-number" maxlength="10"></div>
+          <div class="info-field info-addr-addition"><label>Toevoeging</label><input type="text" id="cd-addition" maxlength="10"></div>
+          <div class="info-field info-addr-postal"><label>Postcode</label><input type="text" id="cd-postal" maxlength="10"></div>
+          <div class="info-field info-addr-city"><label>Gemeente</label><input type="text" id="cd-city" maxlength="60"></div>
+          <div class="info-field info-addr-country"><label>Land</label><input type="text" id="cd-country" maxlength="60"></div>
+        </div>
+        <div class="actions" style="margin-top:16px;">
+          <button class="btn btn-danger" id="cd-delete">Verwijderen</button>
+          <button class="btn btn-primary" id="cd-save">Opslaan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="ctab-projecten" class="ctab-page">
+    <div id="cd-projects-empty" class="pl-empty" style="display:none;">Nog geen projecten voor dit contact.</div>
+    <div id="cd-projects-grid" class="pl-grid"></div>
   </div>
 </div>
 
@@ -3248,7 +3301,7 @@
         + '</div>';
     }).join('');
     grid.querySelectorAll(".contact-card").forEach(function(card){
-      card.addEventListener("click", function(){ openContactForm(card.dataset.id); });
+      card.addEventListener("click", function(){ openContactDetail(card.dataset.id); });
     });
   }
   var cfBackdrop = document.getElementById("contact-form-backdrop");
@@ -3320,6 +3373,112 @@
     scheduleContactsSave();
     closeContactForm();
     renderContactsPage();
+  });
+
+  /* =====================================================================
+     CONTACT DETAIL PAGE (Info / Projecten)
+     Opened from a contact card instead of the quick edit side-panel above
+     (that panel stays as-is for "+ Nieuw contact"). Projecten tab lists
+     every project whose clientName matches this contact - same
+     normalizeContactName() match findContactByName() uses, so a project
+     shows up here exactly when it would auto-link to this same contact.
+  ===================================================================== */
+  var cdContactId = null;
+  function setCdClientType(type){
+    document.querySelectorAll("#ctab-info .ctype-btn").forEach(function(b){
+      b.classList.toggle("active", b.dataset.ctype===type);
+    });
+    document.getElementById("cd-vat-field").style.display = type==="zakelijk" ? "" : "none";
+  }
+  function showCTab(tab){
+    document.querySelectorAll("#contact-tabs .ctab-btn").forEach(function(b){
+      b.classList.toggle("active", b.dataset.ctab===tab);
+    });
+    document.getElementById("ctab-info").classList.toggle("active", tab==="info");
+    document.getElementById("ctab-projecten").classList.toggle("active", tab==="projecten");
+  }
+  function renderContactProjects(name){
+    var norm = normalizeContactName(name);
+    var grid = document.getElementById("cd-projects-grid");
+    var emptyEl = document.getElementById("cd-projects-empty");
+    var matches = projectsState.projects.filter(function(p){
+      return normalizeContactName((p.data && p.data.clientName) || "") === norm;
+    }).sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
+    emptyEl.style.display = matches.length ? "none" : "";
+    grid.innerHTML = matches.map(function(p){
+      return '<div class="pl-card" data-id="'+p.id+'">'
+        + statusPillHtml(p.data && p.data.projectStatus)
+        + '<h3>'+escapeHtml(p.name || "Naamloos project")+'</h3>'
+        + (p.description ? '<p>'+escapeHtml(p.description)+'</p>' : '<p></p>')
+        + '<div class="meta">'
+        +   (p.planningDate ? '<span>Gepland: '+fmtDate(p.planningDate)+'</span>' : '')
+        +   '<span>Laatst gewijzigd: '+fmtTimestamp(p.updatedAt)+'</span>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+    grid.querySelectorAll(".pl-card").forEach(function(card){
+      card.addEventListener("click", function(){
+        document.getElementById("contact-detail-screen").classList.add("hidden");
+        enterProject(card.dataset.id);
+      });
+    });
+  }
+  function openContactDetail(contactId){
+    var c = contactsState.find(function(cc){ return cc.id===contactId; });
+    if(!c) return;
+    cdContactId = contactId;
+    document.getElementById("cd-title").textContent = c.name;
+    document.getElementById("cd-name").value = c.name;
+    setCdClientType(c.clientType||"particulier");
+    document.getElementById("cd-vat").value = c.vatNumber||"";
+    document.getElementById("cd-street").value = c.street||"";
+    document.getElementById("cd-number").value = c.houseNumber||"";
+    document.getElementById("cd-addition").value = c.addressAddition||"";
+    document.getElementById("cd-postal").value = c.postalCode||"";
+    document.getElementById("cd-city").value = c.city||"";
+    document.getElementById("cd-country").value = c.country||"België";
+    renderContactProjects(c.name);
+    showCTab("info");
+    document.getElementById("project-list-screen").classList.add("hidden");
+    document.getElementById("contact-detail-screen").classList.remove("hidden");
+  }
+  function closeContactDetail(){
+    document.getElementById("contact-detail-screen").classList.add("hidden");
+    document.getElementById("project-list-screen").classList.remove("hidden");
+    cdContactId = null;
+    renderContactsPage();
+  }
+  document.getElementById("cd-back-btn").addEventListener("click", closeContactDetail);
+  document.querySelectorAll("#contact-tabs .ctab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){ showCTab(btn.dataset.ctab); });
+  });
+  document.querySelectorAll("#ctab-info .ctype-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){ setCdClientType(btn.dataset.ctype); });
+  });
+  document.getElementById("cd-save").addEventListener("click", function(){
+    var name = document.getElementById("cd-name").value.trim();
+    if(!name){ document.getElementById("cd-name").focus(); return; }
+    var c = contactsState.find(function(cc){ return cc.id===cdContactId; });
+    if(!c) return;
+    var activeCtype = document.querySelector("#ctab-info .ctype-btn.active");
+    Object.assign(c, {
+      name: name, clientType: activeCtype ? activeCtype.dataset.ctype : "particulier",
+      vatNumber: document.getElementById("cd-vat").value.trim(),
+      street: document.getElementById("cd-street").value.trim(), houseNumber: document.getElementById("cd-number").value.trim(),
+      addressAddition: document.getElementById("cd-addition").value.trim(),
+      postalCode: document.getElementById("cd-postal").value.trim(), city: document.getElementById("cd-city").value.trim(),
+      country: document.getElementById("cd-country").value.trim() || "België"
+    });
+    scheduleContactsSave();
+    document.getElementById("cd-title").textContent = c.name;
+    renderContactProjects(c.name);
+  });
+  document.getElementById("cd-delete").addEventListener("click", function(){
+    if(!cdContactId) return;
+    if(!confirm("Dit contact definitief verwijderen? Projecten die deze klantnaam gebruiken blijven ongewijzigd.")) return;
+    contactsState = contactsState.filter(function(c){ return c.id!==cdContactId; });
+    scheduleContactsSave();
+    closeContactDetail();
   });
 
   /* =====================================================================
