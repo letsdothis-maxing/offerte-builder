@@ -2760,7 +2760,7 @@
     document.getElementById("app-title-name").textContent = proj?proj.name:"";
     document.getElementById("project-list-screen").classList.add("hidden");
     document.getElementById("app").style.display = "flex";
-    setTool("wall");
+    setTool("select");
     showPTab(defaultTab || "grondplan");
   }
   function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
