@@ -61,6 +61,31 @@
     border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px;background:#fff;color:var(--ink);
   }
 
+  /* ---------- account menu (email trigger -> Instellingen/Log uit) ---------- */
+  .account-menu-wrap{position:relative;}
+  .account-menu-trigger{
+    display:flex;align-items:center;gap:4px;
+    border:1px solid transparent;background:transparent;color:var(--ink);
+    padding:7px 10px;border-radius:8px;font-size:12.5px;cursor:pointer;user-select:none;
+    max-width:180px;
+  }
+  .account-menu-trigger .account-menu-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .account-menu-trigger .ic{font-size:10px;opacity:.6;}
+  .account-menu-trigger:hover{background:#eef2f7;border-color:var(--line);}
+  .account-menu{
+    position:absolute;top:calc(100% + 6px);right:0;min-width:170px;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    box-shadow:0 8px 22px rgba(15,23,42,.14);padding:4px;z-index:30;
+  }
+  .account-menu.hidden{display:none;}
+  .account-menu-item{
+    display:flex;align-items:center;gap:8px;width:100%;
+    border:none;background:none;color:var(--ink);text-align:left;
+    padding:8px 10px;border-radius:7px;font-size:13px;cursor:pointer;
+  }
+  .account-menu-item:hover{background:var(--bg);}
+  .account-menu-item .ic{font-size:14px;width:16px;text-align:center;}
+
   /* ---------- canvas ---------- */
   #stage{position:relative;flex:1;overflow:hidden;background:#fff;}
   #canvas{position:absolute;inset:0;touch-action:none;cursor:crosshair;}
@@ -199,7 +224,6 @@
   .pl-nav-btn:hover{background:var(--bg);}
   .pl-nav-btn.active{background:var(--blue);color:#fff;}
   .pl-topbar-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;}
-  .pl-header-settings-btn{width:36px;height:36px;padding:0;justify-content:center;border:1px solid var(--line);border-radius:50%;font-size:16px;flex-shrink:0;}
 
   /* ---------- planning page: infinite vertical month-scroll calendar ---------- */
   #pl-page-planning{display:flex;flex-direction:column;} /* JS sets an explicit height (viewport-derived) on this each time the page is shown */
@@ -375,7 +399,7 @@
   .info-section-label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:10px;}
   .info-field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
   .info-field input[type=text],.info-field input[type=date],.info-field input[type=number],.info-field input[type=email]{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--panel);}
-  .info-field input[type=number]:disabled{background:var(--bg);color:var(--muted);cursor:not-allowed;}
+  .info-field input[type=number]:disabled,.info-field input[type=email]:disabled{background:var(--bg);color:var(--muted);cursor:not-allowed;}
   .info-card textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit;resize:vertical;color:var(--ink);background:var(--panel);}
   .info-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
   .info-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
@@ -474,7 +498,7 @@
     .btn-danger{background:#3b1418;color:#fca5a5;}
     #save-status{background:#3b2a0f;color:#fbbf24;}
     .info-field input,.info-card textarea,#offerte-btw-rate,.offerte-coats-field input,.offerte-hours-row input,.status-select-row select{background:#0f1420;color:#e5e7eb;}
-    .info-field input[type=number]:disabled{background:#1a2233;color:#8993a8;}
+    .info-field input[type=number]:disabled,.info-field input[type=email]:disabled{background:#1a2233;color:#8993a8;}
     .status-select-row select,.offerte-btw select{
       background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238993a8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
       background-repeat:no-repeat;background-position:right 10px center;background-size:14px 14px;
@@ -519,8 +543,13 @@
     <div class="tb-group" style="margin-left:auto;">
       <button class="tbtn" id="gyproc-btn"><span class="ic">🧮</span><span class="lbl">Berekenen</span></button>
       <button class="tbtn" id="clear-btn"><span class="ic">🗑</span><span class="lbl">Wis alles</span></button>
-      <span id="tb-user-email" style="font-size:12px;opacity:.7;margin-left:8px;"></span>
-      <button class="tbtn" id="tb-logout-btn" title="Uitloggen"><span class="ic">⎋</span><span class="lbl">Uitloggen</span></button>
+      <div class="account-menu-wrap">
+        <button class="account-menu-trigger" id="tb-account-btn"><span class="account-menu-name" id="tb-user-email"></span><span class="ic">▾</span></button>
+        <div class="account-menu hidden" id="tb-account-menu">
+          <button class="account-menu-item" data-action="settings"><span class="ic">⚙️</span>Instellingen</button>
+          <button class="account-menu-item" data-action="logout"><span class="ic">⎋</span>Log uit</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -746,9 +775,13 @@
     <h1 id="pl-title">Offerte<span>Builder</span> — Projecten</h1>
     <div class="pl-topbar-actions">
       <button class="tbtn tbtn-primary" id="pl-new-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;"><span class="ic">+</span>Nieuw project</button>
-      <button class="pl-nav-btn pl-header-settings-btn" data-page="settings" title="Instellingen"><span class="ic">⚙️</span></button>
-      <span id="pl-user-email" style="font-size:12px;opacity:.7;margin-left:4px;"></span>
-      <button class="pl-nav-btn" id="pl-logout-btn" title="Uitloggen"><span class="ic">⎋</span></button>
+      <div class="account-menu-wrap">
+        <button class="account-menu-trigger" id="pl-account-btn"><span class="account-menu-name" id="pl-user-email"></span><span class="ic">▾</span></button>
+        <div class="account-menu hidden" id="pl-account-menu">
+          <button class="account-menu-item" data-action="settings"><span class="ic">⚙️</span>Instellingen</button>
+          <button class="account-menu-item" data-action="logout"><span class="ic">⎋</span>Log uit</button>
+        </div>
+      </div>
     </div>
   </div>
   <div class="pl-body">
@@ -789,7 +822,7 @@
           <label class="info-section-label">Bedrijfsgegevens</label>
           <div class="info-grid-2">
             <div class="info-field"><label>Zaaknaam</label><input type="text" id="settings-company-name" maxlength="120"></div>
-            <div class="info-field"><label>Email</label><input type="email" id="settings-email" maxlength="120"></div>
+            <div class="info-field"><label>Email</label><input type="email" id="settings-email" maxlength="120" disabled title="Gekoppeld aan je account - zelfde e-mailadres als waarmee je inlogt"></div>
           </div>
           <div class="settings-address-grid" style="margin-top:16px;">
             <div class="info-field settings-addr-street"><label>Straat</label><input type="text" id="settings-street" maxlength="80"></div>
@@ -2073,6 +2106,10 @@
     logoUrl:"", logoPath:""
   };
   var appSettings = Object.assign({}, DEFAULT_APP_SETTINGS);
+  // Set by loadSessionInfo() at boot - the settings page's "Email" field is
+  // always the logged-in user's own login email (not a separately editable
+  // business address), see renderSettingsPage.
+  var currentUserEmail = "";
   var settingsSaveTimer = null;
   function scheduleSettingsSave(){
     clearTimeout(settingsSaveTimer);
@@ -2135,22 +2172,47 @@
     return text ? JSON.parse(text) : null;
   }
 
+  async function logoutAndRedirect(){
+    await fetch("/api/auth/logout", { method:"POST" }).catch(function(){});
+    location.href = "/login";
+  }
   async function loadSessionInfo(){
     try{
       var res = await fetch("/api/auth/session");
       if(!res.ok) return;
       var data = await res.json();
       var email = data.email || "";
+      currentUserEmail = email;
       ["tb-user-email","pl-user-email"].forEach(function(id){
         var el = document.getElementById(id);
         if(el) el.textContent = email;
       });
-      ["tb-logout-btn","pl-logout-btn"].forEach(function(id){
-        var el = document.getElementById(id);
-        if(el) el.addEventListener("click", async function(){
-          await fetch("/api/auth/logout", { method:"POST" }).catch(function(){});
-          location.href = "/login";
+      // Both topbars share the same account-menu-trigger/-menu/-item pattern -
+      // one email/⚙️/⎋ menu instead of separate settings+logout buttons, so
+      // the header stays compact (see account-menu CSS above #topbar).
+      [["tb-account-btn","tb-account-menu"],["pl-account-btn","pl-account-menu"]].forEach(function(pair){
+        var btn = document.getElementById(pair[0]);
+        var menu = document.getElementById(pair[1]);
+        if(!btn || !menu) return;
+        btn.addEventListener("click", function(e){
+          e.stopPropagation();
+          var willOpen = menu.classList.contains("hidden");
+          document.querySelectorAll(".account-menu").forEach(function(m){ m.classList.add("hidden"); });
+          if(willOpen) menu.classList.remove("hidden");
         });
+        menu.querySelectorAll(".account-menu-item").forEach(function(item){
+          item.addEventListener("click", function(){
+            menu.classList.add("hidden");
+            if(item.dataset.action==="settings") goToSettings();
+            else if(item.dataset.action==="logout") logoutAndRedirect();
+          });
+        });
+      });
+      document.addEventListener("click", function(){
+        document.querySelectorAll(".account-menu").forEach(function(m){ m.classList.add("hidden"); });
+      });
+      document.addEventListener("keydown", function(e){
+        if(e.key==="Escape") document.querySelectorAll(".account-menu").forEach(function(m){ m.classList.add("hidden"); });
       });
     }catch(err){}
   }
@@ -2439,6 +2501,16 @@
     document.getElementById("app").style.display = "none";
     showPlPage("projects");
   }
+  // Reachable from the account menu's "Instellingen" item in either topbar
+  // (canvas view or project list) - same as showProjectList but landing on
+  // the settings page instead of the project list.
+  function goToSettings(){
+    projectsState.activeId = null;
+    try{ localStorage.removeItem(ACTIVE_PROJECT_KEY); }catch(e){}
+    document.getElementById("project-list-screen").classList.remove("hidden");
+    document.getElementById("app").style.display = "none";
+    showPlPage("settings");
+  }
   function showPlPage(page){
     document.querySelectorAll(".pl-nav-btn").forEach(function(btn){
       btn.classList.toggle("active", btn.dataset.page===page);
@@ -2469,7 +2541,14 @@
   ===================================================================== */
   function renderSettingsPage(){
     document.getElementById("settings-company-name").value = appSettings.companyName || "";
-    document.getElementById("settings-email").value = appSettings.email || "";
+    // The settings email is always the account's own login email, not a
+    // separately editable field - keeps the stored value in sync too, in
+    // case anything else ever reads appSettings.email directly.
+    document.getElementById("settings-email").value = currentUserEmail || appSettings.email || "";
+    if(currentUserEmail && appSettings.email !== currentUserEmail){
+      appSettings.email = currentUserEmail;
+      scheduleSettingsSave();
+    }
     document.getElementById("settings-street").value = appSettings.street || "";
     document.getElementById("settings-house-number").value = appSettings.houseNumber || "";
     document.getElementById("settings-postal-code").value = appSettings.postalCode || "";
@@ -2525,7 +2604,7 @@
   // editing any of them invalidates the cached geocode (getHomeGeo()
   // compares the assembled string itself, but clearing the cache eagerly
   // here avoids holding onto a stale lat/lng object needlessly).
-  [["settings-company-name","companyName",false,false],["settings-email","email",false,false],
+  [["settings-company-name","companyName",false,false],
    ["settings-street","street",false,true],["settings-house-number","houseNumber",false,true],
    ["settings-postal-code","postalCode",false,true],["settings-city","city",false,true],["settings-country","country",false,true],
    ["settings-phone","phone",false,false],["settings-vat","vatNumber",false,false],
