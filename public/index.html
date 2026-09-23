@@ -3371,6 +3371,35 @@
     }
   }
 
+  // Single source of truth for a project card's markup, used by both the
+  // main Projecten grid and the contact-detail page's "Projecten" tab -
+  // these had drifted into two separately-hand-written templates (one with
+  // an edit button, one without; both only showing "Gepland" when a project
+  // happened to have a planning date, so cards ended up different heights/
+  // structures depending on which fields were filled in). Every card now
+  // always renders the same fields in the same order/height, with a
+  // fallback for a missing planning date instead of omitting the line.
+  function projectCardHtml(p){
+    return '<div class="pl-card" data-id="'+p.id+'">'
+      + '<button class="edit-btn" data-edit-id="'+p.id+'" title="Bewerken">✎</button>'
+      + statusPillHtml(p.data && p.data.projectStatus)
+      + '<h3>'+escapeHtml(p.name || "Naamloos project")+'</h3>'
+      + '<p>'+(p.description ? escapeHtml(p.description) : '')+'</p>'
+      + '<div class="meta">'
+      +   '<span>Gepland: '+(p.planningDate ? fmtDate(p.planningDate) : 'Niet gepland')+'</span>'
+      +   '<span>Laatst gewijzigd: '+fmtTimestamp(p.updatedAt)+'</span>'
+      + '</div>'
+      + '</div>';
+  }
+  function wireProjectCardEditButtons(grid){
+    grid.querySelectorAll(".edit-btn").forEach(function(btn){
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
+        openProjectForm(btn.dataset.editId);
+      });
+    });
+  }
+
   function renderProjectList(){
     var grid = document.getElementById("pl-grid");
     var emptyEl = document.getElementById("pl-empty");
@@ -3383,30 +3412,14 @@
     var sorted = projectsState.projects.slice().sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
     emptyEl.textContent = "Nog geen projecten. Maak je eerste project aan om te starten.";
     emptyEl.style.display = sorted.length ? "none" : "";
-    grid.innerHTML = sorted.map(function(p){
-      return '<div class="pl-card" data-id="'+p.id+'">'
-        + '<button class="edit-btn" data-edit-id="'+p.id+'" title="Bewerken">✎</button>'
-        + statusPillHtml(p.data && p.data.projectStatus)
-        + '<h3>'+escapeHtml(p.name || "Naamloos project")+'</h3>'
-        + (p.description ? '<p>'+escapeHtml(p.description)+'</p>' : '<p></p>')
-        + '<div class="meta">'
-        +   (p.planningDate ? '<span>Gepland: '+fmtDate(p.planningDate)+'</span>' : '')
-        +   '<span>Laatst gewijzigd: '+fmtTimestamp(p.updatedAt)+'</span>'
-        + '</div>'
-        + '</div>';
-    }).join('');
+    grid.innerHTML = sorted.map(projectCardHtml).join('');
     grid.querySelectorAll(".pl-card").forEach(function(card){
       card.addEventListener("click", function(e){
         if(e.target.closest(".edit-btn")) return;
         enterProject(card.dataset.id);
       });
     });
-    grid.querySelectorAll(".edit-btn").forEach(function(btn){
-      btn.addEventListener("click", function(e){
-        e.stopPropagation();
-        openProjectForm(btn.dataset.editId);
-      });
-    });
+    wireProjectCardEditButtons(grid);
   }
 
   /* =====================================================================
@@ -3533,23 +3546,15 @@
       return normalizeContactName((p.data && p.data.clientName) || "") === norm;
     }).sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
     emptyEl.style.display = matches.length ? "none" : "";
-    grid.innerHTML = matches.map(function(p){
-      return '<div class="pl-card" data-id="'+p.id+'">'
-        + statusPillHtml(p.data && p.data.projectStatus)
-        + '<h3>'+escapeHtml(p.name || "Naamloos project")+'</h3>'
-        + (p.description ? '<p>'+escapeHtml(p.description)+'</p>' : '<p></p>')
-        + '<div class="meta">'
-        +   (p.planningDate ? '<span>Gepland: '+fmtDate(p.planningDate)+'</span>' : '')
-        +   '<span>Laatst gewijzigd: '+fmtTimestamp(p.updatedAt)+'</span>'
-        + '</div>'
-        + '</div>';
-    }).join('');
+    grid.innerHTML = matches.map(projectCardHtml).join('');
     grid.querySelectorAll(".pl-card").forEach(function(card){
-      card.addEventListener("click", function(){
+      card.addEventListener("click", function(e){
+        if(e.target.closest(".edit-btn")) return;
         document.getElementById("contact-detail-screen").classList.add("hidden");
         enterProject(card.dataset.id);
       });
     });
+    wireProjectCardEditButtons(grid);
   }
   function openContactDetail(contactId){
     var c = contactsState.find(function(cc){ return cc.id===contactId; });
