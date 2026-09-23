@@ -450,7 +450,9 @@
   .offerte-hours-row{display:flex;align-items:center;gap:8px;margin:0 0 10px;}
   .offerte-hours-row label{font-size:12.5px;color:var(--muted);}
   .offerte-hours-row input{width:70px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13.5px;text-align:center;background:var(--panel);color:var(--ink);}
-  .offerte-section-subtotal{display:flex;justify-content:flex-end;gap:8px;padding:8px 14px;font-size:13px;font-weight:700;color:var(--ink);background:var(--bg);border-top:1px solid var(--line);border-radius:0 0 12px 12px;}
+  .offerte-section-subtotal{display:flex;justify-content:flex-end;gap:8px;padding:8px 14px;font-size:13px;font-weight:600;color:var(--muted);background:var(--bg);border-top:1px solid var(--line);}
+  .offerte-section-subtotal.offerte-section-grand{font-weight:700;color:var(--ink);}
+  .offerte-table-wrap .offerte-section-subtotal:last-child{border-radius:0 0 12px 12px;}
   .offerte-totals{margin-top:16px;margin-left:auto;max-width:320px;}
   .offerte-totals-row{display:flex;justify-content:space-between;padding:6px 4px;font-size:13.5px;color:var(--muted);}
   .offerte-totals-row.offerte-grand{border-top:1px solid var(--line);margin-top:6px;padding-top:10px;font-size:16px;font-weight:700;color:var(--ink);}
@@ -517,6 +519,8 @@
     <div class="tb-group" style="margin-left:auto;">
       <button class="tbtn" id="gyproc-btn"><span class="ic">🧮</span><span class="lbl">Berekenen</span></button>
       <button class="tbtn" id="clear-btn"><span class="ic">🗑</span><span class="lbl">Wis alles</span></button>
+      <span id="tb-user-email" style="font-size:12px;opacity:.7;margin-left:8px;"></span>
+      <button class="tbtn" id="tb-logout-btn" title="Uitloggen"><span class="ic">⎋</span><span class="lbl">Uitloggen</span></button>
     </div>
   </div>
 
@@ -743,6 +747,8 @@
     <div class="pl-topbar-actions">
       <button class="tbtn tbtn-primary" id="pl-new-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;"><span class="ic">+</span>Nieuw project</button>
       <button class="pl-nav-btn pl-header-settings-btn" data-page="settings" title="Instellingen"><span class="ic">⚙️</span></button>
+      <span id="pl-user-email" style="font-size:12px;opacity:.7;margin-left:4px;"></span>
+      <button class="pl-nav-btn" id="pl-logout-btn" title="Uitloggen"><span class="ic">⎋</span></button>
     </div>
   </div>
   <div class="pl-body">
@@ -2123,9 +2129,30 @@
 
   async function dbFetch(path, options){
     var res = await fetch("/api/db"+path, options);
+    if(res.status === 401){ location.href = "/login"; return new Promise(function(){}); }
     if(!res.ok) throw new Error("DB request failed ("+res.status+"): "+path);
     var text = await res.text();
     return text ? JSON.parse(text) : null;
+  }
+
+  async function loadSessionInfo(){
+    try{
+      var res = await fetch("/api/auth/session");
+      if(!res.ok) return;
+      var data = await res.json();
+      var email = data.email || "";
+      ["tb-user-email","pl-user-email"].forEach(function(id){
+        var el = document.getElementById(id);
+        if(el) el.textContent = email;
+      });
+      ["tb-logout-btn","pl-logout-btn"].forEach(function(id){
+        var el = document.getElementById(id);
+        if(el) el.addEventListener("click", async function(){
+          await fetch("/api/auth/logout", { method:"POST" }).catch(function(){});
+          location.href = "/login";
+        });
+      });
+    }catch(err){}
   }
   function dbListProjects(){ return dbFetch("/projects?select=*"); }
   function dbUpsertProject(row){
@@ -6027,28 +6054,48 @@
       addLineItem("primer", "labor:primer", "Arbeid (uren)", serviceHours.primer, hourlyRate, "uur");
     }
 
+    // Labor ("labor:<key>") is added into the same per-category bucket as
+    // materials (see addLineItem calls above) so it still counts toward the
+    // section's total exactly as before - but it's split out of `items`
+    // here into its own `laborItem`/`laborSubtotal` so the render step can
+    // show it as a separate subline instead of a row in the materials
+    // table, with material cost and labor cost as two distinct totals.
     function finalizeCategory(bucket){
       var catMissing = false;
-      var catItems = Object.keys(bucket).map(function(k){
+      var materialItems = [];
+      var laborItem = null;
+      Object.keys(bucket).forEach(function(k){
         var it = bucket[k];
         var unitPrice = it.unitPrice || 0;
         var total = unitPrice * it.qty;
         if(it.missing) catMissing = true;
-        return { label:it.label, qty:it.qty, unit:it.unit, unitPrice:unitPrice, total:total, missing:it.missing };
+        var row = { label:it.label, qty:it.qty, unit:it.unit, unitPrice:unitPrice, total:total, missing:it.missing };
+        if(k.indexOf("labor:")===0) laborItem = row;
+        else materialItems.push(row);
       });
-      catItems.sort(function(a,b){ return a.label.localeCompare(b.label); });
-      var catSubtotal = catItems.reduce(function(s,it){ return s+it.total; }, 0);
-      return { items:catItems, subtotal:catSubtotal, missing:catMissing };
+      materialItems.sort(function(a,b){ return a.label.localeCompare(b.label); });
+      var materialSubtotal = materialItems.reduce(function(s,it){ return s+it.total; }, 0);
+      var laborSubtotal = laborItem ? laborItem.total : 0;
+      return {
+        items:materialItems, laborItem:laborItem,
+        materialSubtotal:materialSubtotal, laborSubtotal:laborSubtotal,
+        subtotal:materialSubtotal+laborSubtotal, missing:catMissing
+      };
     }
     var muurSection = finalizeCategory(lineItemsByCategory.muur);
     var plafondSection = finalizeCategory(lineItemsByCategory.plafond);
     var verfSection = finalizeCategory(lineItemsByCategory.verf);
     var primerSection = finalizeCategory(lineItemsByCategory.primer);
+    function toSection(key, title, s){
+      return { key:key, title:title, items:s.items, laborItem:s.laborItem,
+        materialSubtotal:s.materialSubtotal, laborSubtotal:s.laborSubtotal,
+        subtotal:s.subtotal, missing:s.missing };
+    }
     var sections = [
-      { key:"muur", title:"Muurwerken", items:muurSection.items, subtotal:muurSection.subtotal, missing:muurSection.missing },
-      { key:"plafond", title:"Plafondwerken", items:plafondSection.items, subtotal:plafondSection.subtotal, missing:plafondSection.missing },
-      { key:"verf", title:"Verfwerken", items:verfSection.items, subtotal:verfSection.subtotal, missing:verfSection.missing },
-      { key:"primer", title:"Primerwerken", items:primerSection.items, subtotal:primerSection.subtotal, missing:primerSection.missing }
+      toSection("muur", "Muurwerken", muurSection),
+      toSection("plafond", "Plafondwerken", plafondSection),
+      toSection("verf", "Verfwerken", verfSection),
+      toSection("primer", "Primerwerken", primerSection)
     ];
     var anyMissing = muurSection.missing || plafondSection.missing || verfSection.missing || primerSection.missing;
     var subtotal = muurSection.subtotal + plafondSection.subtotal + verfSection.subtotal + primerSection.subtotal;
@@ -6170,16 +6217,28 @@
           +   '<label>Arbeid '+sec.title.toLowerCase()+' (uren)</label>'
           +   '<input type="text" inputmode="decimal" class="offerte-section-hours-input" data-svc="'+svcKey+'" value="'+(state.serviceHours[svcKey]||0)+'">'
           + '</div>') : '';
+        // Materials and labor are shown as two separate sublines (rather
+        // than labor as just another row in the materials table) so the
+        // user always sees, per section, the total material cost and the
+        // total labor cost separately - both still add up to the same
+        // section total as before (see finalizeCategory).
+        var hasContent = sec.items.length>0 || !!sec.laborItem;
+        var totalsHtml = hasContent ? (''
+          + '<div class="offerte-section-subtotal"><span>Materiaalkost '+sec.title.toLowerCase()+'</span><span>'+fmtEuro(sec.materialSubtotal)+'</span></div>'
+          + (sec.laborItem ? ('<div class="offerte-section-subtotal"><span>Arbeidskost '+sec.title.toLowerCase()+' ('+sec.laborItem.qty+' uur)</span><span>'+fmtEuro(sec.laborSubtotal)+'</span></div>') : '')
+          + '<div class="offerte-section-subtotal offerte-section-grand"><span>Totaal '+sec.title.toLowerCase()+'</span><span>'+fmtEuro(sec.subtotal)+'</span></div>'
+        ) : '';
         return '<div>'
           + '<div class="offerte-section-title">'+sec.title+'</div>'
           + hoursFieldHtml
-          + (sec.items.length ? (''
+          + (hasContent ? (''
             + '<div class="offerte-table-wrap" style="overflow-x:auto;">'
-            +   '<table class="offerte-table">'
-            +     '<thead><tr><th>Materiaal</th><th>Aantal</th><th>Eenheidsprijs</th><th>Totaal</th></tr></thead>'
-            +     '<tbody>'+rowsHtml+'</tbody>'
-            +   '</table>'
-            +   '<div class="offerte-section-subtotal"><span>Subtotaal '+sec.title.toLowerCase()+'</span><span>'+fmtEuro(sec.subtotal)+'</span></div>'
+            +   (sec.items.length ? (''
+                + '<table class="offerte-table">'
+                +   '<thead><tr><th>Materiaal</th><th>Aantal</th><th>Eenheidsprijs</th><th>Totaal</th></tr></thead>'
+                +   '<tbody>'+rowsHtml+'</tbody>'
+                + '</table>') : '')
+            +   totalsHtml
             + '</div>') : '')
           + '</div>';
       }).join("");
@@ -6385,6 +6444,7 @@
     showProjectList();
   }
   (async function(){
+    await loadSessionInfo();
     await loadProjectsState();
     await loadMaterialPrices();
     restoreFromUrlOrShowHome();
