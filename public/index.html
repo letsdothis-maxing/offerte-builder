@@ -61,16 +61,18 @@
     border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px;background:#fff;color:var(--ink);
   }
 
-  /* ---------- account menu (email trigger -> Instellingen/Log uit) ---------- */
+  /* ---------- account menu (name+email trigger -> Instellingen/Log uit) ---------- */
   .account-menu-wrap{position:relative;}
   .account-menu-trigger{
-    display:flex;align-items:center;gap:4px;
+    display:flex;align-items:center;gap:6px;
     border:1px solid transparent;background:transparent;color:var(--ink);
-    padding:7px 10px;border-radius:8px;font-size:12.5px;cursor:pointer;user-select:none;
-    max-width:180px;
+    padding:5px 10px;border-radius:8px;cursor:pointer;user-select:none;
+    max-width:200px;
   }
-  .account-menu-trigger .account-menu-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .account-menu-trigger .ic{font-size:10px;opacity:.6;}
+  .account-menu-identity{display:flex;flex-direction:column;align-items:flex-start;overflow:hidden;}
+  .account-menu-trigger .account-menu-name{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
+  .account-menu-trigger .account-menu-email{font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
+  .account-menu-trigger .ic{font-size:10px;opacity:.6;flex-shrink:0;}
   .account-menu-trigger:hover{background:#eef2f7;border-color:var(--line);}
   .account-menu{
     position:absolute;top:calc(100% + 6px);right:0;min-width:170px;
@@ -544,7 +546,10 @@
       <button class="tbtn" id="gyproc-btn"><span class="ic">🧮</span><span class="lbl">Berekenen</span></button>
       <button class="tbtn" id="clear-btn"><span class="ic">🗑</span><span class="lbl">Wis alles</span></button>
       <div class="account-menu-wrap">
-        <button class="account-menu-trigger" id="tb-account-btn"><span class="account-menu-name" id="tb-user-email"></span><span class="ic">▾</span></button>
+        <button class="account-menu-trigger" id="tb-account-btn">
+          <span class="account-menu-identity"><span class="account-menu-name" id="tb-account-name"></span><span class="account-menu-email" id="tb-user-email"></span></span>
+          <span class="ic">▾</span>
+        </button>
         <div class="account-menu hidden" id="tb-account-menu">
           <button class="account-menu-item" data-action="settings"><span class="ic">⚙️</span>Instellingen</button>
           <button class="account-menu-item" data-action="logout"><span class="ic">⎋</span>Log uit</button>
@@ -775,8 +780,12 @@
     <h1 id="pl-title">Offerte<span>Builder</span> — Projecten</h1>
     <div class="pl-topbar-actions">
       <button class="tbtn tbtn-primary" id="pl-new-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;"><span class="ic">+</span>Nieuw project</button>
+      <button class="tbtn tbtn-primary" id="pl-new-contact-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;display:none;"><span class="ic">+</span>Nieuw contact</button>
       <div class="account-menu-wrap">
-        <button class="account-menu-trigger" id="pl-account-btn"><span class="account-menu-name" id="pl-user-email"></span><span class="ic">▾</span></button>
+        <button class="account-menu-trigger" id="pl-account-btn">
+          <span class="account-menu-identity"><span class="account-menu-name" id="pl-account-name"></span><span class="account-menu-email" id="pl-user-email"></span></span>
+          <span class="ic">▾</span>
+        </button>
         <div class="account-menu hidden" id="pl-account-menu">
           <button class="account-menu-item" data-action="settings"><span class="ic">⚙️</span>Instellingen</button>
           <button class="account-menu-item" data-action="logout"><span class="ic">⎋</span>Log uit</button>
@@ -847,7 +856,6 @@
       </div>
     </div>
     <div id="pl-page-contacts" style="display:none;">
-      <button class="btn btn-primary" id="contacts-new-btn" style="margin-bottom:16px;">+ Nieuw contact</button>
       <div id="contacts-empty" class="pl-empty" style="display:none;">Nog geen contacten. Ze worden automatisch toegevoegd zodra je een klantnaam invult bij een project.</div>
       <div id="contacts-grid" class="pl-grid"></div>
     </div>
@@ -2176,6 +2184,20 @@
     await fetch("/api/auth/logout", { method:"POST" }).catch(function(){});
     location.href = "/login";
   }
+  // Shown in both topbars' account-menu trigger: the settings page's
+  // "Zaaknaam" (company name) as the primary line, login email as subtext -
+  // falls back to the email alone until settings have loaded / if no
+  // company name was ever filled in. Called after login-session loads,
+  // after appSettings loads, and live while editing "Zaaknaam".
+  function renderAccountIdentity(){
+    var name = (appSettings.companyName||"").trim() || currentUserEmail || "";
+    [["tb-account-name","tb-user-email"],["pl-account-name","pl-user-email"]].forEach(function(pair){
+      var nameEl = document.getElementById(pair[0]);
+      var emailEl = document.getElementById(pair[1]);
+      if(nameEl) nameEl.textContent = name;
+      if(emailEl) emailEl.textContent = currentUserEmail;
+    });
+  }
   async function loadSessionInfo(){
     try{
       var res = await fetch("/api/auth/session");
@@ -2183,10 +2205,7 @@
       var data = await res.json();
       var email = data.email || "";
       currentUserEmail = email;
-      ["tb-user-email","pl-user-email"].forEach(function(id){
-        var el = document.getElementById(id);
-        if(el) el.textContent = email;
-      });
+      renderAccountIdentity();
       // Both topbars share the same account-menu-trigger/-menu/-item pattern -
       // one email/⚙️/⎋ menu instead of separate settings+logout buttons, so
       // the header stays compact (see account-menu CSS above #topbar).
@@ -2318,6 +2337,7 @@
       } else {
         appSettings = Object.assign({}, DEFAULT_APP_SETTINGS);
       }
+      renderAccountIdentity();
       var contactsIdx = projectsState.projects.findIndex(function(p){ return p.id===CONTACTS_ROW_ID; });
       if(contactsIdx>=0){
         contactsState = (projectsState.projects[contactsIdx].data||{}).contacts || [];
@@ -2521,6 +2541,7 @@
     document.getElementById("pl-page-settings").style.display = page==="settings" ? "" : "none";
     document.getElementById("pl-page-contacts").style.display = page==="contacts" ? "" : "none";
     document.getElementById("pl-new-btn").style.display = page==="projects" ? "" : "none";
+    document.getElementById("pl-new-contact-btn").style.display = page==="contacts" ? "" : "none";
     var pageTitle = page==="materials" ? "Materialen" : page==="planning" ? "Planning" : page==="settings" ? "Instellingen" : page==="contacts" ? "Contacten" : "Projecten";
     document.getElementById("pl-title").innerHTML = "Offerte<span>Builder</span> — "+pageTitle;
     if(page==="projects") renderProjectList();
@@ -2612,6 +2633,7 @@
     document.getElementById(cfg[0]).addEventListener("input", function(){
       appSettings[cfg[1]] = cfg[2] ? Math.max(0, parseFloat(this.value)||0) : this.value;
       if(cfg[3]) homeGeoCache = null;
+      if(cfg[1]==="companyName") renderAccountIdentity();
       scheduleSettingsSave();
     });
   });
@@ -3442,7 +3464,7 @@
     cfEditingId = null;
   }
   cfBackdrop.addEventListener("click", closeContactForm);
-  document.getElementById("contacts-new-btn").addEventListener("click", function(){ openContactForm(null); });
+  document.getElementById("pl-new-contact-btn").addEventListener("click", function(){ openContactForm(null); });
   document.querySelectorAll("#contact-form-panel .ctype-btn").forEach(function(btn){
     btn.addEventListener("click", function(){ setCfClientType(btn.dataset.ctype); });
   });
