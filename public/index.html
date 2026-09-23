@@ -742,6 +742,7 @@
     <h1 id="pl-title">Offerte<span>Builder</span> — Projecten</h1>
     <div class="pl-topbar-actions">
       <button class="tbtn tbtn-primary" id="pl-new-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;"><span class="ic">+</span>Nieuw project</button>
+      <button class="tbtn tbtn-primary" id="contacts-new-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;display:none;"><span class="ic">+</span>Nieuw contact</button>
       <button class="pl-nav-btn pl-header-settings-btn" data-page="settings" title="Instellingen"><span class="ic">⚙️</span></button>
     </div>
   </div>
@@ -808,7 +809,6 @@
       </div>
     </div>
     <div id="pl-page-contacts" style="display:none;">
-      <button class="btn btn-primary" id="contacts-new-btn" style="margin-bottom:16px;">+ Nieuw contact</button>
       <div id="contacts-empty" class="pl-empty" style="display:none;">Nog geen contacten. Ze worden automatisch toegevoegd zodra je een klantnaam invult bij een project.</div>
       <div id="contacts-grid" class="pl-grid"></div>
     </div>
@@ -2422,6 +2422,7 @@
     document.getElementById("pl-page-settings").style.display = page==="settings" ? "" : "none";
     document.getElementById("pl-page-contacts").style.display = page==="contacts" ? "" : "none";
     document.getElementById("pl-new-btn").style.display = page==="projects" ? "" : "none";
+    document.getElementById("contacts-new-btn").style.display = page==="contacts" ? "" : "none";
     var pageTitle = page==="materials" ? "Materialen" : page==="planning" ? "Planning" : page==="settings" ? "Instellingen" : page==="contacts" ? "Contacten" : "Projecten";
     document.getElementById("pl-title").innerHTML = "Offerte<span>Builder</span> — "+pageTitle;
     if(page==="projects") renderProjectList();
