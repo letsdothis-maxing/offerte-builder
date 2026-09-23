@@ -1393,10 +1393,20 @@
         var zoneWallIds = polyList.length === 1 ? face.wallIds : face.wallIds.filter(function(wid){
           var wall = state.walls.find(function(ww){ return ww.id===wid; });
           if(!wall) return false;
-          var mid = { x:(wall.x1+wall.x2)/2, y:(wall.y1+wall.y2)/2 };
-          for(var i=0;i<poly.length;i++){
-            var a=poly[i], b=poly[(i+1)%poly.length];
-            if(pointSegDist(mid, a, b).d < 10) return true;
+          // Sample along the wall's full length, not just its midpoint - a
+          // long wall can genuinely border several zones (e.g. a thin notch
+          // zone only exposed to a short stretch of it), and a midpoint-only
+          // test silently leaves those zones with zero attributed walls
+          // even though they do touch a real wall (breaks their UD-
+          // perimeter/opstaand-wandje material calc downstream).
+          var samples = 9;
+          for(var s=0; s<=samples; s++){
+            var t = s/samples;
+            var pt = { x: wall.x1+(wall.x2-wall.x1)*t, y: wall.y1+(wall.y2-wall.y1)*t };
+            for(var i=0;i<poly.length;i++){
+              var a=poly[i], b=poly[(i+1)%poly.length];
+              if(pointSegDist(pt, a, b).d < 10) return true;
+            }
           }
           return false;
         });
@@ -1537,6 +1547,7 @@
     drawWallPills(dark);
     drawWallOrderBadges(dark);
     drawZoneNumberBadges(zones, dark);
+    drawBulkheadNumberBadges(resolvedCuts, dark);
     drawZoneHeightPills(zones, dark);
     drawWallDrawPreview(dark);
     drawZoneDrawPreview(dark);
@@ -1846,6 +1857,43 @@
       ctx.beginPath();
       ctx.arc(s.x, s.y, r, 0, Math.PI*2);
       ctx.fillStyle = active ? "#16a34a" : "#2f6feb";
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = dark ? "#0b0f18" : "#ffffff";
+      ctx.stroke();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "700 12px -apple-system,Segoe UI,Roboto,sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(String(idx+1), s.x, s.y+1);
+    });
+  }
+
+  // Same idea as drawZoneNumberBadges, but for the room's genuine height-
+  // differences - own numbering (1, 2, ...) independent of the zone
+  // numbers, so it doesn't look like a continuation of them. Matched by
+  // rc.id (the underlying zoneCut's own stable id, carried through onto
+  // every resolvedCuts entry) rather than object identity, for the same
+  // stale-reference-across-frames reason drawZoneNumberBadges re-matches by
+  // zone.key. Positioned at the cut's own midpoint, offset to one side (in
+  // screen space, same perpendicular-vector technique drawZoneCuts already
+  // uses for its tick marks) so it sits next to the thick purple
+  // architectural-section band instead of on top of it. Purple base color
+  // matches that band, so the badge and its line read as one unit; green
+  // when selected, same "this one is active" convention zone badges use.
+  function drawBulkheadNumberBadges(resolvedCuts, dark){
+    if(!gyprocCeilingViewActive || !gyprocCeilingState || !gyprocCeilingState.bulkheads.length) return;
+    gyprocCeilingState.bulkheads.forEach(function(b, idx){
+      var rc = resolvedCuts.find(function(r){ return r.id===b.rc.id; });
+      if(!rc) return;
+      var a = worldToScreen(rc.p1.x, rc.p1.y), c = worldToScreen(rc.p2.x, rc.p2.y);
+      var dx = c.x-a.x, dy = c.y-a.y, len = Math.hypot(dx,dy)||1;
+      var nx = -dy/len, ny = dx/len;
+      var s = { x:(a.x+c.x)/2 + nx*22, y:(a.y+c.y)/2 + ny*22 };
+      var r = 13;
+      var active = idx===gyprocActiveBulkheadIdx;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r, 0, Math.PI*2);
+      ctx.fillStyle = active ? "#16a34a" : "#9333ea";
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = dark ? "#0b0f18" : "#ffffff";
@@ -4522,6 +4570,7 @@
   // always placed AFTER "muren" in the tab bar since the ceiling builds last.
   var gyprocTopTab = "muren"; // "muren" | "plafond"
   var gyprocActiveZoneIdx = 0; // index into gyprocCeilingState.zonesPlan
+  var gyprocActiveBulkheadIdx = 0; // index into gyprocCeilingState.bulkheads - independent selection from gyprocActiveZoneIdx
   // canvas feedback: true while the drawer is open on the Plafond top-tab -
   // greys out the wall order badges and swaps in per-zone number badges
   // instead (see drawWallOrderBadges/drawZoneNumberBadges), since a flat
@@ -4580,7 +4629,7 @@
     roomWalls.sort(function(a,b){ return (a.order||0)-(b.order||0); });
     gyprocWallIds = roomWalls.map(function(w){ return w.id; });
     gyprocActiveWallIdx = Math.max(0, gyprocWallIds.indexOf(wallId));
-    gyprocTopTab = "muren"; gyprocActiveZoneIdx = 0;
+    gyprocTopTab = "muren"; gyprocActiveZoneIdx = 0; gyprocActiveBulkheadIdx = 0;
 
     gyprocBackdrop.classList.add("open");
     gyprocPanel.classList.add("open");
@@ -5238,6 +5287,13 @@
       hDiffMm: hDiffMm, lSprongMm: lSprongMm,
       cdPieces: cdPieces, cdCount: cdCount, cdRunMm: hDiffMm,
       udPieces: [lSprongMm, lSprongMm],
+      // A bulkhead is a small stud-and-track partition fixed top/bottom by
+      // its own UD track (see udPieces above), not suspended from the
+      // structural ceiling above - unlike a real zone, it genuinely needs
+      // no snelhangers. Kept at 0 (rather than omitted) so this plan's
+      // shape matches a zonesPlan entry's, letting computeZonePriceTotal
+      // and the shared detail-view builder work on either unmodified.
+      hangerCount: 0,
       results: computeBestPanelResults(lSprongMm, hDiffMm, thicknessMm)
     };
   }
@@ -5288,11 +5344,24 @@
         udLengthOptions: plan.udPieces.length ? packLengthPieces(plan.udPieces, TRACK_LENGTHS) : [], udActiveIndex: 0
       };
     });
+    // Each entry gets the exact same shape a zonesPlan entry has (results/
+    // activeIndex/cdLengthOptions/cdActiveIndex/udLengthOptions/
+    // udActiveIndex) so computeZonePriceTotal and the shared detail-view
+    // builder (buildCeilingItemDetailHtml) work on either unmodified -
+    // bulkheads get their own tab + visualization instead of just a flat
+    // text summary.
     var bulkheads = (state._lastResolvedCuts||[]).filter(function(rc){
       return roomZones.indexOf(rc.zoneA)>=0 && roomZones.indexOf(rc.zoneB)>=0;
     }).map(function(rc){
-      return { rc: rc, plan: computeBulkheadPlan(rc, thicknessMm, gyprocCeilingHohMm) };
-    }).filter(function(b){ return b.plan; });
+      var plan = computeBulkheadPlan(rc, thicknessMm, gyprocCeilingHohMm);
+      if(!plan) return null;
+      return {
+        rc: rc, plan: plan,
+        results: plan.results, activeIndex: 0,
+        cdLengthOptions: packLengthPieces(plan.cdPieces, TRACK_LENGTHS), cdActiveIndex: 0,
+        udLengthOptions: plan.udPieces.length ? packLengthPieces(plan.udPieces, TRACK_LENGTHS) : [], udActiveIndex: 0
+      };
+    }).filter(Boolean);
 
     var totalAreaM2 = roomZones.reduce(function(s,z){ return s+z.area; },0)/1000000;
     return { zonesPlan: zonesPlan, bulkheads: bulkheads, totalAreaM2: totalAreaM2 };
@@ -5451,6 +5520,7 @@
     gyprocCeilingState = computeCeilingForRoom(includedWalls, thicknessMm);
     if(!gyprocCeilingState) gyprocTopTab = "muren"; // nothing to show on the Plafond tab anymore
     if(gyprocCeilingState && gyprocActiveZoneIdx >= gyprocCeilingState.zonesPlan.length) gyprocActiveZoneIdx = 0;
+    if(gyprocCeilingState && gyprocActiveBulkheadIdx >= gyprocCeilingState.bulkheads.length) gyprocActiveBulkheadIdx = 0;
     gyprocCeilingViewActive = gyprocTopTab === "plafond" && !!gyprocCeilingState;
 
     renderGyprocResults();
@@ -5544,6 +5614,25 @@
       +   '<div class="gyproc-checkout-tabs">'+tabsHtml+'</div>'
       + '</div>';
   }
+  // Same pattern as buildZoneCheckoutTabsHtml, but for the room's genuine
+  // height-differences (bulkheads) - own numbering (1, 2, ...), independent
+  // of the zone numbers above, matching the numbered badge drawn on each
+  // split-line itself (drawBulkheadNumberBadges).
+  function buildBulkheadCheckoutTabsHtml(cs){
+    if(!cs.bulkheads.length) return '';
+    var tabsHtml = cs.bulkheads.map(function(b, idx){
+      var t = computeZonePriceTotal(b);
+      return '<button type="button" class="gyproc-tab'+(idx===gyprocActiveBulkheadIdx?' active':'')+'" data-bulkhead-idx="'+idx+'">'
+        + '<div class="sz">Hoogteverschil '+(idx+1)+'</div>'
+        + '<div class="stat'+(t.missingPrice?' warn':'')+'">'+fmtEuroOrMissing(t.total, t.missingPrice)+'</div>'
+        + '</button>';
+    }).join('');
+    return ''
+      + '<div class="gyproc-checkout-wrap">'
+      +   '<div class="gyproc-checkout-label">Hoogteverschillen in dit plafond</div>'
+      +   '<div class="gyproc-checkout-tabs">'+tabsHtml+'</div>'
+      + '</div>';
+  }
   // Listeners shared by BOTH the wall and ceiling render paths (top-tab +
   // sub-tab switching, verf/primer aantal-lagen inputs) - factored out so
   // neither path has to duplicate the wiring.
@@ -5565,6 +5654,14 @@
     resultEl.querySelectorAll(".gyproc-tab[data-zone-idx]").forEach(function(btn){
       btn.addEventListener("click", function(){
         gyprocActiveZoneIdx = parseInt(btn.dataset.zoneIdx,10);
+        render(); // canvas feedback: this zone's number badge turns green
+        renderGyprocResults();
+      });
+    });
+    resultEl.querySelectorAll(".gyproc-tab[data-bulkhead-idx]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        gyprocActiveBulkheadIdx = parseInt(btn.dataset.bulkheadIdx,10);
+        render(); // canvas feedback: this bulkhead's number badge turns green
         renderGyprocResults();
       });
     });
@@ -5680,6 +5777,126 @@
   // to the room, not to one zone; verven/primeren reuse the exact same
   // buildCoatingSectionHtml() a wall tab uses, fed the ceiling's own total
   // area instead of a single wall's.
+  // Shared by a zone's own detail view AND a bulkhead's - both have the same
+  // shape (results/activeIndex/cdLengthOptions/cdActiveIndex/
+  // udLengthOptions/udActiveIndex, plan with cdPieces/udPieces/cdRunMm/
+  // cdCount/hangerCount) since computeCeilingForRoom gives bulkhead entries
+  // the exact same fields a zonesPlan entry has. opts carries the one truly
+  // item-specific bit (the area row's label/value - "Plafondoppervlak" for a
+  // zone, "Oppervlakte schot" for a bulkhead) and the panel's own
+  // length/width (a zone's plan uses lengteMm/breedteMm, a bulkhead's uses
+  // lSprongMm/hDiffMm - same rectangle-cutting math either way, just
+  // different field names upstream). The whole "Horizontale studs +
+  // Snelhangers" block is skipped when hangerCount is 0, which is always
+  // true for a bulkhead (see computeBulkheadPlan) - it's a small
+  // stud-and-track partition fixed top/bottom, not suspended from the
+  // structural ceiling.
+  function buildCeilingItemDetailHtml(item, opts){
+    var bestPanel = item.results[0];
+    var active = item.results[item.activeIndex] || bestPanel;
+    var diagramSVG = buildGyprocDiagramSVG(opts.lengthMm, opts.widthMm, active, null);
+    var gridSVG = buildCeilingGridDiagramSVG(opts.lengthMm, opts.widthMm, item.plan.cdCount);
+
+    var panelTabsHtml = item.results.map(function(r, idx){
+      return '<button type="button" class="gyproc-tab'+(idx===item.activeIndex?' active':'')+'" data-'+opts.tabAttr+'-panel-idx="'+idx+'">'
+        + (r===bestPanel ? '<span class="badge">Beste</span>' : '')
+        + '<div class="sz">'+r.sizeLabel+'</div>'
+        + '<div class="stat">'+r.netPanels+' pl. · '+r.wastePct.toFixed(0)+'% verlies</div>'
+        + '</button>';
+    }).join('');
+
+    var bestCd = item.cdLengthOptions[0];
+    var activeCd = item.cdLengthOptions[item.cdActiveIndex] || bestCd;
+    var coupling = computeCdCouplingInfo(item.plan, activeCd);
+    var cdReserve = Math.ceil(activeCd.totalPieces*(1+STUD_RESERVE_PCT/100));
+    var hangerReserve = Math.ceil((item.plan.hangerCount+coupling.totalSplices)*(1+STUD_RESERVE_PCT/100));
+    var cdCardsHtml = item.cdLengthOptions.map(function(r, idx){
+      return '<button type="button" class="gyproc-tab'+(idx===item.cdActiveIndex?' active':'')+'" data-'+opts.tabAttr+'-cd-idx="'+idx+'">'
+        + (r===bestCd ? '<span class="badge">Beste</span>' : '')
+        + '<div class="sz">'+gyprocCeilingGaugeMm+'mm &middot; '+(r.pieceLenMm/10)+' cm</div>'
+        + '<div class="stat">'+r.totalPieces+' pr. · '+r.wastePct.toFixed(0)+'% verlies</div>'
+        + '</button>';
+    }).join('');
+
+    var udHtml = '';
+    if(item.plan.udPieces.length){
+      var bestUd = item.udLengthOptions[0];
+      var activeUd = item.udLengthOptions[item.udActiveIndex] || bestUd;
+      var udReserve = Math.ceil(activeUd.totalPieces*(1+STUD_RESERVE_PCT/100));
+      var udCardsHtml = item.udLengthOptions.map(function(r, idx){
+        return '<button type="button" class="gyproc-tab'+(idx===item.udActiveIndex?' active':'')+'" data-'+opts.tabAttr+'-ud-idx="'+idx+'">'
+          + (r===bestUd ? '<span class="badge">Beste</span>' : '')
+          + '<div class="sz">'+(r.pieceLenMm/10)+' cm</div>'
+          + '<div class="stat">'+r.totalPieces+' stuks · '+r.wastePct.toFixed(0)+'% verlies</div>'
+          + '</button>';
+      }).join('');
+      udHtml = ''
+        + '<div class="gyproc-tabs-row">'+udCardsHtml+'</div>'
+        + '<div class="row"><span class="k">Aan te kopen profielen ('+(activeUd.pieceLenMm/10)+' cm)</span><span class="v">'+activeUd.totalPieces+'</span></div>'
+        + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+udReserve+' stuks</span></div>';
+    }
+    var couplingHtml = '';
+    if(coupling.needsCoupling){
+      var couplingReserve = Math.ceil(coupling.totalSplices*(1+STUD_RESERVE_PCT/100));
+      couplingHtml = ''
+        + '<div class="row" style="margin-top:12px;"><span class="k" style="color:#b45309;">⚠ Overspanning ('+(item.plan.cdRunMm/1000).toFixed(2)+' m) groter dan de gekozen profiellengte - profielen moeten gekoppeld worden</span><span class="v"></span></div>'
+        + '<div class="row"><span class="k">Verbindingsstukken ('+coupling.splicesPerRun+' per profiel × '+item.plan.cdCount+')</span><span class="v">'+coupling.totalSplices+'</span></div>'
+        + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+couplingReserve+' stuks</span></div>'
+        + '<div class="row"><span class="k" style="font-style:italic;">Elke koppeling krijgt ook een extra snelhanger ter plaatse, zodat het profiel daar niet doorzakt</span><span class="v"></span></div>';
+    }
+    var hangersHtml = item.plan.hangerCount>0 ? (''
+      + '<div class="row" style="margin-top:12px;"><span class="k">Snelhangers (om de '+(CEILING_HANGER_SPACING_MM/10)+' cm)</span><span class="v">'+item.plan.hangerCount+(coupling.totalSplices>0?' + '+coupling.totalSplices+' bij koppelingen':'')+'</span></div>'
+      + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+hangerReserve+' stuks</span></div>'
+    ) : '';
+
+    return ''
+      + '<div class="reco">Aanbevolen: <strong>'+bestPanel.sizeLabel+'</strong> — '+bestPanel.netPanels+' platen, '+bestPanel.wastePct.toFixed(0)+'% verlies (minste materiaalverlies)</div>'
+      + '<div class="gyproc-tabs-row">'+panelTabsHtml+'</div>'
+      + '<div class="big">'+active.netPanels+' '+(active.netPanels===1?'plaat':'platen')+'</div>'
+      + '<div class="gyproc-diagram-box">'+diagramSVG+'</div>'
+      + '<div class="row"><span class="k">'+opts.areaLabel+'</span><span class="v">'+opts.areaM2.toFixed(2)+' m²</span></div>'
+      + '<div class="row"><span class="k">Plaatformaat</span><span class="v">'+active.panelW+' x '+active.panelH+' mm, '+active.thicknessMm+' mm dik</span></div>'
+      + '<div class="row"><span class="k">Snijverlies</span><span class="v">'+active.wastePct.toFixed(0)+'%</span></div>'
+      + '<div class="gyproc-diagram-box">'+gridSVG+'</div>'
+      + '<div id="gyproc-legend">'
+      +   '<span><i style="background:rgba(217,119,6,0.85);border:1.5px solid #92400e;"></i>Verticale stud (CD-profiel, '+(gyprocCeilingHohMm/10)+'cm h.o.h.)</span>'
+      +   '<span><i style="background:rgba(234,179,8,0.7);border:1.5px solid #a16207;"></i>Horizontale stud (UD-randprofiel)</span>'
+      + '</div>'
+      + '<div class="row"><span class="k">Verticale studs (h.o.h. max. '+(gyprocCeilingHohMm/10)+' cm)</span><span class="v">'+item.plan.cdPieces.length+'</span></div>'
+      + '<div class="gyproc-tabs-row">'+cdCardsHtml+'</div>'
+      + '<div class="row"><span class="k">Aan te kopen profielen ('+(activeCd.pieceLenMm/10)+' cm)</span><span class="v">'+activeCd.totalPieces+'</span></div>'
+      + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+cdReserve+' stuks</span></div>'
+      + couplingHtml
+      + '<div class="row" style="margin-top:12px;"><span class="k"><strong>Horizontale studs</strong>'+(!item.plan.udPieces.length?' (volledig gedekt door de horizontale studs van de muren zelf)':'')+'</span><span class="v"></span></div>'
+      + udHtml
+      + hangersHtml;
+  }
+  // Wires the panel/CD/UD sub-tabs a buildCeilingItemDetailHtml block just
+  // rendered, for either a zone (tabAttr="zone") or a bulkhead
+  // (tabAttr="bulkhead") - dataset property names are the camelCase form of
+  // the data-<tabAttr>-panel-idx etc. attributes buildCeilingItemDetailHtml
+  // wrote, e.g. tabAttr="bulkhead" -> dataset.bulkheadPanelIdx.
+  function wireCeilingItemTabs(resultEl, item, tabAttr){
+    resultEl.querySelectorAll(".gyproc-tab[data-"+tabAttr+"-panel-idx]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        item.activeIndex = parseInt(btn.dataset[tabAttr+"PanelIdx"],10);
+        renderGyprocResults();
+      });
+    });
+    resultEl.querySelectorAll(".gyproc-tab[data-"+tabAttr+"-cd-idx]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        item.cdActiveIndex = parseInt(btn.dataset[tabAttr+"CdIdx"],10);
+        renderGyprocResults();
+      });
+    });
+    resultEl.querySelectorAll(".gyproc-tab[data-"+tabAttr+"-ud-idx]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        item.udActiveIndex = parseInt(btn.dataset[tabAttr+"UdIdx"],10);
+        renderGyprocResults();
+      });
+    });
+  }
+
   function renderCeilingResults(){
     var cs = gyprocCeilingState;
     document.getElementById("gyproc-wall-info").textContent =
@@ -5706,93 +5923,22 @@
     var checkoutTabsHtml = buildTopTabsHtml() + hohGaugeHtml + buildZoneCheckoutTabsHtml(cs);
 
     var zp = cs.zonesPlan[gyprocActiveZoneIdx] || cs.zonesPlan[0];
-    var bestPanel = zp.results[0];
-    var active = zp.results[zp.activeIndex] || bestPanel;
-    var diagramSVG = buildGyprocDiagramSVG(zp.plan.lengteMm, zp.plan.breedteMm, active, null);
-    var gridSVG = buildCeilingGridDiagramSVG(zp.plan.lengteMm, zp.plan.breedteMm, zp.plan.cdCount);
+    var zoneHtml = buildCeilingItemDetailHtml(zp, {
+      lengthMm: zp.plan.lengteMm, widthMm: zp.plan.breedteMm,
+      areaLabel: 'Plafondoppervlak', areaM2: zp.zone.area/1000000, tabAttr: 'zone'
+    });
 
-    // Panel-format tabs - same "Beste" badge + waste% comparison pattern as
-    // a wall's own gyproc-tabs-row, just driven by zp.activeIndex instead
-    // of ws.activeIndex.
-    var panelTabsHtml = zp.results.map(function(r, idx){
-      return '<button type="button" class="gyproc-tab'+(idx===zp.activeIndex?' active':'')+'" data-zone-panel-idx="'+idx+'">'
-        + (r===bestPanel ? '<span class="badge">Beste</span>' : '')
-        + '<div class="sz">'+r.sizeLabel+'</div>'
-        + '<div class="stat">'+r.netPanels+' pl. · '+r.wastePct.toFixed(0)+'% verlies</div>'
-        + '</button>';
-    }).join('');
-
-    var bestCd = zp.cdLengthOptions[0];
-    var activeCd = zp.cdLengthOptions[zp.cdActiveIndex] || bestCd;
-    var coupling = computeCdCouplingInfo(zp.plan, activeCd);
-    var cdReserve = Math.ceil(activeCd.totalPieces*(1+STUD_RESERVE_PCT/100));
-    var hangerReserve = Math.ceil((zp.plan.hangerCount+coupling.totalSplices)*(1+STUD_RESERVE_PCT/100));
-    var cdCardsHtml = zp.cdLengthOptions.map(function(r, idx){
-      return '<button type="button" class="gyproc-tab'+(idx===zp.cdActiveIndex?' active':'')+'" data-zone-cd-idx="'+idx+'">'
-        + (r===bestCd ? '<span class="badge">Beste</span>' : '')
-        + '<div class="sz">'+gyprocCeilingGaugeMm+'mm &middot; '+(r.pieceLenMm/10)+' cm</div>'
-        + '<div class="stat">'+r.totalPieces+' pr. · '+r.wastePct.toFixed(0)+'% verlies</div>'
-        + '</button>';
-    }).join('');
-
-    var udHtml = '';
-    if(zp.plan.udPieces.length){
-      var bestUd = zp.udLengthOptions[0];
-      var activeUd = zp.udLengthOptions[zp.udActiveIndex] || bestUd;
-      var udReserve = Math.ceil(activeUd.totalPieces*(1+STUD_RESERVE_PCT/100));
-      var udCardsHtml = zp.udLengthOptions.map(function(r, idx){
-        return '<button type="button" class="gyproc-tab'+(idx===zp.udActiveIndex?' active':'')+'" data-zone-ud-idx="'+idx+'">'
-          + (r===bestUd ? '<span class="badge">Beste</span>' : '')
-          + '<div class="sz">'+(r.pieceLenMm/10)+' cm</div>'
-          + '<div class="stat">'+r.totalPieces+' stuks · '+r.wastePct.toFixed(0)+'% verlies</div>'
-          + '</button>';
-      }).join('');
-      udHtml = ''
-        + '<div class="gyproc-tabs-row">'+udCardsHtml+'</div>'
-        + '<div class="row"><span class="k">Aan te kopen profielen ('+(activeUd.pieceLenMm/10)+' cm)</span><span class="v">'+activeUd.totalPieces+'</span></div>'
-        + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+udReserve+' stuks</span></div>';
-    }
-    var couplingHtml = '';
-    if(coupling.needsCoupling){
-      var couplingReserve = Math.ceil(coupling.totalSplices*(1+STUD_RESERVE_PCT/100));
-      couplingHtml = ''
-        + '<div class="row" style="margin-top:12px;"><span class="k" style="color:#b45309;">⚠ Overspanning ('+(zp.plan.cdRunMm/1000).toFixed(2)+' m) groter dan de gekozen profiellengte - profielen moeten gekoppeld worden</span><span class="v"></span></div>'
-        + '<div class="row"><span class="k">Verbindingsstukken ('+coupling.splicesPerRun+' per profiel × '+zp.plan.cdCount+')</span><span class="v">'+coupling.totalSplices+'</span></div>'
-        + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+couplingReserve+' stuks</span></div>'
-        + '<div class="row"><span class="k" style="font-style:italic;">Elke koppeling krijgt ook een extra snelhanger ter plaatse, zodat het profiel daar niet doorzakt</span><span class="v"></span></div>';
-    }
-
-    var zoneHtml = ''
-      + '<div class="reco">Aanbevolen: <strong>'+bestPanel.sizeLabel+'</strong> — '+bestPanel.netPanels+' platen, '+bestPanel.wastePct.toFixed(0)+'% verlies (minste materiaalverlies)</div>'
-      + '<div class="gyproc-tabs-row">'+panelTabsHtml+'</div>'
-      + '<div class="big">'+active.netPanels+' '+(active.netPanels===1?'plaat':'platen')+'</div>'
-      + '<div class="gyproc-diagram-box">'+diagramSVG+'</div>'
-      + '<div class="row"><span class="k">Plafondoppervlak</span><span class="v">'+(zp.zone.area/1000000).toFixed(2)+' m²</span></div>'
-      + '<div class="row"><span class="k">Plaatformaat</span><span class="v">'+active.panelW+' x '+active.panelH+' mm, '+active.thicknessMm+' mm dik</span></div>'
-      + '<div class="row"><span class="k">Snijverlies</span><span class="v">'+active.wastePct.toFixed(0)+'%</span></div>'
-      + '<div class="gyproc-diagram-box">'+gridSVG+'</div>'
-      + '<div id="gyproc-legend">'
-      +   '<span><i style="background:rgba(217,119,6,0.85);border:1.5px solid #92400e;"></i>Verticale stud (CD-profiel, '+(gyprocCeilingHohMm/10)+'cm h.o.h.)</span>'
-      +   '<span><i style="background:rgba(234,179,8,0.7);border:1.5px solid #a16207;"></i>Horizontale stud (UD-randprofiel)</span>'
-      + '</div>'
-      + '<div class="row"><span class="k">Verticale studs (h.o.h. max. '+(gyprocCeilingHohMm/10)+' cm)</span><span class="v">'+zp.plan.cdPieces.length+'</span></div>'
-      + '<div class="gyproc-tabs-row">'+cdCardsHtml+'</div>'
-      + '<div class="row"><span class="k">Aan te kopen profielen ('+(activeCd.pieceLenMm/10)+' cm)</span><span class="v">'+activeCd.totalPieces+'</span></div>'
-      + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+cdReserve+' stuks</span></div>'
-      + couplingHtml
-      + '<div class="row" style="margin-top:12px;"><span class="k"><strong>Horizontale studs</strong>'+(!zp.plan.udPieces.length?' (volledig gedekt door de horizontale studs van de muren zelf)':'')+'</span><span class="v"></span></div>'
-      + udHtml
-      + '<div class="row" style="margin-top:12px;"><span class="k">Snelhangers (om de '+(CEILING_HANGER_SPACING_MM/10)+' cm)</span><span class="v">'+zp.plan.hangerCount+(coupling.totalSplices>0?' + '+coupling.totalSplices+' bij koppelingen':'')+'</span></div>'
-      + '<div class="row"><span class="k">Besteladvies (incl. '+STUD_RESERVE_PCT+'% reserve)</span><span class="v">'+hangerReserve+' stuks</span></div>';
-
-    var bulkheadsHtml = cs.bulkheads.length ? (''
+    // Bulkheads (height-differences) get their own tab row + full detail
+    // view here, same as zones above - own numbering (1, 2, ...) matching
+    // the numbered badge drawn on each split-line (drawBulkheadNumberBadges).
+    var activeBulkhead = cs.bulkheads[gyprocActiveBulkheadIdx] || cs.bulkheads[0];
+    var bulkheadSectionHtml = activeBulkhead ? (''
       + '<div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line);">'
-      + '<h3 style="font-size:14px;margin:0 0 10px;">Hoogteverschillen (schotten tussen plafondzones)</h3>'
-      + '<div class="row" style="font-style:italic;color:var(--muted);"><span class="k">Deze opstaande randen zijn op het grondplan zelf gemarkeerd, direct op de betreffende scheidingslijn</span><span class="v"></span></div>'
-      + cs.bulkheads.map(function(b, idx){
-          var active = b.plan.results[0];
-          return '<div class="row"><span class="k">Sprong '+(idx+1)+' - '+(b.plan.hDiffMm/10)+' cm hoog, '+(b.plan.lSprongMm/1000).toFixed(2)+' m lang</span><span class="v">'+active.netPanels+' pl.</span></div>';
-        }).join('')
+      + buildBulkheadCheckoutTabsHtml(cs)
+      + buildCeilingItemDetailHtml(activeBulkhead, {
+          lengthMm: activeBulkhead.plan.lSprongMm, widthMm: activeBulkhead.plan.hDiffMm,
+          areaLabel: 'Oppervlakte schot', areaM2: (activeBulkhead.plan.lSprongMm/1000)*(activeBulkhead.plan.hDiffMm/1000), tabAttr: 'bulkhead'
+        })
       + '</div>') : '';
 
     var paintHtml = buildCoatingSectionHtml({paintAreaM2: cs.totalAreaM2}, {
@@ -5807,26 +5953,10 @@
     });
 
     var resultEl = document.getElementById("gyproc-result");
-    resultEl.innerHTML = checkoutTabsHtml + zoneHtml + bulkheadsHtml + paintHtml + primerHtml;
+    resultEl.innerHTML = checkoutTabsHtml + zoneHtml + bulkheadSectionHtml + paintHtml + primerHtml;
     resultEl.classList.add("show");
-    resultEl.querySelectorAll(".gyproc-tab[data-zone-panel-idx]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        zp.activeIndex = parseInt(btn.dataset.zonePanelIdx,10);
-        renderGyprocResults();
-      });
-    });
-    resultEl.querySelectorAll(".gyproc-tab[data-zone-cd-idx]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        zp.cdActiveIndex = parseInt(btn.dataset.zoneCdIdx,10);
-        renderGyprocResults();
-      });
-    });
-    resultEl.querySelectorAll(".gyproc-tab[data-zone-ud-idx]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        zp.udActiveIndex = parseInt(btn.dataset.zoneUdIdx,10);
-        renderGyprocResults();
-      });
-    });
+    wireCeilingItemTabs(resultEl, zp, "zone");
+    if(activeBulkhead) wireCeilingItemTabs(resultEl, activeBulkhead, "bulkhead");
     var ceilingHohEl = document.getElementById("ceiling-hoh");
     if(ceilingHohEl) ceilingHohEl.addEventListener("change", function(){
       gyprocCeilingHohMm = parseInt(ceilingHohEl.value,10) || 400;
