@@ -292,6 +292,17 @@
   .contact-card h3{font-size:15px;margin:0 0 6px;word-break:break-word;}
   .contact-card .meta{font-size:12px;color:var(--muted);}
 
+  /* ---------- "add new" placeholder card (always first in a .pl-grid) ---------- */
+  .add-card{
+    background:var(--bg);border:1.5px dashed var(--line);border-radius:12px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    min-height:120px;cursor:pointer;color:var(--muted);
+    transition:border-color .15s,color .15s;
+  }
+  .add-card:hover{border-color:var(--blue);color:var(--blue);}
+  .add-card .add-ic{font-size:22px;line-height:1;font-weight:400;}
+  .add-card .add-label{font-size:13px;font-weight:600;}
+
   /* ---------- gyproc drawer (reuses .field/.actions/.btn from above) ---------- */
   #gyproc-backdrop{
     position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:49;
@@ -779,8 +790,6 @@
   <div class="pl-topbar">
     <h1 id="pl-title">Offerte<span>Builder</span> — Projecten</h1>
     <div class="pl-topbar-actions">
-      <button class="tbtn tbtn-primary" id="pl-new-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;"><span class="ic">+</span>Nieuw project</button>
-      <button class="tbtn tbtn-primary" id="pl-new-contact-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;display:none;"><span class="ic">+</span>Nieuw contact</button>
       <div class="account-menu-wrap">
         <button class="account-menu-trigger" id="pl-account-btn">
           <span class="account-menu-identity"><span class="account-menu-name" id="pl-account-name"></span><span class="account-menu-email" id="pl-user-email"></span></span>
@@ -1546,8 +1555,7 @@
     state._pillHitboxes = [];
     drawWallPills(dark);
     drawWallOrderBadges(dark);
-    drawZoneNumberBadges(zones, dark);
-    drawBulkheadNumberBadges(resolvedCuts, dark);
+    drawCeilingNumberBadges(zones, resolvedCuts, dark);
     drawZoneHeightPills(zones, dark);
     drawWallDrawPreview(dark);
     drawZoneDrawPreview(dark);
@@ -1804,8 +1812,8 @@
   // entirely from the room-wide gyproc calculation.
   // Greyed out while the gyproc drawer's Plafond tab is open (see
   // gyprocCeilingViewActive) - the wall build order isn't what's being
-  // looked at right then, drawZoneNumberBadges takes over as the thing the
-  // user actually needs to read off the floor plan.
+  // looked at right then, drawCeilingNumberBadges takes over as the thing
+  // the user actually needs to read off the floor plan.
   function drawWallOrderBadges(dark){
     if(state.camera.scale < 0.012) return;
     var greyed = gyprocCeilingViewActive;
@@ -1838,25 +1846,31 @@
     });
   }
 
-  // Only while the gyproc drawer's Plafond tab is open, AND the ceiling
-  // actually has more than one zone - a numbered badge per zone (same
-  // order as the Plafond tab's own "Zone 1"/"Zone 2" checkout tabs), so the
-  // user can immediately see which physical area on the floor plan a given
-  // zone tab is talking about. Matched by zone.key (stable across re-
-  // renders) since computeZones() rebuilds fresh zone objects every frame.
-  function drawZoneNumberBadges(zones, dark){
-    if(!gyprocCeilingViewActive || !gyprocCeilingState || gyprocCeilingState.zonesPlan.length<2) return;
-    gyprocCeilingState.zonesPlan.forEach(function(zp, idx){
-      var zone = zones.find(function(z){ return z.key===zp.zone.key; });
-      if(!zone) return;
-      var c = polyCentroid(zone.polygon);
-      var s = worldToScreen(c.x, c.y);
-      s.y -= 22; // sits above the zone's own height pill, drawn at the same centroid
+  // Only while the gyproc drawer's Plafond tab is open, AND there's more
+  // than one item to disambiguate - a numbered badge per zone AND per
+  // genuine height-difference (gyprocCeilingState.sequence, built by
+  // computeCeilingForRoom's room-chain walk), each numbered within its own
+  // type (a zone's own count, a bulkhead's own count - matching the unified
+  // "Zone 1, Hoogteverschil 1, Zone 2, ..." tab row so the numbers line up
+  // exactly with what's in the slide-out). Zone badges sit at the zone's own
+  // centroid (blue/green); bulkhead badges sit at their split-line's own
+  // midpoint, offset to one side in screen space (same perpendicular-vector
+  // technique drawZoneCuts already uses for its tick marks) so the badge
+  // sits next to the thick purple architectural-section band instead of on
+  // top of it (purple/green, so it still reads as paired with that line).
+  // Green = whichever single item is currently selected
+  // (ceilingResolvedActiveKey), matching both badge types against the same
+  // source of truth. Matched by stable key (zone.key / resolvedCut.id)
+  // rather than object identity/array index, since computeZones() rebuilds
+  // fresh zone/cut objects every frame.
+  function drawCeilingNumberBadges(zones, resolvedCuts, dark){
+    if(!gyprocCeilingViewActive || !gyprocCeilingState || gyprocCeilingState.sequence.length<2) return;
+    var activeKey = ceilingResolvedActiveKey(gyprocCeilingState);
+    function paintBadge(s, num, active, baseColor){
       var r = 13;
-      var active = idx===gyprocActiveZoneIdx;
       ctx.beginPath();
       ctx.arc(s.x, s.y, r, 0, Math.PI*2);
-      ctx.fillStyle = active ? "#16a34a" : "#2f6feb";
+      ctx.fillStyle = active ? "#16a34a" : baseColor;
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = dark ? "#0b0f18" : "#ffffff";
@@ -1864,44 +1878,25 @@
       ctx.fillStyle = "#ffffff";
       ctx.font = "700 12px -apple-system,Segoe UI,Roboto,sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(String(idx+1), s.x, s.y+1);
-    });
-  }
-
-  // Same idea as drawZoneNumberBadges, but for the room's genuine height-
-  // differences - own numbering (1, 2, ...) independent of the zone
-  // numbers, so it doesn't look like a continuation of them. Matched by
-  // rc.id (the underlying zoneCut's own stable id, carried through onto
-  // every resolvedCuts entry) rather than object identity, for the same
-  // stale-reference-across-frames reason drawZoneNumberBadges re-matches by
-  // zone.key. Positioned at the cut's own midpoint, offset to one side (in
-  // screen space, same perpendicular-vector technique drawZoneCuts already
-  // uses for its tick marks) so it sits next to the thick purple
-  // architectural-section band instead of on top of it. Purple base color
-  // matches that band, so the badge and its line read as one unit; green
-  // when selected, same "this one is active" convention zone badges use.
-  function drawBulkheadNumberBadges(resolvedCuts, dark){
-    if(!gyprocCeilingViewActive || !gyprocCeilingState || !gyprocCeilingState.bulkheads.length) return;
-    gyprocCeilingState.bulkheads.forEach(function(b, idx){
-      var rc = resolvedCuts.find(function(r){ return r.id===b.rc.id; });
-      if(!rc) return;
-      var a = worldToScreen(rc.p1.x, rc.p1.y), c = worldToScreen(rc.p2.x, rc.p2.y);
-      var dx = c.x-a.x, dy = c.y-a.y, len = Math.hypot(dx,dy)||1;
-      var nx = -dy/len, ny = dx/len;
-      var s = { x:(a.x+c.x)/2 + nx*22, y:(a.y+c.y)/2 + ny*22 };
-      var r = 13;
-      var active = idx===gyprocActiveBulkheadIdx;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, r, 0, Math.PI*2);
-      ctx.fillStyle = active ? "#16a34a" : "#9333ea";
-      ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = dark ? "#0b0f18" : "#ffffff";
-      ctx.stroke();
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "700 12px -apple-system,Segoe UI,Roboto,sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(String(idx+1), s.x, s.y+1);
+      ctx.fillText(String(num), s.x, s.y+1);
+    }
+    gyprocCeilingState.sequence.forEach(function(entry){
+      if(entry.type==="zone"){
+        var zone = zones.find(function(z){ return z.key===entry.item.zone.key; });
+        if(!zone) return;
+        var c = polyCentroid(zone.polygon);
+        var s = worldToScreen(c.x, c.y);
+        s.y -= 22; // sits above the zone's own height pill, drawn at the same centroid
+        paintBadge(s, entry.item.displayNumber, entry.key===activeKey, "#2f6feb");
+      } else {
+        var rc = resolvedCuts.find(function(r){ return r.id===entry.item.rc.id; });
+        if(!rc) return;
+        var a = worldToScreen(rc.p1.x, rc.p1.y), b = worldToScreen(rc.p2.x, rc.p2.y);
+        var dx = b.x-a.x, dy = b.y-a.y, len = Math.hypot(dx,dy)||1;
+        var nx = -dy/len, ny = dx/len;
+        var s2 = { x:(a.x+b.x)/2 + nx*22, y:(a.y+b.y)/2 + ny*22 };
+        paintBadge(s2, entry.item.displayNumber, entry.key===activeKey, "#9333ea");
+      }
     });
   }
 
@@ -2588,8 +2583,6 @@
     document.getElementById("pl-page-planning").style.display = page==="planning" ? "" : "none";
     document.getElementById("pl-page-settings").style.display = page==="settings" ? "" : "none";
     document.getElementById("pl-page-contacts").style.display = page==="contacts" ? "" : "none";
-    document.getElementById("pl-new-btn").style.display = page==="projects" ? "" : "none";
-    document.getElementById("pl-new-contact-btn").style.display = page==="contacts" ? "" : "none";
     var pageTitle = page==="materials" ? "Materialen" : page==="planning" ? "Planning" : page==="settings" ? "Instellingen" : page==="contacts" ? "Contacten" : "Projecten";
     document.getElementById("pl-title").innerHTML = "Offerte<span>Builder</span> — "+pageTitle;
     if(page==="projects") renderProjectList();
@@ -3460,7 +3453,12 @@
     var sorted = projectsState.projects.slice().sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
     emptyEl.textContent = "Nog geen projecten. Maak je eerste project aan om te starten.";
     emptyEl.style.display = sorted.length ? "none" : "";
-    grid.innerHTML = sorted.map(projectCardHtml).join('');
+    // "+ Nieuw project" is a placeholder card, always first in the grid,
+    // rather than a header button - same pattern as the contacts grid below.
+    var addCardHtml = '<div class="add-card" id="pl-add-card"><span class="add-ic">+</span><span class="add-label">Nieuw project</span></div>';
+    grid.innerHTML = addCardHtml + sorted.map(projectCardHtml).join('');
+    var addCard = document.getElementById("pl-add-card");
+    if(addCard) addCard.addEventListener("click", function(){ openProjectForm(null); });
     grid.querySelectorAll(".pl-card").forEach(function(card){
       card.addEventListener("click", function(e){
         if(e.target.closest(".edit-btn")) return;
@@ -3482,13 +3480,18 @@
     var emptyEl = document.getElementById("contacts-empty");
     var sorted = contactsState.slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
     emptyEl.style.display = sorted.length ? "none" : "";
-    grid.innerHTML = sorted.map(function(c){
+    // "+ Nieuw contact" is a placeholder card, always first in the grid,
+    // rather than a header button - same pattern as the projects grid above.
+    var addCardHtml = '<div class="add-card" id="contacts-add-card"><span class="add-ic">+</span><span class="add-label">Nieuw contact</span></div>';
+    grid.innerHTML = addCardHtml + sorted.map(function(c){
       var addr = [c.street && (c.street+" "+(c.houseNumber||"")).trim(), c.postalCode, c.city].filter(Boolean).join(" · ");
       return '<div class="contact-card" data-id="'+c.id+'">'
         + '<h3>'+escapeHtml(c.name)+'</h3>'
         + '<div class="meta">'+(c.clientType==="zakelijk"?"Zakelijk":"Particulier")+(addr?' · '+escapeHtml(addr):'')+'</div>'
         + '</div>';
     }).join('');
+    var addCard = document.getElementById("contacts-add-card");
+    if(addCard) addCard.addEventListener("click", function(){ openContactForm(null); });
     grid.querySelectorAll(".contact-card").forEach(function(card){
       card.addEventListener("click", function(){ openContactDetail(card.dataset.id); });
     });
@@ -3525,7 +3528,6 @@
     cfEditingId = null;
   }
   cfBackdrop.addEventListener("click", closeContactForm);
-  document.getElementById("pl-new-contact-btn").addEventListener("click", function(){ openContactForm(null); });
   document.querySelectorAll("#contact-form-panel .ctype-btn").forEach(function(btn){
     btn.addEventListener("click", function(){ setCfClientType(btn.dataset.ctype); });
   });
@@ -3864,7 +3866,6 @@
       alert("Verwijderen is mislukt — controleer je internetverbinding en probeer opnieuw.");
     }
   });
-  document.getElementById("pl-new-btn").addEventListener("click", function(){ openProjectForm(null); });
   document.getElementById("back-to-projects-btn").addEventListener("click", showProjectList);
 
   /* =====================================================================
@@ -4569,12 +4570,17 @@
   // checkout exactly as before; "plafond" shows a per-zone checkout instead,
   // always placed AFTER "muren" in the tab bar since the ceiling builds last.
   var gyprocTopTab = "muren"; // "muren" | "plafond"
-  var gyprocActiveZoneIdx = 0; // index into gyprocCeilingState.zonesPlan
-  var gyprocActiveBulkheadIdx = 0; // index into gyprocCeilingState.bulkheads - independent selection from gyprocActiveZoneIdx
+  // Which single tab is selected in the unified "zone, verschil, zone, ..."
+  // row (gyprocCeilingState.sequence) - "zone:<zone.key>" or
+  // "bulkhead:<resolvedCut.id>", matching each sequence entry's own .key.
+  // null means "no explicit selection yet", which renderCeilingResults
+  // resolves to the sequence's first entry.
+  var gyprocActiveCeilingKey = null;
   // canvas feedback: true while the drawer is open on the Plafond top-tab -
-  // greys out the wall order badges and swaps in per-zone number badges
-  // instead (see drawWallOrderBadges/drawZoneNumberBadges), since a flat
-  // plan view can't otherwise show which physical area is "Zone 2".
+  // greys out the wall order badges and swaps in per-zone/per-bulkhead
+  // number badges instead (see drawWallOrderBadges/drawCeilingNumberBadges),
+  // since a flat plan view can't otherwise show which physical area is
+  // "Zone 2" or "Hoogteverschil 1".
   var gyprocCeilingViewActive = false;
   // moved into the Metal studs section itself (so stud controls live
   // together): read/written directly as module state rather than via DOM
@@ -4629,7 +4635,7 @@
     roomWalls.sort(function(a,b){ return (a.order||0)-(b.order||0); });
     gyprocWallIds = roomWalls.map(function(w){ return w.id; });
     gyprocActiveWallIdx = Math.max(0, gyprocWallIds.indexOf(wallId));
-    gyprocTopTab = "muren"; gyprocActiveZoneIdx = 0; gyprocActiveBulkheadIdx = 0;
+    gyprocTopTab = "muren"; gyprocActiveCeilingKey = null;
 
     gyprocBackdrop.classList.add("open");
     gyprocPanel.classList.add("open");
@@ -5364,7 +5370,69 @@
     }).filter(Boolean);
 
     var totalAreaM2 = roomZones.reduce(function(s,z){ return s+z.area; },0)/1000000;
-    return { zonesPlan: zonesPlan, bulkheads: bulkheads, totalAreaM2: totalAreaM2 };
+
+    // The tab order should read the way the room physically is: zone,
+    // then whichever bulkhead sits between it and its neighbor, then that
+    // neighbor zone, and so on - not "all zones, then all bulkheads" as two
+    // separate groups. Model zones as graph nodes and bulkheads as the
+    // edges between them (each bulkhead connects exactly the two zones its
+    // resolvedCut separates), then walk it depth-first from a natural
+    // starting point (a zone with only one neighbor, i.e. an end of the
+    // chain, when one exists) - for the common case of a simple sequence of
+    // height steps this produces exactly "zone 1, verschil 1, zone 2,
+    // verschil 2, zone 3, ...". A branching room (a zone bordering more
+    // than one different-height neighbor) still gets a complete, stable,
+    // deterministic walk - it just can't be represented as one straight
+    // reading order either way. zoneCounter/bulkheadCounter are separate
+    // running counts (each type numbered from 1 on its own), matching how
+    // the tabs/badges should read.
+    var adjacency = {};
+    zonesPlan.forEach(function(zp){ adjacency[zp.zone.key] = []; });
+    bulkheads.forEach(function(b){
+      var aKey = b.rc.zoneA.key, bKey = b.rc.zoneB.key;
+      if(adjacency[aKey]) adjacency[aKey].push({ bulkhead:b, otherKey:bKey });
+      if(adjacency[bKey]) adjacency[bKey].push({ bulkhead:b, otherKey:aKey });
+    });
+    var zoneByKey = {};
+    zonesPlan.forEach(function(zp){ zoneByKey[zp.zone.key] = zp; });
+    var startKey = null;
+    zonesPlan.forEach(function(zp){
+      if(startKey===null && adjacency[zp.zone.key].length<=1) startKey = zp.zone.key;
+    });
+    if(startKey===null && zonesPlan.length) startKey = zonesPlan[0].zone.key;
+
+    var visitedZones = {}, visitedBulkheads = {};
+    var sequence = [];
+    var zoneCounter = 0, bulkheadCounter = 0;
+    function walkCeilingChain(key){
+      if(visitedZones[key] || !zoneByKey[key]) return;
+      visitedZones[key] = true;
+      zoneCounter++;
+      zoneByKey[key].displayNumber = zoneCounter;
+      sequence.push({ type:"zone", key:"zone:"+key, item: zoneByKey[key] });
+      adjacency[key].forEach(function(edge){
+        var bid = edge.bulkhead.rc.id;
+        if(visitedBulkheads[bid]) return;
+        visitedBulkheads[bid] = true;
+        bulkheadCounter++;
+        edge.bulkhead.displayNumber = bulkheadCounter;
+        sequence.push({ type:"bulkhead", key:"bulkhead:"+bid, item: edge.bulkhead });
+        walkCeilingChain(edge.otherKey);
+      });
+    }
+    if(startKey) walkCeilingChain(startKey);
+    // Any zone the walk didn't reach (a disconnected sub-room piece,
+    // shouldn't normally happen) still needs a number and a tab.
+    zonesPlan.forEach(function(zp){
+      if(!visitedZones[zp.zone.key]){
+        visitedZones[zp.zone.key] = true;
+        zoneCounter++;
+        zp.displayNumber = zoneCounter;
+        sequence.push({ type:"zone", key:"zone:"+zp.zone.key, item: zp });
+      }
+    });
+
+    return { zonesPlan: zonesPlan, bulkheads: bulkheads, totalAreaM2: totalAreaM2, sequence: sequence };
   }
   // Euro subtotal + piece counts for ONE plafondzone (own checkout tab,
   // mirroring computeWallPriceTotal) - includes its own CD/UD/hangers,
@@ -5519,8 +5587,12 @@
     // gyproc-service inputs), shown as its own top-level tab AFTER "Muren".
     gyprocCeilingState = computeCeilingForRoom(includedWalls, thicknessMm);
     if(!gyprocCeilingState) gyprocTopTab = "muren"; // nothing to show on the Plafond tab anymore
-    if(gyprocCeilingState && gyprocActiveZoneIdx >= gyprocCeilingState.zonesPlan.length) gyprocActiveZoneIdx = 0;
-    if(gyprocCeilingState && gyprocActiveBulkheadIdx >= gyprocCeilingState.bulkheads.length) gyprocActiveBulkheadIdx = 0;
+    // Drop a stale selection (e.g. the selected zone/bulkhead no longer
+    // exists after a wall edit) - renderCeilingResults falls back to the
+    // sequence's first entry whenever the key isn't found.
+    if(gyprocCeilingState && gyprocActiveCeilingKey && !gyprocCeilingState.sequence.some(function(s){ return s.key===gyprocActiveCeilingKey; })){
+      gyprocActiveCeilingKey = null;
+    }
     gyprocCeilingViewActive = gyprocTopTab === "plafond" && !!gyprocCeilingState;
 
     renderGyprocResults();
@@ -5596,42 +5668,37 @@
       +   '<div class="gyproc-checkout-tabs">'+wallTabsHtml+'</div>'
       + '</div>';
   }
-  // Per-zone checkout tabs, same pattern as the wall tabs above, so a
-  // multi-zone ceiling (a room split by a hoogteverschil-cut) gets its own
-  // clear price-per-zone breakdown instead of one lump ceiling total.
-  function buildZoneCheckoutTabsHtml(cs){
-    if(cs.zonesPlan.length <= 1) return '';
-    var tabsHtml = cs.zonesPlan.map(function(zp, idx){
-      var t = computeZonePriceTotal(zp);
-      return '<button type="button" class="gyproc-tab'+(idx===gyprocActiveZoneIdx?' active':'')+'" data-zone-idx="'+idx+'">'
-        + '<div class="sz">Zone '+(idx+1)+'</div>'
+  // One unified checkout-tab row for the whole ceiling, in the room's own
+  // physical order - zone, then whichever bulkhead sits between it and its
+  // neighbor, then that neighbor zone, and so on (cs.sequence, built by
+  // computeCeilingForRoom) - rather than two separate "all zones" / "all
+  // bulkheads" groups. Each tab's own resolvedActiveKey (falling back to
+  // the sequence's first entry) decides which one is highlighted; clicking
+  // one sets gyprocActiveCeilingKey to that entry's own stable key.
+  function buildCeilingTabsHtml(cs){
+    if(cs.sequence.length <= 1) return '';
+    var resolvedActiveKey = ceilingResolvedActiveKey(cs);
+    var tabsHtml = cs.sequence.map(function(s){
+      var t = computeZonePriceTotal(s.item);
+      var label = s.type==="zone" ? "Zone "+s.item.displayNumber : "Hoogteverschil "+s.item.displayNumber;
+      return '<button type="button" class="gyproc-tab'+(s.key===resolvedActiveKey?' active':'')+'" data-ceiling-key="'+s.key+'">'
+        + '<div class="sz">'+label+'</div>'
         + '<div class="stat'+(t.missingPrice?' warn':'')+'">'+fmtEuroOrMissing(t.total, t.missingPrice)+'</div>'
         + '</button>';
     }).join('');
     return ''
       + '<div class="gyproc-checkout-wrap">'
-      +   '<div class="gyproc-checkout-label">Zones in dit plafond</div>'
+      +   '<div class="gyproc-checkout-label">Plafond</div>'
       +   '<div class="gyproc-checkout-tabs">'+tabsHtml+'</div>'
       + '</div>';
   }
-  // Same pattern as buildZoneCheckoutTabsHtml, but for the room's genuine
-  // height-differences (bulkheads) - own numbering (1, 2, ...), independent
-  // of the zone numbers above, matching the numbered badge drawn on each
-  // split-line itself (drawBulkheadNumberBadges).
-  function buildBulkheadCheckoutTabsHtml(cs){
-    if(!cs.bulkheads.length) return '';
-    var tabsHtml = cs.bulkheads.map(function(b, idx){
-      var t = computeZonePriceTotal(b);
-      return '<button type="button" class="gyproc-tab'+(idx===gyprocActiveBulkheadIdx?' active':'')+'" data-bulkhead-idx="'+idx+'">'
-        + '<div class="sz">Hoogteverschil '+(idx+1)+'</div>'
-        + '<div class="stat'+(t.missingPrice?' warn':'')+'">'+fmtEuroOrMissing(t.total, t.missingPrice)+'</div>'
-        + '</button>';
-    }).join('');
-    return ''
-      + '<div class="gyproc-checkout-wrap">'
-      +   '<div class="gyproc-checkout-label">Hoogteverschillen in dit plafond</div>'
-      +   '<div class="gyproc-checkout-tabs">'+tabsHtml+'</div>'
-      + '</div>';
+  // gyprocActiveCeilingKey is null until the user picks a tab, and can go
+  // stale (cleared back to null by runGyprocCalculation) - this is the one
+  // place that resolves "what's actually selected right now" to an entry
+  // that's guaranteed to exist in the current sequence.
+  function ceilingResolvedActiveKey(cs){
+    if(gyprocActiveCeilingKey && cs.sequence.some(function(s){ return s.key===gyprocActiveCeilingKey; })) return gyprocActiveCeilingKey;
+    return cs.sequence.length ? cs.sequence[0].key : null;
   }
   // Listeners shared by BOTH the wall and ceiling render paths (top-tab +
   // sub-tab switching, verf/primer aantal-lagen inputs) - factored out so
@@ -5651,17 +5718,10 @@
         renderGyprocResults();
       });
     });
-    resultEl.querySelectorAll(".gyproc-tab[data-zone-idx]").forEach(function(btn){
+    resultEl.querySelectorAll(".gyproc-tab[data-ceiling-key]").forEach(function(btn){
       btn.addEventListener("click", function(){
-        gyprocActiveZoneIdx = parseInt(btn.dataset.zoneIdx,10);
-        render(); // canvas feedback: this zone's number badge turns green
-        renderGyprocResults();
-      });
-    });
-    resultEl.querySelectorAll(".gyproc-tab[data-bulkhead-idx]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        gyprocActiveBulkheadIdx = parseInt(btn.dataset.bulkheadIdx,10);
-        render(); // canvas feedback: this bulkhead's number badge turns green
+        gyprocActiveCeilingKey = btn.dataset.ceilingKey;
+        render(); // canvas feedback: this item's number badge turns green
         renderGyprocResults();
       });
     });
@@ -5920,26 +5980,25 @@
       +   '<select class="tb-select" id="ceiling-gauge" style="width:100%">'+gaugeOptionsHtml+'</select>'
       + '</div>';
 
-    var checkoutTabsHtml = buildTopTabsHtml() + hohGaugeHtml + buildZoneCheckoutTabsHtml(cs);
+    var checkoutTabsHtml = buildTopTabsHtml() + hohGaugeHtml + buildCeilingTabsHtml(cs);
 
-    var zp = cs.zonesPlan[gyprocActiveZoneIdx] || cs.zonesPlan[0];
-    var zoneHtml = buildCeilingItemDetailHtml(zp, {
-      lengthMm: zp.plan.lengteMm, widthMm: zp.plan.breedteMm,
-      areaLabel: 'Plafondoppervlak', areaM2: zp.zone.area/1000000, tabAttr: 'zone'
-    });
-
-    // Bulkheads (height-differences) get their own tab row + full detail
-    // view here, same as zones above - own numbering (1, 2, ...) matching
-    // the numbered badge drawn on each split-line (drawBulkheadNumberBadges).
-    var activeBulkhead = cs.bulkheads[gyprocActiveBulkheadIdx] || cs.bulkheads[0];
-    var bulkheadSectionHtml = activeBulkhead ? (''
-      + '<div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--line);">'
-      + buildBulkheadCheckoutTabsHtml(cs)
-      + buildCeilingItemDetailHtml(activeBulkhead, {
-          lengthMm: activeBulkhead.plan.lSprongMm, widthMm: activeBulkhead.plan.hDiffMm,
-          areaLabel: 'Oppervlakte schot', areaM2: (activeBulkhead.plan.lSprongMm/1000)*(activeBulkhead.plan.hDiffMm/1000), tabAttr: 'bulkhead'
-        })
-      + '</div>') : '';
+    // Exactly one tab's detail shows at a time now (unified "zone, verschil,
+    // zone, ..." row above) instead of always showing a zone's detail plus
+    // a bulkhead's detail stacked together.
+    var activeKey = ceilingResolvedActiveKey(cs);
+    var activeEntry = cs.sequence.find(function(s){ return s.key===activeKey; }) || cs.sequence[0];
+    var itemHtml = '';
+    if(activeEntry){
+      var isZone = activeEntry.type==="zone";
+      var item = activeEntry.item;
+      itemHtml = buildCeilingItemDetailHtml(item, isZone ? {
+        lengthMm: item.plan.lengteMm, widthMm: item.plan.breedteMm,
+        areaLabel: 'Plafondoppervlak', areaM2: item.zone.area/1000000, tabAttr: 'zone'
+      } : {
+        lengthMm: item.plan.lSprongMm, widthMm: item.plan.hDiffMm,
+        areaLabel: 'Oppervlakte schot', areaM2: (item.plan.lSprongMm/1000)*(item.plan.hDiffMm/1000), tabAttr: 'bulkhead'
+      });
+    }
 
     var paintHtml = buildCoatingSectionHtml({paintAreaM2: cs.totalAreaM2}, {
       enabled: state.services.verven, title: 'Verven (plafond)', areaLabel: 'Te verven oppervlak',
@@ -5953,10 +6012,9 @@
     });
 
     var resultEl = document.getElementById("gyproc-result");
-    resultEl.innerHTML = checkoutTabsHtml + zoneHtml + bulkheadSectionHtml + paintHtml + primerHtml;
+    resultEl.innerHTML = checkoutTabsHtml + itemHtml + paintHtml + primerHtml;
     resultEl.classList.add("show");
-    wireCeilingItemTabs(resultEl, zp, "zone");
-    if(activeBulkhead) wireCeilingItemTabs(resultEl, activeBulkhead, "bulkhead");
+    if(activeEntry) wireCeilingItemTabs(resultEl, activeEntry.item, activeEntry.type==="zone" ? "zone" : "bulkhead");
     var ceilingHohEl = document.getElementById("ceiling-hoh");
     if(ceilingHohEl) ceilingHohEl.addEventListener("change", function(){
       gyprocCeilingHohMm = parseInt(ceilingHohEl.value,10) || 400;
