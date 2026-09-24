@@ -19,17 +19,84 @@
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);}
-  #app{display:flex;flex-direction:column;height:100%;}
+  #app{display:flex;flex-direction:column;height:100%;margin-left:212px;}
+
+  /* ---------- app sidebar (persistent left nav, all screens) ---------- */
+  #app-sidebar{
+    position:fixed;top:0;left:0;bottom:0;width:212px;z-index:30;
+    background:var(--panel);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;padding:18px 12px;
+  }
+  #sidebar-brand{font-size:16px;font-weight:700;padding:4px 10px 0;margin-bottom:22px;white-space:nowrap;cursor:pointer;}
+  #sidebar-brand span{color:var(--blue);}
+  #sidebar-nav{display:flex;flex-direction:column;gap:2px;}
+  .sidebar-nav-btn{
+    display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+    border:none;background:none;color:var(--ink);padding:10px 12px;border-radius:9px;
+    font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;
+  }
+  .sidebar-nav-btn:hover{background:var(--bg);}
+  .sidebar-nav-btn.active{background:var(--blue);color:#fff;}
+  .sidebar-nav-btn .ic{font-size:16px;line-height:1;width:18px;text-align:center;flex-shrink:0;}
+  #sidebar-settings-btn{margin-top:auto;}
+  #sidebar-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:29;opacity:0;pointer-events:none;transition:opacity .18s;}
+  #sidebar-backdrop.open{opacity:1;pointer-events:auto;}
+  .sidebar-hamburger-btn{
+    display:none;align-items:center;justify-content:center;width:36px;height:36px;padding:0;flex-shrink:0;
+    border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;font-size:16px;cursor:pointer;
+  }
+  .sidebar-hamburger-btn:hover{background:var(--bg);}
 
   /* ---------- top bar ---------- */
+  /* `flex:1` (flex-basis:0%) on both zones forces an even 50/50 split of
+     the remaining space regardless of what each side actually needs, so
+     when the action-button side needs more than its "fair share" it
+     overflows past it into the tabs and makes them unclickable - CSS
+     Grid's `1fr auto 1fr` has the exact same failure mode once the row is
+     genuinely too narrow for all three parts (it also shrinks its 1fr
+     tracks evenly under pressure). `flex:1 0 auto` (grow, but NEVER
+     shrink below natural content size) sizes each zone to its own content
+     first and only grows into genuine leftover space, so the tabs stay
+     centered AND never get covered - the only failure mode left is the
+     row overflowing the topbar's own width, which just clips at its own
+     edge instead of eating into the middle. */
   #topbar{
-    display:flex;align-items:center;gap:18px;
-    padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);
-    flex-shrink:0;z-index:20;flex-wrap:wrap;
+    display:flex;align-items:center;gap:14px;min-height:64px;
+    padding:12px 24px;background:var(--panel);border-bottom:1px solid var(--line);
+    flex-shrink:0;z-index:20;
   }
-  #topbar h1{font-size:15px;font-weight:700;margin:0;white-space:nowrap;}
+  .topbar-zone{display:flex;align-items:center;gap:14px;flex:1 0 auto;min-width:0;}
+  .topbar-zone-right{justify-content:flex-end;}
+  #topbar-title-group{display:flex;flex-direction:column;gap:1px;min-width:0;}
+  #topbar h1{font-size:15px;font-weight:700;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #project-tabs{display:flex;gap:6px;flex-shrink:0;}
   #save-status{font-size:12px;color:#b45309;background:#fef3c7;padding:5px 10px;border-radius:8px;white-space:nowrap;}
-  #topbar h1 span{color:var(--blue);}
+  /* ---------- topbar user menu (company name/email, all headers) ---------- */
+  .topbar-user-menu{position:relative;flex-shrink:0;}
+  .topbar-user-btn{
+    display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);
+    padding:5px 10px 5px 5px;border-radius:20px;cursor:pointer;font-family:inherit;color:var(--ink);
+  }
+  .topbar-user-btn:hover{background:var(--bg);}
+  .topbar-user-avatar{
+    width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;
+  }
+  .topbar-user-text{display:flex;flex-direction:column;align-items:flex-start;line-height:1.25;max-width:140px;}
+  .topbar-user-name{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+  .topbar-user-email{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+  .topbar-user-caret{font-size:10px;color:var(--muted);}
+  .topbar-user-dropdown{
+    position:absolute;top:calc(100% + 6px);right:0;min-width:180px;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 22px rgba(15,23,42,.14);
+    padding:6px;display:none;z-index:40;
+  }
+  .topbar-user-dropdown.open{display:block;}
+  .topbar-user-dropdown-item{
+    display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:none;background:none;
+    padding:8px 10px;border-radius:7px;font-size:13px;font-family:inherit;color:var(--ink);cursor:pointer;
+  }
+  .topbar-user-dropdown-item:hover{background:var(--bg);}
   #floating-stats{
     position:absolute;top:16px;left:50%;transform:translateX(-50%);
     display:flex;gap:8px;flex-wrap:wrap;justify-content:center;z-index:15;
@@ -80,38 +147,14 @@
   .tbtn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
   .tbtn .ic{font-size:15px;line-height:1;}
   .tbtn:disabled{opacity:.4;cursor:not-allowed;}
+  .tbtn.topbar-back-link{border:none;background:none;padding:0;color:var(--muted);gap:4px;font-size:11px;font-weight:600;}
+  .tbtn.topbar-back-link:hover{background:none;color:var(--ink);}
+  .tbtn.topbar-back-link .ic{font-size:12px;}
   .tb-group{display:flex;align-items:center;gap:6px;}
   .tb-label{font-size:11px;color:var(--muted);margin-right:2px;}
   select.tb-select{
     border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:13px;background:#fff;color:var(--ink);
   }
-
-  /* ---------- account menu (name+email trigger -> Instellingen/Log uit) ---------- */
-  .account-menu-wrap{position:relative;}
-  .account-menu-trigger{
-    display:flex;align-items:center;gap:6px;
-    border:1px solid transparent;background:transparent;color:var(--ink);
-    padding:5px 10px;border-radius:8px;cursor:pointer;user-select:none;
-    max-width:200px;
-  }
-  .account-menu-identity{display:flex;flex-direction:column;align-items:flex-start;overflow:hidden;}
-  .account-menu-trigger .account-menu-name{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
-  .account-menu-trigger .account-menu-email{font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
-  .account-menu-trigger .ic{font-size:10px;opacity:.6;flex-shrink:0;}
-  .account-menu-trigger:hover{background:#eef2f7;border-color:var(--line);}
-  .account-menu{
-    position:absolute;top:calc(100% + 6px);right:0;min-width:170px;
-    background:var(--panel);border:1px solid var(--line);border-radius:10px;
-    box-shadow:0 8px 22px rgba(15,23,42,.14);padding:4px;z-index:30;
-  }
-  .account-menu.hidden{display:none;}
-  .account-menu-item{
-    display:flex;align-items:center;gap:8px;width:100%;
-    border:none;background:none;color:var(--ink);text-align:left;
-    padding:8px 10px;border-radius:7px;font-size:13px;cursor:pointer;
-  }
-  .account-menu-item:hover{background:var(--bg);}
-  .account-menu-item .ic{font-size:14px;width:16px;text-align:center;}
 
   /* ---------- canvas ---------- */
   #stage{position:relative;flex:1;overflow:hidden;background:#fff;}
@@ -203,9 +246,9 @@
   .field input[type=text],.field input[type=date]{flex:1;width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;}
 
   /* ---------- project list screen ---------- */
-  #project-list-screen{position:fixed;inset:0;background:var(--bg);z-index:5;display:flex;flex-direction:column;overflow:auto;}
+  #project-list-screen{position:fixed;top:0;right:0;bottom:0;left:212px;background:var(--bg);z-index:5;display:flex;flex-direction:column;overflow:auto;}
   #project-list-screen.hidden{display:none;}
-  #contact-detail-screen{position:fixed;inset:0;background:var(--bg);z-index:6;display:flex;flex-direction:column;overflow:auto;}
+  #contact-detail-screen{position:fixed;top:0;right:0;bottom:0;left:212px;background:var(--bg);z-index:6;display:flex;flex-direction:column;overflow:auto;}
   #contact-detail-screen.hidden{display:none;}
   #contact-tabs{display:flex;gap:6px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;justify-content:center;}
   .ctab-btn{border:1px solid var(--line);background:var(--bg);color:var(--muted);padding:7px 18px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s,color .12s,border-color .12s;}
@@ -213,8 +256,9 @@
   .ctab-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
   .ctab-page{display:none;flex:1;min-height:0;padding:20px 24px;overflow:auto;}
   .ctab-page.active{display:block;}
-  .pl-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;}
-  .pl-topbar h1{font-size:16px;margin:0;font-weight:700;}
+  .pl-topbar{display:flex;align-items:center;gap:12px;min-height:64px;padding:12px 24px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;}
+  .pl-topbar-title-group{display:flex;flex-direction:column;gap:1px;}
+  .pl-topbar h1{font-size:15px;margin:0;font-weight:700;}
   .pl-topbar h1 span{color:var(--blue);}
   .pl-body{padding:24px;max-width:960px;margin:0 auto;width:100%;}
   .pl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
@@ -226,22 +270,7 @@
   .pl-card .edit-btn{position:absolute;top:12px;right:10px;background:none;border:none;cursor:pointer;font-size:14px;color:var(--muted);padding:4px 6px;border-radius:6px;}
   .pl-card .edit-btn:hover{background:var(--bg);}
   .pl-empty{text-align:center;color:var(--muted);padding:60px 20px;font-size:14px;}
-  .pl-body{padding-bottom:90px;}
-
-  /* ---------- floating bottom nav (Projecten / Materialen) ---------- */
-  #pl-bottom-nav{
-    position:fixed;left:50%;bottom:20px;transform:translateX(-50%);
-    display:flex;align-items:center;gap:4px;padding:6px;
-    background:var(--panel);border:1px solid var(--line);border-radius:16px;
-    box-shadow:0 10px 30px rgba(15,23,42,.18);z-index:15;
-  }
-  .pl-nav-btn{
-    display:flex;align-items:center;gap:6px;border:none;background:none;color:var(--ink);
-    padding:9px 16px;border-radius:11px;font-size:13px;cursor:pointer;font-weight:600;
-  }
-  .pl-nav-btn:hover{background:var(--bg);}
-  .pl-nav-btn.active{background:var(--blue);color:#fff;}
-  .pl-topbar-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .pl-topbar-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;margin-left:auto;}
 
   /* ---------- planning page: infinite vertical month-scroll calendar ---------- */
   #pl-page-planning{display:flex;flex-direction:column;} /* JS sets an explicit height (viewport-derived) on this each time the page is shown */
@@ -386,7 +415,6 @@
   .gyproc-top-tab.active{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(15,23,42,.15);}
 
   /* ---------- project tabs (Info / Grondplan / Offerte) ---------- */
-  #project-tabs{display:flex;gap:6px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;justify-content:center;}
   .ptab-btn{border:1px solid var(--line);background:var(--bg);color:var(--muted);padding:7px 18px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s,color .12s,border-color .12s;}
   .ptab-btn:hover{background:#eef2f7;}
   .ptab-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
@@ -544,11 +572,25 @@
 
   /* ---------- mobile compaction ---------- */
   @media (max-width:720px){
-    #topbar{gap:8px;padding:8px 10px;}
-    #topbar .lbl,#floating-nav .lbl,#pl-bottom-nav .lbl{display:none;}
-    #pl-bottom-nav .pl-nav-btn{padding:10px 14px;gap:0;}
-    #app-title .title-brand{display:none;}
+    #app-sidebar{transform:translateX(-100%);transition:transform .22s ease;box-shadow:8px 0 30px rgba(0,0,0,.18);}
+    #app-sidebar.open{transform:translateX(0);}
+    #app{margin-left:0;}
+    #project-list-screen,#contact-detail-screen{left:0;}
+    .sidebar-hamburger-btn{display:flex;}
+    /* the zones' flex:1 0 auto (never shrink below natural content) is
+       correct on desktop, but mobile's own width is smaller than tabs +
+       icon-only actions need even at their most compact - wrapping lets
+       the action row drop to its own line instead of being pushed
+       off-screen and made unreachable. */
+    #topbar{flex-wrap:wrap;row-gap:8px;}
+    #topbar,.pl-topbar{gap:8px;padding:8px 10px;min-height:56px;}
+    #topbar .lbl,#floating-nav .lbl{display:none;}
     #app-title{font-size:14px;}
+    #project-tabs{order:3;flex-basis:100%;justify-content:center;}
+    .topbar-zone-right{order:2;}
+    .topbar-user-text{display:none;}
+    .topbar-user-btn{padding:5px;}
+    .ptab-btn{padding:6px 12px;font-size:12px;}
     #floating-nav .tbtn{padding:9px 11px;}
     .info-grid-2{grid-template-columns:1fr;gap:14px;}
     .info-grid-3{grid-template-columns:1fr 1fr;gap:14px;}
@@ -559,34 +601,53 @@
 </style>
 </head>
 <body>
+<aside id="app-sidebar">
+  <div id="sidebar-brand">Offerte<span>Builder</span></div>
+  <nav id="sidebar-nav">
+    <button class="sidebar-nav-btn" data-page="projects"><span class="ic">🗂️</span><span class="lbl">Projecten</span></button>
+    <button class="sidebar-nav-btn" data-page="planning"><span class="ic">📅</span><span class="lbl">Planning</span></button>
+    <button class="sidebar-nav-btn" data-page="materials"><span class="ic">💶</span><span class="lbl">Materialen</span></button>
+    <button class="sidebar-nav-btn" data-page="contacts"><span class="ic">👤</span><span class="lbl">Contacten</span></button>
+  </nav>
+  <button class="sidebar-nav-btn" id="sidebar-settings-btn" data-page="settings"><span class="ic">⚙️</span><span class="lbl">Instellingen</span></button>
+</aside>
+<div id="sidebar-backdrop"></div>
 <div id="app">
   <div id="topbar">
-    <button class="tbtn" id="back-to-projects-btn" title="Terug naar projecten"><span class="ic">←</span><span class="lbl">Projecten</span></button>
-    <h1 id="app-title"><span class="title-brand">Offerte<span>Builder</span> — </span><span id="app-title-name">Ontwerpmodule</span></h1>
-    <div class="tb-group" id="undo-redo-group">
-      <button class="tbtn" id="undo-btn" disabled title="Ongedaan maken (Ctrl+Z)"><span class="ic">↶</span></button>
-      <button class="tbtn" id="redo-btn" disabled title="Opnieuw doen (Ctrl+Shift+Z)"><span class="ic">↷</span></button>
+    <div class="topbar-zone topbar-zone-left">
+      <button class="sidebar-hamburger-btn" id="topbar-hamburger-btn" title="Menu"><span class="ic">☰</span></button>
+      <div id="topbar-title-group">
+        <button class="tbtn topbar-back-link" id="back-to-projects-btn" title="Terug naar projecten"><span class="ic">←</span><span class="lbl">Projecten</span></button>
+        <h1 id="app-title"><span id="app-title-name">Ontwerpmodule</span></h1>
+      </div>
     </div>
-    <span id="save-status" style="display:none;"></span>
-    <div class="tb-group" style="margin-left:auto;">
+    <div id="project-tabs">
+      <button class="ptab-btn" data-ptab="info">Info</button>
+      <button class="ptab-btn" data-ptab="grondplan">Grondplan</button>
+      <button class="ptab-btn" data-ptab="offerte">Offerte</button>
+    </div>
+    <div class="topbar-zone topbar-zone-right">
+      <div class="tb-group" id="undo-redo-group">
+        <button class="tbtn" id="undo-btn" disabled title="Ongedaan maken (Ctrl+Z)"><span class="ic">↶</span></button>
+        <button class="tbtn" id="redo-btn" disabled title="Opnieuw doen (Ctrl+Shift+Z)"><span class="ic">↷</span></button>
+      </div>
+      <span id="save-status" style="display:none;"></span>
       <button class="tbtn" id="gyproc-btn"><span class="ic">🧮</span><span class="lbl">Berekenen</span></button>
-      <div class="account-menu-wrap">
-        <button class="account-menu-trigger" id="tb-account-btn">
-          <span class="account-menu-identity"><span class="account-menu-name" id="tb-account-name"></span><span class="account-menu-email" id="tb-user-email"></span></span>
-          <span class="ic">▾</span>
+      <div class="topbar-user-menu">
+        <button type="button" class="topbar-user-btn">
+          <span class="topbar-user-avatar">?</span>
+          <span class="topbar-user-text">
+            <span class="topbar-user-name">Mijn bedrijf</span>
+            <span class="topbar-user-email"></span>
+          </span>
+          <span class="ic topbar-user-caret">▾</span>
         </button>
-        <div class="account-menu hidden" id="tb-account-menu">
-          <button class="account-menu-item" data-action="settings"><span class="ic">⚙️</span>Instellingen</button>
-          <button class="account-menu-item" data-action="logout"><span class="ic">⎋</span>Log uit</button>
+        <div class="topbar-user-dropdown">
+          <button type="button" class="topbar-user-dropdown-item" data-page="settings"><span class="ic">⚙️</span>Instellingen</button>
+          <button type="button" class="topbar-user-dropdown-item" data-action="logout"><span class="ic">⎋</span>Log uit</button>
         </div>
       </div>
     </div>
-  </div>
-
-  <div id="project-tabs">
-    <button class="ptab-btn" data-ptab="info">Info</button>
-    <button class="ptab-btn" data-ptab="grondplan">Grondplan</button>
-    <button class="ptab-btn" data-ptab="offerte">Offerte</button>
   </div>
 
   <div id="ptab-info" class="ptab-page">
@@ -803,16 +864,25 @@
 
 <div id="project-list-screen" class="hidden">
   <div class="pl-topbar">
-    <h1 id="pl-title">Offerte<span>Builder</span> — Projecten</h1>
+    <button class="sidebar-hamburger-btn" id="pl-hamburger-btn" title="Menu"><span class="ic">☰</span></button>
+    <h1 id="pl-title">Projecten</h1>
     <div class="pl-topbar-actions">
-      <div class="account-menu-wrap">
-        <button class="account-menu-trigger" id="pl-account-btn">
-          <span class="account-menu-identity"><span class="account-menu-name" id="pl-account-name"></span><span class="account-menu-email" id="pl-user-email"></span></span>
-          <span class="ic">▾</span>
+      <!-- No pl-new-btn/contacts-new-btn here - "+ Nieuw project"/"+ Nieuw
+           contact" are placeholder add-cards inside their own grids now
+           (renderProjectList/renderContactsPage), always first, instead of
+           header buttons. -->
+      <div class="topbar-user-menu">
+        <button type="button" class="topbar-user-btn">
+          <span class="topbar-user-avatar">?</span>
+          <span class="topbar-user-text">
+            <span class="topbar-user-name">Mijn bedrijf</span>
+            <span class="topbar-user-email"></span>
+          </span>
+          <span class="ic topbar-user-caret">▾</span>
         </button>
-        <div class="account-menu hidden" id="pl-account-menu">
-          <button class="account-menu-item" data-action="settings"><span class="ic">⚙️</span>Instellingen</button>
-          <button class="account-menu-item" data-action="logout"><span class="ic">⎋</span>Log uit</button>
+        <div class="topbar-user-dropdown">
+          <button type="button" class="topbar-user-dropdown-item" data-page="settings"><span class="ic">⚙️</span>Instellingen</button>
+          <button type="button" class="topbar-user-dropdown-item" data-action="logout"><span class="ic">⎋</span>Log uit</button>
         </div>
       </div>
     </div>
@@ -884,18 +954,31 @@
       <div id="contacts-grid" class="pl-grid"></div>
     </div>
   </div>
-  <div id="pl-bottom-nav">
-    <button class="pl-nav-btn active" data-page="projects"><span class="ic">🗂️</span><span class="lbl">Projecten</span></button>
-    <button class="pl-nav-btn" data-page="planning"><span class="ic">📅</span><span class="lbl">Planning</span></button>
-    <button class="pl-nav-btn" data-page="materials"><span class="ic">💶</span><span class="lbl">Materialen</span></button>
-    <button class="pl-nav-btn" data-page="contacts"><span class="ic">👤</span><span class="lbl">Contacten</span></button>
-  </div>
 </div>
 
 <div id="contact-detail-screen" class="hidden">
   <div class="pl-topbar">
-    <button class="tbtn" id="cd-back-btn" title="Terug naar contacten"><span class="ic">←</span><span class="lbl">Contacten</span></button>
-    <h1 id="cd-title">Contact</h1>
+    <button class="sidebar-hamburger-btn" id="cd-hamburger-btn" title="Menu"><span class="ic">☰</span></button>
+    <div class="pl-topbar-title-group">
+      <button class="tbtn topbar-back-link" id="cd-back-btn" title="Terug naar contacten"><span class="ic">←</span><span class="lbl">Contacten</span></button>
+      <h1 id="cd-title">Contact</h1>
+    </div>
+    <div class="pl-topbar-actions">
+      <div class="topbar-user-menu">
+        <button type="button" class="topbar-user-btn">
+          <span class="topbar-user-avatar">?</span>
+          <span class="topbar-user-text">
+            <span class="topbar-user-name">Mijn bedrijf</span>
+            <span class="topbar-user-email"></span>
+          </span>
+          <span class="ic topbar-user-caret">▾</span>
+        </button>
+        <div class="topbar-user-dropdown">
+          <button type="button" class="topbar-user-dropdown-item" data-page="settings"><span class="ic">⚙️</span>Instellingen</button>
+          <button type="button" class="topbar-user-dropdown-item" data-action="logout"><span class="ic">⎋</span>Log uit</button>
+        </div>
+      </div>
+    </div>
   </div>
   <div id="contact-tabs">
     <button class="ctab-btn active" data-ctab="info">Info</button>
@@ -2260,55 +2343,22 @@
     await fetch("/api/auth/logout", { method:"POST" }).catch(function(){});
     location.href = "/login";
   }
-  // Shown in both topbars' account-menu trigger: the settings page's
-  // "Zaaknaam" (company name) as the primary line, login email as subtext -
-  // falls back to the email alone until settings have loaded / if no
-  // company name was ever filled in. Called after login-session loads,
-  // after appSettings loads, and live while editing "Zaaknaam".
-  function renderAccountIdentity(){
-    var name = (appSettings.companyName||"").trim() || currentUserEmail || "";
-    [["tb-account-name","tb-user-email"],["pl-account-name","pl-user-email"]].forEach(function(pair){
-      var nameEl = document.getElementById(pair[0]);
-      var emailEl = document.getElementById(pair[1]);
-      if(nameEl) nameEl.textContent = name;
-      if(emailEl) emailEl.textContent = currentUserEmail;
-    });
-  }
+  // Login-session bootstrap: fetches the logged-in user's email, syncs it
+  // into appSettings (settings page's "Email" field is always the login
+  // email, see renderSettingsPage), and refreshes the shared header chip
+  // via renderTopbarUserInfo() (defined further down, next to the
+  // topbar-user-menu dropdown wiring it's also shared with).
   async function loadSessionInfo(){
     try{
       var res = await fetch("/api/auth/session");
       if(!res.ok) return;
       var data = await res.json();
-      var email = data.email || "";
-      currentUserEmail = email;
-      renderAccountIdentity();
-      // Both topbars share the same account-menu-trigger/-menu/-item pattern -
-      // one email/⚙️/⎋ menu instead of separate settings+logout buttons, so
-      // the header stays compact (see account-menu CSS above #topbar).
-      [["tb-account-btn","tb-account-menu"],["pl-account-btn","pl-account-menu"]].forEach(function(pair){
-        var btn = document.getElementById(pair[0]);
-        var menu = document.getElementById(pair[1]);
-        if(!btn || !menu) return;
-        btn.addEventListener("click", function(e){
-          e.stopPropagation();
-          var willOpen = menu.classList.contains("hidden");
-          document.querySelectorAll(".account-menu").forEach(function(m){ m.classList.add("hidden"); });
-          if(willOpen) menu.classList.remove("hidden");
-        });
-        menu.querySelectorAll(".account-menu-item").forEach(function(item){
-          item.addEventListener("click", function(){
-            menu.classList.add("hidden");
-            if(item.dataset.action==="settings") goToSettings();
-            else if(item.dataset.action==="logout") logoutAndRedirect();
-          });
-        });
-      });
-      document.addEventListener("click", function(){
-        document.querySelectorAll(".account-menu").forEach(function(m){ m.classList.add("hidden"); });
-      });
-      document.addEventListener("keydown", function(e){
-        if(e.key==="Escape") document.querySelectorAll(".account-menu").forEach(function(m){ m.classList.add("hidden"); });
-      });
+      currentUserEmail = data.email || "";
+      if(appSettings.email !== currentUserEmail){
+        appSettings.email = currentUserEmail;
+        scheduleSettingsSave();
+      }
+      renderTopbarUserInfo();
     }catch(err){}
   }
   function dbListProjects(){ return dbFetch("/projects?select=*"); }
@@ -2413,7 +2463,14 @@
       } else {
         appSettings = Object.assign({}, DEFAULT_APP_SETTINGS);
       }
-      renderAccountIdentity();
+      // Loaded appSettings.email may be stale (e.g. a save from before a
+      // login-email change hadn't reached the DB yet) - the login session's
+      // email is always the source of truth, so re-sync it here too.
+      if(currentUserEmail && appSettings.email !== currentUserEmail){
+        appSettings.email = currentUserEmail;
+        scheduleSettingsSave();
+      }
+      renderTopbarUserInfo();
       var contactsIdx = projectsState.projects.findIndex(function(p){ return p.id===CONTACTS_ROW_ID; });
       if(contactsIdx>=0){
         contactsState = (projectsState.projects[contactsIdx].data||{}).contacts || [];
@@ -2580,7 +2637,7 @@
     if(projectsState.activeId && getActiveProject()){
       hash = "#/project/"+encodeURIComponent(projectsState.activeId)+"/"+activePTab;
     } else {
-      var activeBtn = document.querySelector(".pl-nav-btn.active");
+      var activeBtn = document.querySelector(".sidebar-nav-btn.active");
       var page = activeBtn ? activeBtn.dataset.page : "projects";
       hash = page==="projects" ? "#/" : "#/"+page;
     }
@@ -2589,25 +2646,21 @@
   // Clears the "last active project" pointer so a reload after navigating
   // back respects that choice (resumes the list, not the project the user
   // deliberately left) instead of always re-entering whatever was open.
-  function showProjectList(){
+  // Also the general-purpose "go to this sidebar page" entry point - the
+  // sidebar is persistent across all three top-level screens (project list,
+  // an open project, a contact's detail page), so getting to e.g. Planning
+  // from inside a project first has to back out of whichever screen is
+  // currently showing.
+  function showProjectList(page){
     projectsState.activeId = null;
     try{ localStorage.removeItem(ACTIVE_PROJECT_KEY); }catch(e){}
+    document.getElementById("contact-detail-screen").classList.add("hidden");
     document.getElementById("project-list-screen").classList.remove("hidden");
     document.getElementById("app").style.display = "none";
-    showPlPage("projects");
-  }
-  // Reachable from the account menu's "Instellingen" item in either topbar
-  // (canvas view or project list) - same as showProjectList but landing on
-  // the settings page instead of the project list.
-  function goToSettings(){
-    projectsState.activeId = null;
-    try{ localStorage.removeItem(ACTIVE_PROJECT_KEY); }catch(e){}
-    document.getElementById("project-list-screen").classList.remove("hidden");
-    document.getElementById("app").style.display = "none";
-    showPlPage("settings");
+    showPlPage(page || "projects");
   }
   function showPlPage(page){
-    document.querySelectorAll(".pl-nav-btn").forEach(function(btn){
+    document.querySelectorAll(".sidebar-nav-btn").forEach(function(btn){
       btn.classList.toggle("active", btn.dataset.page===page);
     });
     document.getElementById("pl-page-projects").style.display = page==="projects" ? "" : "none";
@@ -2616,7 +2669,7 @@
     document.getElementById("pl-page-settings").style.display = page==="settings" ? "" : "none";
     document.getElementById("pl-page-contacts").style.display = page==="contacts" ? "" : "none";
     var pageTitle = page==="materials" ? "Materialen" : page==="planning" ? "Planning" : page==="settings" ? "Instellingen" : page==="contacts" ? "Contacten" : "Projecten";
-    document.getElementById("pl-title").innerHTML = "Offerte<span>Builder</span> — "+pageTitle;
+    document.getElementById("pl-title").textContent = pageTitle;
     if(page==="projects") renderProjectList();
     else if(page==="materials") renderMaterialsPage();
     else if(page==="planning") renderPlanningPage();
@@ -2624,8 +2677,24 @@
     else renderSettingsPage();
     updateUrlState();
   }
-  document.querySelectorAll(".pl-nav-btn").forEach(function(btn){
-    btn.addEventListener("click", function(){ showPlPage(btn.dataset.page); });
+  document.querySelectorAll(".sidebar-nav-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){ closeSidebarDrawer(); showProjectList(btn.dataset.page); });
+  });
+  document.getElementById("sidebar-brand").addEventListener("click", function(){ closeSidebarDrawer(); showProjectList("projects"); });
+
+  /* ---- mobile slide-out sidebar drawer ---- */
+  function openSidebarDrawer(){
+    document.getElementById("app-sidebar").classList.add("open");
+    document.getElementById("sidebar-backdrop").classList.add("open");
+  }
+  function closeSidebarDrawer(){
+    document.getElementById("app-sidebar").classList.remove("open");
+    document.getElementById("sidebar-backdrop").classList.remove("open");
+  }
+  document.getElementById("sidebar-backdrop").addEventListener("click", closeSidebarDrawer);
+  ["topbar-hamburger-btn","pl-hamburger-btn","cd-hamburger-btn"].forEach(function(id){
+    var btn = document.getElementById(id);
+    if(btn) btn.addEventListener("click", openSidebarDrawer);
   });
 
   /* =====================================================================
@@ -2706,8 +2775,46 @@
     document.getElementById(cfg[0]).addEventListener("input", function(){
       appSettings[cfg[1]] = cfg[2] ? Math.max(0, parseFloat(this.value)||0) : this.value;
       if(cfg[3]) homeGeoCache = null;
-      if(cfg[1]==="companyName") renderAccountIdentity();
+      if(cfg[1]==="companyName") renderTopbarUserInfo();
       scheduleSettingsSave();
+    });
+  });
+
+  // Company name/email chip shown in every header (topbar, project list,
+  // contact detail) - one shared renderer keeps every instance (there's one
+  // per screen, not a single persistent element) in sync with Settings.
+  function renderTopbarUserInfo(){
+    var name = (appSettings.companyName||"").trim() || "Mijn bedrijf";
+    var email = (appSettings.email||"").trim();
+    var initials = name.split(/\s+/).filter(Boolean).slice(0,2).map(function(w){ return w[0]; }).join("").toUpperCase() || "?";
+    document.querySelectorAll(".topbar-user-name").forEach(function(el){ el.textContent = name; });
+    document.querySelectorAll(".topbar-user-email").forEach(function(el){ el.textContent = email; });
+    document.querySelectorAll(".topbar-user-avatar").forEach(function(el){ el.textContent = initials; });
+  }
+  function closeAllTopbarUserDropdowns(){
+    document.querySelectorAll(".topbar-user-dropdown.open").forEach(function(d){ d.classList.remove("open"); });
+  }
+  document.querySelectorAll(".topbar-user-btn").forEach(function(btn){
+    btn.addEventListener("click", function(e){
+      e.stopPropagation();
+      var dropdown = btn.parentElement.querySelector(".topbar-user-dropdown");
+      var wasOpen = dropdown.classList.contains("open");
+      closeAllTopbarUserDropdowns();
+      if(!wasOpen) dropdown.classList.add("open");
+    });
+  });
+  document.addEventListener("click", closeAllTopbarUserDropdowns);
+  document.querySelectorAll(".topbar-user-dropdown-item[data-page]").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      closeAllTopbarUserDropdowns();
+      closeSidebarDrawer();
+      showProjectList(btn.dataset.page);
+    });
+  });
+  document.querySelectorAll(".topbar-user-dropdown-item[data-action='logout']").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      closeAllTopbarUserDropdowns();
+      logoutAndRedirect();
     });
   });
 
@@ -2971,11 +3078,10 @@
     var pageEl = document.getElementById("pl-page-planning");
     document.getElementById("project-list-screen").scrollTop = 0;
     var top = pageEl.getBoundingClientRect().top;
-    // .pl-body reserves 90px of its own bottom padding for the floating
-    // #pl-bottom-nav pill (see its CSS rule) - matching that here is what
-    // makes the calendar fill exactly up to that reserve, with no extra
-    // scroll capacity left over on #project-list-screen itself.
-    pageEl.style.height = Math.max(360, window.innerHeight - top - 90) + "px";
+    // .pl-body reserves 24px of its own bottom padding (see its CSS rule) -
+    // matching that here is what makes the calendar fill exactly up to that
+    // reserve, with no extra scroll capacity left over on #project-list-screen.
+    pageEl.style.height = Math.max(360, window.innerHeight - top - 24) + "px";
 
     var events = buildPlanningEvents();
     document.getElementById("planning-months").innerHTML = buildMonthsHtml(planningFeed.minMonth, planningFeed.maxMonth, events);
@@ -3012,8 +3118,18 @@
     state.camera = { x:0, y:0, scale:0.06 };
     var proj = getActiveProject();
     document.getElementById("app-title-name").textContent = proj?proj.name:"";
+    document.getElementById("contact-detail-screen").classList.add("hidden");
     document.getElementById("project-list-screen").classList.add("hidden");
     document.getElementById("app").style.display = "flex";
+    // A project is conceptually still "under" Projecten, so the sidebar
+    // keeps that item highlighted while inside one - set explicitly here
+    // (not left to whatever happened to be active before) so it's correct
+    // on every entry path, including restoring straight into a project from
+    // a refreshed #/project/... URL, which never otherwise touches the
+    // sidebar's active state at all.
+    document.querySelectorAll(".sidebar-nav-btn").forEach(function(btn){
+      btn.classList.toggle("active", btn.dataset.page==="projects");
+    });
     setTool("select");
     showPTab(defaultTab || "grondplan");
   }
@@ -3898,7 +4014,12 @@
       alert("Verwijderen is mislukt — controleer je internetverbinding en probeer opnieuw.");
     }
   });
-  document.getElementById("back-to-projects-btn").addEventListener("click", showProjectList);
+  // origin/main's own fix for this: wiring showProjectList directly as the
+  // handler passed the click Event in as its new `page` argument instead of
+  // nothing, silently rendering Settings into a hidden container. No
+  // pl-new-btn wiring here - "+ Nieuw project" is a placeholder add-card
+  // inside the grid now (see renderProjectList), not a header button.
+  document.getElementById("back-to-projects-btn").addEventListener("click", function(){ showProjectList(); });
 
   /* =====================================================================
      EVENT HANDLING
@@ -3926,6 +4047,10 @@
   document.querySelectorAll(".tbtn[data-tool]").forEach(function(b){
     b.addEventListener("click", function(){ setTool(b.dataset.tool); });
   });
+
+  // No snap-toggle/grid-select wiring here - that widget was removed
+  // (drawing still snaps to the default 10cm grid via state.snap/
+  // state.gridStep's own defaults, just without exposed controls for it).
 
   document.getElementById("undo-btn").addEventListener("click", undo);
   document.getElementById("redo-btn").addEventListener("click", redo);
@@ -6826,6 +6951,7 @@
     await loadSessionInfo();
     await loadProjectsState();
     await loadMaterialPrices();
+    renderTopbarUserInfo();
     restoreFromUrlOrShowHome();
   })();
 })();
