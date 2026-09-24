@@ -44,6 +44,31 @@
   .stat-pill .value{font-size:15px;font-weight:700;}
   .stat-pill .value small{font-weight:500;font-size:11px;color:var(--muted);}
 
+  /* ---------- 2D/3D view toggle (floats above whichever of #stage/
+     #stage3d is currently visible - lives on #ptab-grondplan itself, not
+     inside either one, so it never disappears when the other view is
+     shown) ---------- */
+  #view-mode-toggle{
+    position:absolute;top:16px;right:16px;z-index:20;
+    display:flex;gap:2px;padding:3px;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    box-shadow:0 8px 22px rgba(15,23,42,.14);
+  }
+  #view-mode-toggle button{
+    border:none;background:none;padding:6px 14px;border-radius:7px;
+    font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;
+  }
+  #view-mode-toggle button.active{background:var(--blue);color:#fff;}
+  #stage3d{position:relative;flex:1;}
+  #stage3d canvas{display:block;width:100%;height:100%;}
+  #stage3d-controls{
+    position:absolute;bottom:16px;left:16px;z-index:20;
+    display:flex;align-items:center;gap:14px;padding:8px 12px;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    box-shadow:0 8px 22px rgba(15,23,42,.14);font-size:12.5px;
+  }
+  #stage3d-controls label{display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--ink);}
+
   /* ---------- shared button styles (topbar actions + floating controls) ---------- */
   .tbtn{
     display:flex;align-items:center;gap:6px;
@@ -112,15 +137,6 @@
     white-space:nowrap;max-width:min(560px,86vw);overflow:hidden;text-overflow:ellipsis;
     z-index:15;pointer-events:none;
   }
-
-  /* ---------- floating top-right (snap/grid) ---------- */
-  #floating-topright{
-    position:absolute;top:16px;right:16px;display:flex;align-items:center;gap:6px;padding:6px;
-    background:var(--panel);border:1px solid var(--line);border-radius:12px;
-    box-shadow:0 8px 22px rgba(15,23,42,.14);z-index:15;
-  }
-  #floating-topright .tbtn{border:none;padding:7px 10px;}
-  #floating-topright select.tb-select{padding:6px 6px;font-size:12px;}
 
   /* ---------- floating delete-selection button ---------- */
   #delete-selection-btn{
@@ -377,7 +393,7 @@
   .ptab-page{display:none;flex:1;min-height:0;}
   .ptab-page.active{display:flex;flex-direction:column;}
   #ptab-info.active,#ptab-offerte.active{overflow:auto;}
-  #ptab-grondplan{overflow:hidden;}
+  #ptab-grondplan{overflow:hidden;position:relative;}
   #ptab-grondplan #stage{position:relative;flex:1;}
 
   /* ---------- Info tab ---------- */
@@ -534,7 +550,6 @@
     #app-title .title-brand{display:none;}
     #app-title{font-size:14px;}
     #floating-nav .tbtn{padding:9px 11px;}
-    #floating-topright{display:none;}
     .info-grid-2{grid-template-columns:1fr;gap:14px;}
     .info-grid-3{grid-template-columns:1fr 1fr;gap:14px;}
     .info-tab-inner,.offerte-inner{padding:18px 14px 48px;}
@@ -555,7 +570,6 @@
     <span id="save-status" style="display:none;"></span>
     <div class="tb-group" style="margin-left:auto;">
       <button class="tbtn" id="gyproc-btn"><span class="ic">🧮</span><span class="lbl">Berekenen</span></button>
-      <button class="tbtn" id="clear-btn"><span class="ic">🗑</span><span class="lbl">Wis alles</span></button>
       <div class="account-menu-wrap">
         <button class="account-menu-trigger" id="tb-account-btn">
           <span class="account-menu-identity"><span class="account-menu-name" id="tb-account-name"></span><span class="account-menu-email" id="tb-user-email"></span></span>
@@ -673,6 +687,10 @@
   </div>
 
   <div id="ptab-grondplan" class="ptab-page">
+  <div id="view-mode-toggle">
+    <button type="button" class="active" id="view-mode-2d-btn" data-mode="2d">2D</button>
+    <button type="button" id="view-mode-3d-btn" data-mode="3d">3D</button>
+  </div>
   <div id="stage">
     <canvas id="canvas"></canvas>
 
@@ -682,15 +700,6 @@
       <div class="stat-pill"><div class="label">Plafond</div><div class="value" id="stat-ceiling">0 <small>m²</small></div></div>
     </div>
 
-    <div id="floating-topright">
-      <button class="tbtn" id="snap-toggle"><span class="ic">▦</span>Snap</button>
-      <select class="tb-select" id="grid-select">
-        <option value="50">5 cm</option>
-        <option value="100" selected>10 cm</option>
-        <option value="250">25 cm</option>
-        <option value="500">50 cm</option>
-      </select>
-    </div>
 
     <button id="delete-selection-btn"><span class="ic">🗑</span><span id="delete-selection-label">Verwijderen</span></button>
 
@@ -702,6 +711,12 @@
       <button class="tbtn" data-tool="door"><span class="ic">🚪</span><span class="lbl">Deur</span></button>
       <button class="tbtn" data-tool="window"><span class="ic">🪟</span><span class="lbl">Raam</span></button>
       <button class="tbtn" data-tool="zone"><span class="ic">✂️</span><span class="lbl">Splitsen</span></button>
+    </div>
+  </div>
+  <div id="stage3d" style="display:none;">
+    <div id="stage3d-controls">
+      <label><input type="checkbox" id="show-ceiling-toggle"> Toon plafond</label>
+      <button type="button" class="tbtn" id="reset-3d-view-btn">Reset view</button>
     </div>
   </div>
   </div>
@@ -1563,6 +1578,18 @@
 
     updateSummary(zones, resolvedCuts);
     updateSelectionUI();
+
+    // Hand off to the 3D view (public/js/floorplan3d.js) only while it's
+    // actually visible - computing every wall's height profile is wasted
+    // work otherwise. wallHeightProfiles is precomputed here (not inside
+    // the 3D module) specifically so 2D and 3D wall heights can never
+    // silently disagree - both read the exact same computeWallHeightProfile
+    // this file already uses for the wall gyproc calculator.
+    if(window.Floorplan3D && window.Floorplan3D.isActive()){
+      var wallHeightProfiles = {};
+      state.walls.forEach(function(w){ wallHeightProfiles[w.id] = computeWallHeightProfile(w, zones, resolvedCuts); });
+      window.Floorplan3D.sync({ walls: state.walls, openings: state.openings, zones: zones, resolvedCuts: resolvedCuts, wallHeightProfiles: wallHeightProfiles });
+    }
   }
 
   function updateSelectionUI(){
@@ -1842,7 +1869,15 @@
   function drawZoneHeightPills(zones, dark){
     zones.forEach(function(z){
       var c = polyCentroid(z.polygon);
-      drawPillLabel(c, "H "+fmtM(z.height), "zone-height", z.key, null, dark, state.roomHeights[z.key]!=null);
+      // While the Plafond tab's number badges are showing, they take the
+      // exact centroid (see drawCeilingNumberBadges) - nudge the height
+      // pill down out of the way rather than have them overlap. The nudge
+      // is in world units (a fixed screen-pixel gap divided by the current
+      // zoom) so it reads the same size on screen at any zoom level.
+      var pos = (gyprocCeilingViewActive && gyprocCeilingState && gyprocCeilingState.sequence.length>1)
+        ? { x:c.x, y:c.y + 26/state.camera.scale }
+        : c;
+      drawPillLabel(pos, "H "+fmtM(z.height), "zone-height", z.key, null, dark, state.roomHeights[z.key]!=null);
     });
   }
 
@@ -1852,12 +1887,13 @@
   // computeCeilingForRoom's room-chain walk), each numbered within its own
   // type (a zone's own count, a bulkhead's own count - matching the unified
   // "Zone 1, Hoogteverschil 1, Zone 2, ..." tab row so the numbers line up
-  // exactly with what's in the slide-out). Zone badges sit at the zone's own
-  // centroid (blue/green); bulkhead badges sit at their split-line's own
-  // midpoint, offset to one side in screen space (same perpendicular-vector
-  // technique drawZoneCuts already uses for its tick marks) so the badge
-  // sits next to the thick purple architectural-section band instead of on
-  // top of it (purple/green, so it still reads as paired with that line).
+  // exactly with what's in the slide-out). Zone badges sit exactly at the
+  // zone's own geometric centroid (blue/green) - drawZoneHeightPills nudges
+  // its own "H x.xx m" pill out of the way instead of the badge moving, so
+  // the badge itself stays truly centroid-anchored. Bulkhead badges sit
+  // exactly on the split-line itself, at its own midpoint (purple/green) -
+  // no perpendicular offset, right on top of the thick purple
+  // architectural-section band so the badge and its line read as one mark.
   // Green = whichever single item is currently selected
   // (ceilingResolvedActiveKey), matching both badge types against the same
   // source of truth. Matched by stable key (zone.key / resolvedCut.id)
@@ -1886,15 +1922,12 @@
         if(!zone) return;
         var c = polyCentroid(zone.polygon);
         var s = worldToScreen(c.x, c.y);
-        s.y -= 22; // sits above the zone's own height pill, drawn at the same centroid
         paintBadge(s, entry.item.displayNumber, entry.key===activeKey, "#2f6feb");
       } else {
         var rc = resolvedCuts.find(function(r){ return r.id===entry.item.rc.id; });
         if(!rc) return;
         var a = worldToScreen(rc.p1.x, rc.p1.y), b = worldToScreen(rc.p2.x, rc.p2.y);
-        var dx = b.x-a.x, dy = b.y-a.y, len = Math.hypot(dx,dy)||1;
-        var nx = -dy/len, ny = dx/len;
-        var s2 = { x:(a.x+b.x)/2 + nx*22, y:(a.y+b.y)/2 + ny*22 };
+        var s2 = { x:(a.x+b.x)/2, y:(a.y+b.y)/2 };
         paintBadge(s2, entry.item.displayNumber, entry.key===activeKey, "#9333ea");
       }
     });
@@ -2460,7 +2493,6 @@
     state.zoneCuts = data.zoneCuts || [];
     state.roomHeights = data.roomHeights || {};
     state.gridStep = data.gridStep || 100;
-    document.getElementById("grid-select").value = String(state.gridStep);
     state.clientName = data.clientName || "";
     state.clientType = data.clientType || "particulier";
     state.clientVatNumber = data.clientVatNumber || "";
@@ -3895,29 +3927,36 @@
     b.addEventListener("click", function(){ setTool(b.dataset.tool); });
   });
 
-  document.getElementById("snap-toggle").addEventListener("click", function(){
-    state.snap = !state.snap;
-    this.classList.toggle("active", state.snap);
-    render();
-  });
-  document.getElementById("snap-toggle").classList.add("active");
-
-  document.getElementById("grid-select").addEventListener("change", function(){
-    state.gridStep = parseInt(this.value,10);
-    scheduleSave();
-    render();
-  });
-
-  document.getElementById("clear-btn").addEventListener("click", function(){
-    if(!confirm("Alles wissen?")) return;
-    pushUndo();
-    state.walls = []; state.openings = []; state.zoneCuts = []; state.roomHeights = {};
-    state.selection = null; state.drawing = null; state.zoneDraw = null;
-    scheduleSave(); render();
-  });
-
   document.getElementById("undo-btn").addEventListener("click", undo);
   document.getElementById("redo-btn").addEventListener("click", redo);
+
+  // 2D/3D view toggle - 3D is view-only (see public/js/floorplan3d.js),
+  // editing always stays on the 2D canvas/tools above. Switching to 3D
+  // hides the 2D editing toolbar/delete button (nothing there means
+  // anything in an orbit camera) and hands off to window.Floorplan3D,
+  // which is loaded as a separate <script type="module"> (see near
+  // </body>) so this main script never needs to import Three.js itself.
+  function setPlanViewMode(mode){
+    document.getElementById("view-mode-2d-btn").classList.toggle("active", mode==="2d");
+    document.getElementById("view-mode-3d-btn").classList.toggle("active", mode==="3d");
+    document.getElementById("stage").style.display = mode==="2d" ? "" : "none";
+    document.getElementById("stage3d").style.display = mode==="3d" ? "" : "none";
+    document.getElementById("floating-nav").style.display = mode==="2d" ? "" : "none";
+    document.getElementById("hint").style.display = mode==="2d" ? "" : "none";
+    if(mode==="3d" && window.Floorplan3D){
+      window.Floorplan3D.mount(document.getElementById("stage3d")).then(render);
+    } else if(mode==="2d" && window.Floorplan3D){
+      window.Floorplan3D.unmount();
+    }
+  }
+  document.getElementById("view-mode-2d-btn").addEventListener("click", function(){ setPlanViewMode("2d"); });
+  document.getElementById("view-mode-3d-btn").addEventListener("click", function(){ setPlanViewMode("3d"); });
+  document.getElementById("show-ceiling-toggle").addEventListener("change", function(){
+    if(window.Floorplan3D) window.Floorplan3D.setShowCeiling(this.checked);
+  });
+  document.getElementById("reset-3d-view-btn").addEventListener("click", function(){
+    if(window.Floorplan3D) window.Floorplan3D.resetView();
+  });
 
   function wallLength(w){ return Math.hypot(w.x2-w.x1, w.y2-w.y1); }
 
@@ -4746,12 +4785,33 @@
     var vbW = wallLenMm, vbH = wallHeightMm;
     var unit = Math.max(vbW, vbH);
     var pad = unit*0.05;
+    // Extra gutter on the bottom/left for overall width/height dimension
+    // lines - this is the one diagram shared by every wall, ceiling zone,
+    // and bulkhead (buildCeilingItemDetailHtml reuses it for both), so
+    // adding it here covers all of them: the user should always be able to
+    // see how big the actual piece is, not just how it's cut up.
+    // Scaled off the geometric mean of both dimensions rather than
+    // Math.max(vbW,vbH) ("unit", used above for stroke widths etc, which
+    // already worked fine at typical wall/zone proportions) - a bulkhead
+    // schot is often extremely elongated (e.g. 2000x100mm), and sizing the
+    // gutter/text off the LONG side alone made the dimension text nearly as
+    // tall as the whole short side, which visually reads as clipped/broken
+    // even though it technically still fits the viewBox.
+    var dimUnit = Math.sqrt(vbW*vbH) || unit;
+    var padBottom = dimUnit*0.30, padLeft = dimUnit*0.38;
     function flipY(dataY){ return vbH - dataY; }
     var poly = buildWallProfilePolyStrings(wallLenMm, wallHeightMm, profile, flipY);
 
+    var vbTotalW = vbW+padLeft+pad, vbTotalH = vbH+pad+padBottom;
     var svg = [];
-    svg.push('<svg viewBox="'+(-pad)+' '+(-pad)+' '+(vbW+2*pad)+' '+(vbH+2*pad)+'" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;">');
-    svg.push('<rect x="'+(-pad)+'" y="'+(-pad)+'" width="'+(vbW+2*pad)+'" height="'+(vbH+2*pad)+'" fill="#f8fafc"/>');
+    // A very wide/thin piece (e.g. a short bulkhead schot) makes this ratio
+    // extreme - without an explicit CSS aspect-ratio, a plain <svg width=
+    // "100%"> falls back to a fixed intrinsic height in some browsers,
+    // clipping the bottom dimension line/text right off instead of scaling
+    // the whole viewBox down to fit (which preserveAspectRatio alone should
+    // do, but only once the element's own box is sized correctly first).
+    svg.push('<svg viewBox="'+(-padLeft)+' '+(-pad)+' '+vbTotalW+' '+vbTotalH+'" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;aspect-ratio:'+vbTotalW+'/'+vbTotalH+';">');
+    svg.push('<rect x="'+(-padLeft)+'" y="'+(-pad)+'" width="'+vbTotalW+'" height="'+vbTotalH+'" fill="#f8fafc"/>');
 
     result.pieces.forEach(function(p){
       var idx = p.binIdx % GYPROC_FILL_PALETTE.length;
@@ -4775,6 +4835,23 @@
     });
 
     svg.push('<polygon points="'+poly.full+'" fill="none" stroke="#1f2937" stroke-width="'+(unit*0.010)+'"/>');
+
+    // Overall width (bottom) / height (left) dimension lines, same ticked-
+    // line convention as the rest of the app's floor-plan measurements.
+    var dimStroke = "#64748b", dimW = dimUnit*0.0035, fontSize = dimUnit*0.032, tick = dimUnit*0.012;
+    var dimY = vbH + padBottom*0.42;
+    svg.push('<line x1="0" y1="'+dimY+'" x2="'+vbW+'" y2="'+dimY+'" stroke="'+dimStroke+'" stroke-width="'+dimW+'"/>');
+    svg.push('<line x1="0" y1="'+(dimY-tick)+'" x2="0" y2="'+(dimY+tick)+'" stroke="'+dimStroke+'" stroke-width="'+dimW+'"/>');
+    svg.push('<line x1="'+vbW+'" y1="'+(dimY-tick)+'" x2="'+vbW+'" y2="'+(dimY+tick)+'" stroke="'+dimStroke+'" stroke-width="'+dimW+'"/>');
+    svg.push('<text x="'+(vbW/2)+'" y="'+(dimY+padBottom*0.48)+'" font-size="'+fontSize+'" fill="'+dimStroke+'" text-anchor="middle" dominant-baseline="hanging">'+fmtM(vbW)+'</text>');
+
+    var dimX = -padLeft*0.42;
+    svg.push('<line x1="'+dimX+'" y1="0" x2="'+dimX+'" y2="'+vbH+'" stroke="'+dimStroke+'" stroke-width="'+dimW+'"/>');
+    svg.push('<line x1="'+(dimX-tick)+'" y1="0" x2="'+(dimX+tick)+'" y2="0" stroke="'+dimStroke+'" stroke-width="'+dimW+'"/>');
+    svg.push('<line x1="'+(dimX-tick)+'" y1="'+vbH+'" x2="'+(dimX+tick)+'" y2="'+vbH+'" stroke="'+dimStroke+'" stroke-width="'+dimW+'"/>');
+    var dimLabelX = -padLeft*0.78, dimLabelY = vbH/2;
+    svg.push('<text x="'+dimLabelX+'" y="'+dimLabelY+'" font-size="'+fontSize+'" fill="'+dimStroke+'" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 '+dimLabelX+' '+dimLabelY+')">'+fmtM(vbH)+'</text>');
+
     svg.push('</svg>');
     return svg.join('');
   }
@@ -5483,17 +5560,25 @@
       needsCoupling: coupling.needsCoupling, couplingCount: couplingReserve
     };
   }
-  // Same shape, for one hoogteverschil-bulkhead - no hangers (a short
-  // vertical infill strip is screwed directly, it isn't hung from a grid).
+  // Same shape as computeZonePriceTotal, for one hoogteverschil-bulkhead -
+  // no hangers (a short vertical infill strip is screwed directly, it isn't
+  // hung from a grid). Must read the bulkhead's OWN activeIndex/
+  // cdActiveIndex/udActiveIndex (set by wireCeilingItemTabs when the user
+  // picks a different panel/CD/UD option in its tab) rather than always
+  // computing the cheapest option - this used to hardcode index 0, which
+  // silently froze the price footer/top-tab badge at the "best" price no
+  // matter what the user actually selected, even though the bulkhead's own
+  // checkout tab (buildCeilingTabsHtml, via computeZonePriceTotal reused
+  // for its display) updated correctly - the two disagreed.
   function computeBulkheadPriceTotal(b){
     var plan = b.plan;
-    var active = plan.results[0];
+    var active = b.results[b.activeIndex] || b.results[0];
     var szEntry = PANEL_SIZES.find(function(s){ return s.label===active.sizeLabel; });
     var gyprocPrice = szEntry ? materialPrices["gyproc:"+szEntry.w+"x"+szEntry.h] : undefined;
     var gyprocSubtotal = (gyprocPrice||0)*active.netPanels;
     var missingPrice = gyprocPrice==null;
 
-    var bestCd = packLengthPieces(plan.cdPieces, TRACK_LENGTHS)[0];
+    var bestCd = b.cdLengthOptions[b.cdActiveIndex] || b.cdLengthOptions[0];
     var coupling = computeCdCouplingInfo(plan, bestCd);
     var cdReserve = Math.ceil(bestCd.totalPieces*(1+STUD_RESERVE_PCT/100));
     var cdPrice = materialPrices["plafond:cd:"+bestCd.pieceLenMm+":"+gyprocCeilingGaugeMm];
@@ -5501,7 +5586,7 @@
     var studsPieces = cdReserve;
     if(cdPrice==null) missingPrice = true;
 
-    var bestUd = packLengthPieces(plan.udPieces, TRACK_LENGTHS)[0];
+    var bestUd = b.udLengthOptions[b.udActiveIndex] || b.udLengthOptions[0];
     var udReserve = Math.ceil(bestUd.totalPieces*(1+STUD_RESERVE_PCT/100));
     var udPrice = materialPrices["plafond:ud:"+bestUd.pieceLenMm];
     studsSubtotal += (udPrice||0)*udReserve;
@@ -6745,5 +6830,20 @@
   })();
 })();
 </script>
+
+<!-- 3D "whitebox" view of the Grondplan (public/js/floorplan3d.js) - a
+     separate ES module, loaded only for the CDN import map it needs.
+     Coupling with the main script above is exactly one global,
+     window.Floorplan3D (mount/unmount/sync/isActive/setShowCeiling/
+     resetView) - the main script never imports Three.js, this module
+     never touches `state` directly, only the plain snapshot handed to
+     sync(). See render()'s own call site for how that snapshot is built. -->
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.0/examples/jsm/"
+} }
+</script>
+<script type="module" src="/js/floorplan3d.js"></script>
 </body>
 </html>
