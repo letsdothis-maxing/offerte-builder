@@ -1271,6 +1271,21 @@
     return best;
   }
 
+  // Closest point ON an existing wall's centerline to worldPt (magnet),
+  // within `radiusMm` - lets a new wall's anchor point snap onto the
+  // MIDDLE of an existing wall (a T-junction), not just onto one of its
+  // two endpoints (findExistingVertexNear's job, and checked first - a
+  // point exactly at a wall's end is both a vertex AND technically on the
+  // wall's line, and the endpoint match should win there).
+  function findPointOnWallNear(worldPt, radiusMm){
+    var best = null, bestD = radiusMm;
+    state.walls.forEach(function(w){
+      var r = pointSegDist(worldPt, {x:w.x1,y:w.y1}, {x:w.x2,y:w.y2});
+      if(r.d < bestD){ bestD = r.d; best = r.point; }
+    });
+    return best;
+  }
+
   function magnetRadiusWorld(){
     return 14 / state.camera.scale; // ~14 screen px
   }
@@ -1304,6 +1319,8 @@
     if(state.altHeld) return { x: rawWorld.x, y: rawWorld.y };
     var magnet = findExistingVertexNear(rawWorld, magnetRadiusWorld());
     if(magnet) return magnet;
+    var wallMagnet = findPointOnWallNear(rawWorld, magnetRadiusWorld());
+    if(wallMagnet) return wallMagnet;
     if(!state.snap) return { x: rawWorld.x, y: rawWorld.y };
     if(!prevPoint) return snapToGridPoint(rawWorld);
     var dx = rawWorld.x - prevPoint.x, dy = rawWorld.y - prevPoint.y;
