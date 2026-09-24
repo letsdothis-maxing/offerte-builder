@@ -1164,6 +1164,15 @@
     openings: [],   // {id,wallId,type:'door'|'window',t,width,height,sill}
     zoneCuts: [],   // {id,x1,y1,x2,y2}
     roomHeights: {},// key -> heightMm override
+    // key -> {widthMm, maxHeightMm} - a single-pitch slanted ceiling for
+    // that zone. roomHeights[key] (or defaultRoomHeight) stays the LOW/eave
+    // height where the slope starts; maxHeightMm is the peak at the far
+    // end of the slope, widthMm the horizontal run between them. Only the
+    // gyproc/paint surface-area calc (computeCeilingZonePlan) reacts to
+    // this - the 2D plan view and wall-height logic are unaffected (no 3D
+    // rendering of the slope itself, by design - see the ticket's own
+    // "out of scope").
+    slantedRoofs: {},
     // Info-tab project metadata (per project, saved alongside walls/openings
     // in the same proj.data blob - see loadActiveProjectIntoState/scheduleSave).
     clientName: "", clientType: "particulier", clientVatNumber: "", projectStatus: "aanvraag",
@@ -1217,12 +1226,14 @@
 
   function snapshotDoc(){
     return JSON.parse(JSON.stringify({
-      walls: state.walls, openings: state.openings, zoneCuts: state.zoneCuts, roomHeights: state.roomHeights
+      walls: state.walls, openings: state.openings, zoneCuts: state.zoneCuts, roomHeights: state.roomHeights,
+      slantedRoofs: state.slantedRoofs
     }));
   }
   function applyDoc(doc){
     state.walls = doc.walls; state.openings = doc.openings;
     state.zoneCuts = doc.zoneCuts; state.roomHeights = doc.roomHeights;
+    state.slantedRoofs = doc.slantedRoofs || {};
   }
   function pushUndo(){
     undoStack.push(snapshotDoc());
@@ -2067,7 +2078,9 @@
       var pos = (gyprocCeilingViewActive && gyprocCeilingState && gyprocCeilingState.sequence.length>1)
         ? { x:c.x, y:c.y + 26/state.camera.scale }
         : c;
-      drawPillLabel(pos, "H "+fmtM(z.height), "zone-height", z.key, null, dark, state.roomHeights[z.key]!=null);
+      var slant = state.slantedRoofs[z.key];
+      var label = slant ? "H "+fmtM(z.height)+"–"+fmtM(slant.maxHeightMm)+" ⟋" : "H "+fmtM(z.height);
+      drawPillLabel(pos, label, "zone-height", z.key, null, dark, !!slant || state.roomHeights[z.key]!=null);
     });
   }
 
@@ -2384,7 +2397,7 @@
 
   function updateSummary(zones, resolvedCuts){
     var floorArea = 0, ceilingArea = 0, wallArea = 0;
-    zones.forEach(function(z){ floorArea += z.area; ceilingArea += z.area; });
+    zones.forEach(function(z){ floorArea += z.area; ceilingArea += z.area*slantedCeilingFactor(z); });
 
     // A split room whose two zones have different heights has a vertical
     // "riser" strip where the ceiling steps up, running the full length of
@@ -2675,7 +2688,7 @@
     if(!proj) return;
     proj.data = {
       walls: state.walls, openings: state.openings, zoneCuts: state.zoneCuts,
-      roomHeights: state.roomHeights, gridStep: state.gridStep,
+      roomHeights: state.roomHeights, slantedRoofs: state.slantedRoofs, gridStep: state.gridStep,
       clientName: state.clientName, clientType: state.clientType, clientVatNumber: state.clientVatNumber, projectStatus: state.projectStatus,
       clientStreet: state.clientStreet, clientHouseNumber: state.clientHouseNumber,
       clientAddressAddition: state.clientAddressAddition, clientPostalCode: state.clientPostalCode,
@@ -2726,6 +2739,7 @@
     state.openings = data.openings || [];
     state.zoneCuts = data.zoneCuts || [];
     state.roomHeights = data.roomHeights || {};
+    state.slantedRoofs = data.slantedRoofs || {};
     state.gridStep = data.gridStep || 100;
     state.clientName = data.clientName || "";
     state.clientType = data.clientType || "particulier";
@@ -4747,17 +4761,12 @@
   function openPillEditor(pill, sx, sy){
     closePillEditor();
     if(pill.type === "wall-order"){ openWallOrderEditor(pill, sx, sy); return; }
+    if(pill.type === "zone-height"){ openZoneHeightEditor(pill, sx, sy); return; }
     var div = document.createElement("div");
     div.className = "pill-editor";
     div.style.left = sx+"px";
     div.style.top = sy+"px";
-    var currentMm;
-    if(pill.type === "wall-length"){
-      var w = state.walls.find(function(ww){return ww.id===pill.id;});
-      currentMm = wallLength(w);
-    } else if(pill.type === "zone-height"){
-      currentMm = state.roomHeights[pill.id] != null ? state.roomHeights[pill.id] : state.defaultRoomHeight;
-    }
+    var currentMm = wallLength(state.walls.find(function(ww){return ww.id===pill.id;}));
     div.innerHTML = '<input type="text" inputmode="decimal" value="'+(currentMm/10).toFixed(0)+'"><span>cm</span><button>OK</button>';
     document.body.appendChild(div);
     var input = div.querySelector("input");
@@ -4767,16 +4776,12 @@
       if(!isNaN(cm) && cm > 0){
         var mm = cm*10;
         pushUndo();
-        if(pill.type === "wall-length"){
-          var w3 = state.walls.find(function(ww){return ww.id===pill.id;});
-          var dx=w3.x2-w3.x1, dy=w3.y2-w3.y1, len=Math.hypot(dx,dy)||1;
-          var ux=dx/len, uy=dy/len;
-          var oldEnd = { x:w3.x2, y:w3.y2 };
-          var newEnd = { x:w3.x1+ux*mm, y:w3.y1+uy*mm };
-          moveVertexAndConnected(oldEnd, newEnd);
-        } else if(pill.type === "zone-height"){
-          state.roomHeights[pill.id] = mm;
-        }
+        var w3 = state.walls.find(function(ww){return ww.id===pill.id;});
+        var dx=w3.x2-w3.x1, dy=w3.y2-w3.y1, len=Math.hypot(dx,dy)||1;
+        var ux=dx/len, uy=dy/len;
+        var oldEnd = { x:w3.x2, y:w3.y2 };
+        var newEnd = { x:w3.x1+ux*mm, y:w3.y1+uy*mm };
+        moveVertexAndConnected(oldEnd, newEnd);
         scheduleSave();
       }
       closePillEditor();
@@ -4786,6 +4791,70 @@
     input.addEventListener("keydown", function(e){
       if(e.key==="Enter") commit();
       if(e.key==="Escape") closePillEditor();
+    });
+    armPillEditorOutsideClose(div);
+    activeEditor = div;
+  }
+
+  // Zone height editor - a plain flat height, or (toggle on) a single-
+  // pitch slanted ceiling: roomHeights[key] stays the LOW/eave height
+  // where the slope starts, slantedRoofs[key] adds the horizontal run and
+  // the peak height at its far end. Only computeCeilingZonePlan reacts to
+  // the slant (scales the gyproc/paint surface area by the slope's own
+  // hypotenuse-vs-run ratio) - the flat "H x.xx m" pill and every other
+  // height-driven calc (walls, bulkheads) keep using the eave height
+  // unchanged, same as before this existed.
+  function openZoneHeightEditor(pill, sx, sy){
+    var key = pill.id;
+    var heightMm = state.roomHeights[key] != null ? state.roomHeights[key] : state.defaultRoomHeight;
+    var slant = state.slantedRoofs[key] || null;
+    var div = document.createElement("div");
+    div.className = "pill-editor wall-order-editor";
+    div.style.left = sx+"px";
+    div.style.top = sy+"px";
+    div.innerHTML = ''
+      + '<div class="woe-row"><span>Hoogte (laagste punt)</span><input type="text" inputmode="decimal" class="zh-height" value="'+(heightMm/10).toFixed(0)+'"><span>cm</span></div>'
+      + '<label><input type="checkbox" class="zh-slant-toggle"'+(slant?' checked':'')+'> Hellend plafond</label>'
+      + '<div class="woe-row zh-slant-field" style="display:'+(slant?'flex':'none')+'"><span>Breedte hellend vlak</span><input type="text" inputmode="decimal" class="zh-width" value="'+(slant?(slant.widthMm/10).toFixed(0):"150")+'"><span>cm</span></div>'
+      + '<div class="woe-row zh-slant-field" style="display:'+(slant?'flex':'none')+'"><span>Max. hoogte</span><input type="text" inputmode="decimal" class="zh-maxheight" value="'+(slant?(slant.maxHeightMm/10).toFixed(0):((heightMm+500)/10).toFixed(0))+'"><span>cm</span></div>'
+      + '<button>OK</button>';
+    document.body.appendChild(div);
+    var heightInput = div.querySelector(".zh-height");
+    var toggle = div.querySelector(".zh-slant-toggle");
+    var slantFields = div.querySelectorAll(".zh-slant-field");
+    var widthInput = div.querySelector(".zh-width");
+    var maxHeightInput = div.querySelector(".zh-maxheight");
+    heightInput.focus(); heightInput.select();
+    toggle.addEventListener("change", function(){
+      slantFields.forEach(function(f){ f.style.display = toggle.checked ? "flex" : "none"; });
+    });
+    function commit(){
+      var cm = parseFloat(heightInput.value);
+      if(!isNaN(cm) && cm > 0){
+        pushUndo();
+        var mm = cm*10;
+        state.roomHeights[key] = mm;
+        if(toggle.checked){
+          var widthCm = parseFloat(widthInput.value), maxCm = parseFloat(maxHeightInput.value);
+          if(!isNaN(widthCm) && widthCm>0 && !isNaN(maxCm) && maxCm*10>mm){
+            state.slantedRoofs[key] = { widthMm: widthCm*10, maxHeightMm: maxCm*10 };
+          } else {
+            delete state.slantedRoofs[key];
+          }
+        } else {
+          delete state.slantedRoofs[key];
+        }
+        scheduleSave();
+      }
+      closePillEditor();
+      render();
+    }
+    div.querySelector("button").addEventListener("click", commit);
+    div.querySelectorAll("input[type=text]").forEach(function(inp){
+      inp.addEventListener("keydown", function(e){
+        if(e.key==="Enter") commit();
+        if(e.key==="Escape") closePillEditor();
+      });
     });
     armPillEditorOutsideClose(div);
     activeEditor = div;
@@ -5676,9 +5745,27 @@
   // is also exactly what happens when plafond is the ONLY active service:
   // wallsCoverUd is false, so UD always runs the complete muur-tot-muur
   // perimeter.
+  // A single-pitch slanted ceiling (state.slantedRoofs[zone.key]) makes the
+  // REAL ceiling surface longer than its flat top-down footprint suggests
+  // - this ratio (the slope's own hypotenuse vs. its horizontal run) is
+  // what computeCeilingZonePlan scales the "breedte" (CD-run/depth)
+  // dimension by, so a slanted zone's panel/CD/hanger quantities reflect
+  // the actual sloped surface area, not its flat projection. Assumes the
+  // slope runs along the zone's own depth axis (an attic room's ceiling
+  // rising from the low eave wall toward the ridge across the room's
+  // depth, not its length) - single-pitch, no 3D rendering of the slope
+  // itself, matching this feature's own explicit scope.
+  function slantedCeilingFactor(zone){
+    var slant = state.slantedRoofs[zone.key];
+    if(!slant || !(slant.widthMm > 0)) return 1;
+    var rise = slant.maxHeightMm - zone.height;
+    if(rise <= 0) return 1;
+    return Math.hypot(slant.widthMm, rise) / slant.widthMm;
+  }
   function computeCeilingZonePlan(zone, wallsCoverUd, hohMm){
     var bbox = polygonBBoxMm(zone.polygon);
-    var lengteMm = Math.max(0, bbox.width), breedteMm = Math.max(0, bbox.height);
+    var lengteMm = Math.max(0, bbox.width);
+    var breedteMm = Math.max(0, bbox.height) * slantedCeilingFactor(zone);
     var cdCount = Math.max(1, Math.ceil(lengteMm/hohMm)+1);
     var hangersPerCd = Math.max(1, Math.ceil(breedteMm/CEILING_HANGER_SPACING_MM)+1);
     var cdPieces = [];
@@ -5797,7 +5884,11 @@
       };
     }).filter(Boolean);
 
-    var totalAreaM2 = roomZones.reduce(function(s,z){ return s+z.area; },0)/1000000;
+    // Slanted zones' TRUE surface (gyproc AND paint/primer both cover the
+    // actual sloped ceiling, not its flat top-down projection) - see
+    // slantedCeilingFactor's own doc comment for the single-pitch
+    // assumption this scales by.
+    var totalAreaM2 = roomZones.reduce(function(s,z){ return s+z.area*slantedCeilingFactor(z); },0)/1000000;
 
     // The tab order should read the way the room physically is: zone,
     // then whichever bulkhead sits between it and its neighbor, then that
@@ -6429,7 +6520,11 @@
       var item = activeEntry.item;
       itemHtml = buildCeilingItemDetailHtml(item, isZone ? {
         lengthMm: item.plan.lengteMm, widthMm: item.plan.breedteMm,
-        areaLabel: 'Plafondoppervlak', areaM2: item.zone.area/1000000, tabAttr: 'zone'
+        // (lengte x breedte), not the flat zone.area - breedteMm is already
+        // slant-scaled (slantedCeilingFactor, via computeCeilingZonePlan)
+        // for a slanted zone, so this reads as the true sloped surface,
+        // consistent with the length/width shown right next to it.
+        areaLabel: 'Plafondoppervlak', areaM2: (item.plan.lengteMm/1000)*(item.plan.breedteMm/1000), tabAttr: 'zone'
       } : {
         lengthMm: item.plan.lSprongMm, widthMm: item.plan.hDiffMm,
         areaLabel: 'Oppervlakte schot', areaM2: (item.plan.lSprongMm/1000)*(item.plan.hDiffMm/1000), tabAttr: 'bulkhead'
