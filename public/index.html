@@ -1196,6 +1196,8 @@
     dragState: null,
     spaceHeld: false,
     altHeld: false, // holding Alt/Option bypasses angle/grid/alignment snapping - "draw freely"
+    shiftHeld: false,
+    shiftLockAxis: null, // "x"|"y"|null - captured once when Shift goes down while drawing, held fixed until released
     _pillHitboxes: [],
     _lastZones: [],
     _lastResolvedCuts: []
@@ -1326,9 +1328,20 @@
     var dx = rawWorld.x - prevPoint.x, dy = rawWorld.y - prevPoint.y;
     var dLen = Math.hypot(dx,dy);
     if(dLen < 1) return snapToGridPoint(rawWorld);
-    var rawAngle = Math.atan2(dy,dx);
-    var snappedAngle = Math.round(rawAngle / (Math.PI/2)) * (Math.PI/2);
-    var pt = { x: prevPoint.x + Math.cos(snappedAngle)*dLen, y: prevPoint.y + Math.sin(snappedAngle)*dLen };
+    var pt, snappedAngle;
+    if(state.shiftHeld && state.shiftLockAxis){
+      // Shift locks onto whichever axis was closest the moment it was
+      // pressed (see the keydown handler) and holds it there regardless of
+      // cursor wobble, unlike the always-on nearest-angle snap below,
+      // which deliberately re-evaluates every frame and can flip near the
+      // 45° boundary if the hand isn't perfectly steady.
+      if(state.shiftLockAxis === "x"){ pt = { x: rawWorld.x, y: prevPoint.y }; snappedAngle = 0; }
+      else { pt = { x: prevPoint.x, y: rawWorld.y }; snappedAngle = Math.PI/2; }
+    } else {
+      var rawAngle = Math.atan2(dy,dx);
+      snappedAngle = Math.round(rawAngle / (Math.PI/2)) * (Math.PI/2);
+      pt = { x: prevPoint.x + Math.cos(snappedAngle)*dLen, y: prevPoint.y + Math.sin(snappedAngle)*dLen };
+    }
     var align = startPointAlignment(pt, snappedAngle);
     if(align){
       pt[align.axis] = align.value;
@@ -2122,6 +2135,24 @@
     }
     var last = pts[pts.length-1];
     var cursorPt = computeNextPoint(last, state.pointer.world);
+
+    // Shift-lock guide: a full-width/height line through the anchor point
+    // along whichever axis is currently held fixed (see the keydown
+    // handler + computeNextPoint's shiftLockAxis branch), so the lock
+    // itself is visible, not just its effect on the live segment.
+    if(state.shiftHeld && state.shiftLockAxis){
+      var sLast = worldToScreen(last.x, last.y);
+      var W = canvas.width/dpr, H = canvas.height/dpr;
+      ctx.save();
+      ctx.strokeStyle = "#8b5cf6";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2,4]);
+      ctx.beginPath();
+      if(state.shiftLockAxis === "x"){ ctx.moveTo(0,sLast.y); ctx.lineTo(W,sLast.y); }
+      else { ctx.moveTo(sLast.x,0); ctx.lineTo(sLast.x,H); }
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // start-point alignment guide: computeNextPoint silently locks the
     // live point onto the start point's own x or y once the cursor gets
@@ -4188,7 +4219,7 @@
     canvas.className = "tool-"+tool;
     var hints = {
       select: "Klik op een muur, deur of raam om te selecteren. Sleep ankerpunten of muren om te verplaatsen. Delete om te verwijderen.",
-      wall: "Klik om muurpunten te plaatsen (snapt naar 90°). Klik dicht bij het startpunt om een ruimte te sluiten. Houd Alt ingedrukt om vrij te tekenen.",
+      wall: "Klik om muurpunten te plaatsen (snapt naar 90°). Houd Shift ingedrukt om horizontaal/verticaal vast te zetten. Klik dicht bij het startpunt om een ruimte te sluiten. Houd Alt ingedrukt om vrij te tekenen.",
       door: "Klik op een muur om een deur toe te voegen.",
       window: "Klik op een muur om een raam toe te voegen.",
       zone: "Trek een lijn dwars door een ruimte om deze in twee zones met eigen hoogte te splitsen."
@@ -4572,6 +4603,21 @@
       state.altHeld = true;
       if(state.tool==="wall" && state.drawing) render(); // live-update the drawing preview
     }
+    if(e.key === "Shift" && !inField && !state.shiftHeld){
+      state.shiftHeld = true;
+      // capture whichever axis the cursor is CURRENTLY closest to, once,
+      // right as Shift goes down - held fixed for the rest of the press so
+      // small hand wobble near the 45° boundary can't flip it mid-drag the
+      // way the always-on nearest-angle snap (computeNextPoint, with no
+      // Shift involved) deliberately does re-evaluate every frame.
+      if(state.tool==="wall" && state.drawing){
+        var pts0 = state.drawing.points;
+        var lastPt = pts0[pts0.length-1];
+        var dxs = state.pointer.world.x-lastPt.x, dys = state.pointer.world.y-lastPt.y;
+        state.shiftLockAxis = Math.abs(dxs) >= Math.abs(dys) ? "x" : "y";
+        render();
+      }
+    }
     if(e.key === "Escape"){
       state.drawing = null; state.zoneDraw = null; render();
     }
@@ -4588,11 +4634,19 @@
       state.altHeld = false;
       if(state.tool==="wall" && state.drawing) render();
     }
+    if(e.key === "Shift"){
+      state.shiftHeld = false;
+      state.shiftLockAxis = null;
+      if(state.tool==="wall" && state.drawing) render();
+    }
   });
-  // Alt is also readable as a held modifier via the browser's own
-  // event.altKey on mousemove - covers the case where focus left the
-  // window while Alt was down and the keyup never fired here.
-  window.addEventListener("blur", function(){ state.altHeld = false; });
+  // Alt/Shift are also readable as held modifiers via the browser's own
+  // event.altKey/shiftKey on mousemove - covers the case where focus left
+  // the window while one was down and the keyup never fired here.
+  window.addEventListener("blur", function(){
+    state.altHeld = false;
+    state.shiftHeld = false; state.shiftLockAxis = null;
+  });
   // right-click-drag also pans (in addition to space+drag and middle-click-
   // drag), so the browser's own context menu must not appear over the canvas
   canvas.addEventListener("contextmenu", function(e){ e.preventDefault(); });
