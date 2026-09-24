@@ -19,7 +19,33 @@
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);}
-  #app{display:flex;flex-direction:column;height:100%;}
+  #app{display:flex;flex-direction:column;height:100%;margin-left:212px;}
+
+  /* ---------- app sidebar (persistent left nav, all screens) ---------- */
+  #app-sidebar{
+    position:fixed;top:0;left:0;bottom:0;width:212px;z-index:30;
+    background:var(--panel);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;padding:18px 12px;
+  }
+  #sidebar-brand{font-size:16px;font-weight:700;padding:4px 10px 0;margin-bottom:22px;white-space:nowrap;cursor:pointer;}
+  #sidebar-brand span{color:var(--blue);}
+  #sidebar-nav{display:flex;flex-direction:column;gap:2px;}
+  .sidebar-nav-btn{
+    display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+    border:none;background:none;color:var(--ink);padding:10px 12px;border-radius:9px;
+    font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;
+  }
+  .sidebar-nav-btn:hover{background:var(--bg);}
+  .sidebar-nav-btn.active{background:var(--blue);color:#fff;}
+  .sidebar-nav-btn .ic{font-size:16px;line-height:1;width:18px;text-align:center;flex-shrink:0;}
+  #sidebar-settings-btn{margin-top:auto;}
+  #sidebar-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:29;opacity:0;pointer-events:none;transition:opacity .18s;}
+  #sidebar-backdrop.open{opacity:1;pointer-events:auto;}
+  .sidebar-hamburger-btn{
+    display:none;align-items:center;justify-content:center;width:36px;height:36px;padding:0;flex-shrink:0;
+    border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;font-size:16px;cursor:pointer;
+  }
+  .sidebar-hamburger-btn:hover{background:var(--bg);}
 
   /* ---------- top bar ---------- */
   #topbar{
@@ -27,9 +53,10 @@
     padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);
     flex-shrink:0;z-index:20;flex-wrap:wrap;
   }
+  #topbar-title-group{display:flex;flex-direction:column;gap:1px;}
   #topbar h1{font-size:15px;font-weight:700;margin:0;white-space:nowrap;}
+  #project-tabs{display:flex;gap:6px;flex-shrink:0;}
   #save-status{font-size:12px;color:#b45309;background:#fef3c7;padding:5px 10px;border-radius:8px;white-space:nowrap;}
-  #topbar h1 span{color:var(--blue);}
   #floating-stats{
     position:absolute;top:16px;left:50%;transform:translateX(-50%);
     display:flex;gap:8px;flex-wrap:wrap;justify-content:center;z-index:15;
@@ -55,6 +82,9 @@
   .tbtn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
   .tbtn .ic{font-size:15px;line-height:1;}
   .tbtn:disabled{opacity:.4;cursor:not-allowed;}
+  .tbtn.topbar-back-link{border:none;background:none;padding:0;color:var(--muted);gap:4px;font-size:11px;font-weight:600;}
+  .tbtn.topbar-back-link:hover{background:none;color:var(--ink);}
+  .tbtn.topbar-back-link .ic{font-size:12px;}
   .tb-group{display:flex;align-items:center;gap:6px;}
   .tb-label{font-size:11px;color:var(--muted);margin-right:2px;}
   select.tb-select{
@@ -160,9 +190,9 @@
   .field input[type=text],.field input[type=date]{flex:1;width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;}
 
   /* ---------- project list screen ---------- */
-  #project-list-screen{position:fixed;inset:0;background:var(--bg);z-index:5;display:flex;flex-direction:column;overflow:auto;}
+  #project-list-screen{position:fixed;top:0;right:0;bottom:0;left:212px;background:var(--bg);z-index:5;display:flex;flex-direction:column;overflow:auto;}
   #project-list-screen.hidden{display:none;}
-  #contact-detail-screen{position:fixed;inset:0;background:var(--bg);z-index:6;display:flex;flex-direction:column;overflow:auto;}
+  #contact-detail-screen{position:fixed;top:0;right:0;bottom:0;left:212px;background:var(--bg);z-index:6;display:flex;flex-direction:column;overflow:auto;}
   #contact-detail-screen.hidden{display:none;}
   #contact-tabs{display:flex;gap:6px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;justify-content:center;}
   .ctab-btn{border:1px solid var(--line);background:var(--bg);color:var(--muted);padding:7px 18px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s,color .12s,border-color .12s;}
@@ -170,7 +200,8 @@
   .ctab-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
   .ctab-page{display:none;flex:1;min-height:0;padding:20px 24px;overflow:auto;}
   .ctab-page.active{display:block;}
-  .pl-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;}
+  .pl-topbar{display:flex;align-items:center;gap:12px;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;}
+  .pl-topbar-title-group{display:flex;flex-direction:column;gap:1px;}
   .pl-topbar h1{font-size:16px;margin:0;font-weight:700;}
   .pl-topbar h1 span{color:var(--blue);}
   .pl-body{padding:24px;max-width:960px;margin:0 auto;width:100%;}
@@ -183,23 +214,7 @@
   .pl-card .edit-btn{position:absolute;top:12px;right:10px;background:none;border:none;cursor:pointer;font-size:14px;color:var(--muted);padding:4px 6px;border-radius:6px;}
   .pl-card .edit-btn:hover{background:var(--bg);}
   .pl-empty{text-align:center;color:var(--muted);padding:60px 20px;font-size:14px;}
-  .pl-body{padding-bottom:90px;}
-
-  /* ---------- floating bottom nav (Projecten / Materialen) ---------- */
-  #pl-bottom-nav{
-    position:fixed;left:50%;bottom:20px;transform:translateX(-50%);
-    display:flex;align-items:center;gap:4px;padding:6px;
-    background:var(--panel);border:1px solid var(--line);border-radius:16px;
-    box-shadow:0 10px 30px rgba(15,23,42,.18);z-index:15;
-  }
-  .pl-nav-btn{
-    display:flex;align-items:center;gap:6px;border:none;background:none;color:var(--ink);
-    padding:9px 16px;border-radius:11px;font-size:13px;cursor:pointer;font-weight:600;
-  }
-  .pl-nav-btn:hover{background:var(--bg);}
-  .pl-nav-btn.active{background:var(--blue);color:#fff;}
-  .pl-topbar-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;}
-  .pl-header-settings-btn{width:36px;height:36px;padding:0;justify-content:center;border:1px solid var(--line);border-radius:50%;font-size:16px;flex-shrink:0;}
+  .pl-topbar-actions{display:flex;align-items:center;gap:10px;flex-shrink:0;margin-left:auto;}
 
   /* ---------- planning page: infinite vertical month-scroll calendar ---------- */
   #pl-page-planning{display:flex;flex-direction:column;} /* JS sets an explicit height (viewport-derived) on this each time the page is shown */
@@ -333,7 +348,6 @@
   .gyproc-top-tab.active{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(15,23,42,.15);}
 
   /* ---------- project tabs (Info / Grondplan / Offerte) ---------- */
-  #project-tabs{display:flex;gap:6px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;justify-content:center;}
   .ptab-btn{border:1px solid var(--line);background:var(--bg);color:var(--muted);padding:7px 18px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s,color .12s,border-color .12s;}
   .ptab-btn:hover{background:#eef2f7;}
   .ptab-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;}
@@ -489,10 +503,13 @@
 
   /* ---------- mobile compaction ---------- */
   @media (max-width:720px){
+    #app-sidebar{transform:translateX(-100%);transition:transform .22s ease;box-shadow:8px 0 30px rgba(0,0,0,.18);}
+    #app-sidebar.open{transform:translateX(0);}
+    #app{margin-left:0;}
+    #project-list-screen,#contact-detail-screen{left:0;}
+    .sidebar-hamburger-btn{display:flex;}
     #topbar{gap:8px;padding:8px 10px;}
-    #topbar .lbl,#floating-nav .lbl,#pl-bottom-nav .lbl{display:none;}
-    #pl-bottom-nav .pl-nav-btn{padding:10px 14px;gap:0;}
-    #app-title .title-brand{display:none;}
+    #topbar .lbl,#floating-nav .lbl{display:none;}
     #app-title{font-size:14px;}
     #floating-nav .tbtn{padding:9px 11px;}
     #floating-topright{display:none;}
@@ -505,10 +522,29 @@
 </style>
 </head>
 <body>
+<aside id="app-sidebar">
+  <div id="sidebar-brand">Offerte<span>Builder</span></div>
+  <nav id="sidebar-nav">
+    <button class="sidebar-nav-btn" data-page="projects"><span class="ic">🗂️</span><span class="lbl">Projecten</span></button>
+    <button class="sidebar-nav-btn" data-page="planning"><span class="ic">📅</span><span class="lbl">Planning</span></button>
+    <button class="sidebar-nav-btn" data-page="materials"><span class="ic">💶</span><span class="lbl">Materialen</span></button>
+    <button class="sidebar-nav-btn" data-page="contacts"><span class="ic">👤</span><span class="lbl">Contacten</span></button>
+  </nav>
+  <button class="sidebar-nav-btn" id="sidebar-settings-btn" data-page="settings"><span class="ic">⚙️</span><span class="lbl">Instellingen</span></button>
+</aside>
+<div id="sidebar-backdrop"></div>
 <div id="app">
   <div id="topbar">
-    <button class="tbtn" id="back-to-projects-btn" title="Terug naar projecten"><span class="ic">←</span><span class="lbl">Projecten</span></button>
-    <h1 id="app-title"><span class="title-brand">Offerte<span>Builder</span> — </span><span id="app-title-name">Ontwerpmodule</span></h1>
+    <button class="sidebar-hamburger-btn" id="topbar-hamburger-btn" title="Menu"><span class="ic">☰</span></button>
+    <div id="topbar-title-group">
+      <button class="tbtn topbar-back-link" id="back-to-projects-btn" title="Terug naar projecten"><span class="ic">←</span><span class="lbl">Projecten</span></button>
+      <h1 id="app-title"><span id="app-title-name">Ontwerpmodule</span></h1>
+    </div>
+    <div id="project-tabs">
+      <button class="ptab-btn" data-ptab="info">Info</button>
+      <button class="ptab-btn" data-ptab="grondplan">Grondplan</button>
+      <button class="ptab-btn" data-ptab="offerte">Offerte</button>
+    </div>
     <div class="tb-group" id="undo-redo-group">
       <button class="tbtn" id="undo-btn" disabled title="Ongedaan maken (Ctrl+Z)"><span class="ic">↶</span></button>
       <button class="tbtn" id="redo-btn" disabled title="Opnieuw doen (Ctrl+Shift+Z)"><span class="ic">↷</span></button>
@@ -518,12 +554,6 @@
       <button class="tbtn" id="gyproc-btn"><span class="ic">🧮</span><span class="lbl">Berekenen</span></button>
       <button class="tbtn" id="clear-btn"><span class="ic">🗑</span><span class="lbl">Wis alles</span></button>
     </div>
-  </div>
-
-  <div id="project-tabs">
-    <button class="ptab-btn" data-ptab="info">Info</button>
-    <button class="ptab-btn" data-ptab="grondplan">Grondplan</button>
-    <button class="ptab-btn" data-ptab="offerte">Offerte</button>
   </div>
 
   <div id="ptab-info" class="ptab-page">
@@ -739,11 +769,11 @@
 
 <div id="project-list-screen" class="hidden">
   <div class="pl-topbar">
-    <h1 id="pl-title">Offerte<span>Builder</span> — Projecten</h1>
+    <button class="sidebar-hamburger-btn" id="pl-hamburger-btn" title="Menu"><span class="ic">☰</span></button>
+    <h1 id="pl-title">Projecten</h1>
     <div class="pl-topbar-actions">
       <button class="tbtn tbtn-primary" id="pl-new-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;"><span class="ic">+</span>Nieuw project</button>
       <button class="tbtn tbtn-primary" id="contacts-new-btn" style="background:var(--blue);border-color:var(--blue);color:#fff;display:none;"><span class="ic">+</span>Nieuw contact</button>
-      <button class="pl-nav-btn pl-header-settings-btn" data-page="settings" title="Instellingen"><span class="ic">⚙️</span></button>
     </div>
   </div>
   <div class="pl-body">
@@ -813,18 +843,15 @@
       <div id="contacts-grid" class="pl-grid"></div>
     </div>
   </div>
-  <div id="pl-bottom-nav">
-    <button class="pl-nav-btn active" data-page="projects"><span class="ic">🗂️</span><span class="lbl">Projecten</span></button>
-    <button class="pl-nav-btn" data-page="planning"><span class="ic">📅</span><span class="lbl">Planning</span></button>
-    <button class="pl-nav-btn" data-page="materials"><span class="ic">💶</span><span class="lbl">Materialen</span></button>
-    <button class="pl-nav-btn" data-page="contacts"><span class="ic">👤</span><span class="lbl">Contacten</span></button>
-  </div>
 </div>
 
 <div id="contact-detail-screen" class="hidden">
   <div class="pl-topbar">
-    <button class="tbtn" id="cd-back-btn" title="Terug naar contacten"><span class="ic">←</span><span class="lbl">Contacten</span></button>
-    <h1 id="cd-title">Contact</h1>
+    <button class="sidebar-hamburger-btn" id="cd-hamburger-btn" title="Menu"><span class="ic">☰</span></button>
+    <div class="pl-topbar-title-group">
+      <button class="tbtn topbar-back-link" id="cd-back-btn" title="Terug naar contacten"><span class="ic">←</span><span class="lbl">Contacten</span></button>
+      <h1 id="cd-title">Contact</h1>
+    </div>
   </div>
   <div id="contact-tabs">
     <button class="ctab-btn active" data-ctab="info">Info</button>
@@ -2396,7 +2423,7 @@
     if(projectsState.activeId && getActiveProject()){
       hash = "#/project/"+encodeURIComponent(projectsState.activeId)+"/"+activePTab;
     } else {
-      var activeBtn = document.querySelector(".pl-nav-btn.active");
+      var activeBtn = document.querySelector(".sidebar-nav-btn.active");
       var page = activeBtn ? activeBtn.dataset.page : "projects";
       hash = page==="projects" ? "#/" : "#/"+page;
     }
@@ -2405,15 +2432,21 @@
   // Clears the "last active project" pointer so a reload after navigating
   // back respects that choice (resumes the list, not the project the user
   // deliberately left) instead of always re-entering whatever was open.
-  function showProjectList(){
+  // Also the general-purpose "go to this sidebar page" entry point - the
+  // sidebar is persistent across all three top-level screens (project list,
+  // an open project, a contact's detail page), so getting to e.g. Planning
+  // from inside a project first has to back out of whichever screen is
+  // currently showing.
+  function showProjectList(page){
     projectsState.activeId = null;
     try{ localStorage.removeItem(ACTIVE_PROJECT_KEY); }catch(e){}
+    document.getElementById("contact-detail-screen").classList.add("hidden");
     document.getElementById("project-list-screen").classList.remove("hidden");
     document.getElementById("app").style.display = "none";
-    showPlPage("projects");
+    showPlPage(page || "projects");
   }
   function showPlPage(page){
-    document.querySelectorAll(".pl-nav-btn").forEach(function(btn){
+    document.querySelectorAll(".sidebar-nav-btn").forEach(function(btn){
       btn.classList.toggle("active", btn.dataset.page===page);
     });
     document.getElementById("pl-page-projects").style.display = page==="projects" ? "" : "none";
@@ -2424,7 +2457,7 @@
     document.getElementById("pl-new-btn").style.display = page==="projects" ? "" : "none";
     document.getElementById("contacts-new-btn").style.display = page==="contacts" ? "" : "none";
     var pageTitle = page==="materials" ? "Materialen" : page==="planning" ? "Planning" : page==="settings" ? "Instellingen" : page==="contacts" ? "Contacten" : "Projecten";
-    document.getElementById("pl-title").innerHTML = "Offerte<span>Builder</span> — "+pageTitle;
+    document.getElementById("pl-title").textContent = pageTitle;
     if(page==="projects") renderProjectList();
     else if(page==="materials") renderMaterialsPage();
     else if(page==="planning") renderPlanningPage();
@@ -2432,8 +2465,24 @@
     else renderSettingsPage();
     updateUrlState();
   }
-  document.querySelectorAll(".pl-nav-btn").forEach(function(btn){
-    btn.addEventListener("click", function(){ showPlPage(btn.dataset.page); });
+  document.querySelectorAll(".sidebar-nav-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){ closeSidebarDrawer(); showProjectList(btn.dataset.page); });
+  });
+  document.getElementById("sidebar-brand").addEventListener("click", function(){ closeSidebarDrawer(); showProjectList("projects"); });
+
+  /* ---- mobile slide-out sidebar drawer ---- */
+  function openSidebarDrawer(){
+    document.getElementById("app-sidebar").classList.add("open");
+    document.getElementById("sidebar-backdrop").classList.add("open");
+  }
+  function closeSidebarDrawer(){
+    document.getElementById("app-sidebar").classList.remove("open");
+    document.getElementById("sidebar-backdrop").classList.remove("open");
+  }
+  document.getElementById("sidebar-backdrop").addEventListener("click", closeSidebarDrawer);
+  ["topbar-hamburger-btn","pl-hamburger-btn","cd-hamburger-btn"].forEach(function(id){
+    var btn = document.getElementById(id);
+    if(btn) btn.addEventListener("click", openSidebarDrawer);
   });
 
   /* =====================================================================
@@ -2771,11 +2820,10 @@
     var pageEl = document.getElementById("pl-page-planning");
     document.getElementById("project-list-screen").scrollTop = 0;
     var top = pageEl.getBoundingClientRect().top;
-    // .pl-body reserves 90px of its own bottom padding for the floating
-    // #pl-bottom-nav pill (see its CSS rule) - matching that here is what
-    // makes the calendar fill exactly up to that reserve, with no extra
-    // scroll capacity left over on #project-list-screen itself.
-    pageEl.style.height = Math.max(360, window.innerHeight - top - 90) + "px";
+    // .pl-body reserves 24px of its own bottom padding (see its CSS rule) -
+    // matching that here is what makes the calendar fill exactly up to that
+    // reserve, with no extra scroll capacity left over on #project-list-screen.
+    pageEl.style.height = Math.max(360, window.innerHeight - top - 24) + "px";
 
     var events = buildPlanningEvents();
     document.getElementById("planning-months").innerHTML = buildMonthsHtml(planningFeed.minMonth, planningFeed.maxMonth, events);
