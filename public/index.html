@@ -1195,6 +1195,7 @@
     panState: null,
     dragState: null,
     spaceHeld: false,
+    altHeld: false, // holding Alt/Option bypasses angle/grid/alignment snapping - "draw freely"
     _pillHitboxes: [],
     _lastZones: [],
     _lastResolvedCuts: []
@@ -1273,10 +1274,34 @@
   function magnetRadiusWorld(){
     return 14 / state.camera.scale; // ~14 screen px
   }
+  function alignmentToleranceWorld(){
+    return 20 / state.camera.scale; // ~20 screen px - a looser catch than the magnet radius
+  }
+
+  // While drawing a chain (3rd point onward), the closing side of a
+  // rectangle almost never lands exactly back on the start point's own
+  // axis by hand - this offers that alignment early (well before the
+  // click-to-close magnet radius would) so the user can eyeball it
+  // roughly and let the drawing snap the rest of the way. Only offered
+  // along the axis the CURRENT snapped segment doesn't already fix (a
+  // horizontal segment's y is already locked to prevPoint, so it's x that
+  // can usefully align to the start point, and vice versa).
+  function startPointAlignment(pt, snappedAngle){
+    if(!state.drawing || state.drawing.points.length < 2) return null;
+    var start = state.drawing.points[0];
+    var tol = alignmentToleranceWorld();
+    var isHorizSeg = Math.abs(Math.sin(snappedAngle)) < 0.5;
+    if(isHorizSeg && Math.abs(pt.x-start.x) < tol) return { axis:"x", value:start.x, start:start };
+    if(!isHorizSeg && Math.abs(pt.y-start.y) < tol) return { axis:"y", value:start.y, start:start };
+    return null;
+  }
 
   // Compute the next chain point given the previous point + raw cursor
-  // world position. Priority: snap to existing vertex > angle+grid snap.
+  // world position. Priority: snap to existing vertex > angle+grid snap
+  // (+ start-point alignment). Holding Alt bypasses all of it for a
+  // genuinely freehand point, same as the vertex-drag path below.
   function computeNextPoint(prevPoint, rawWorld){
+    if(state.altHeld) return { x: rawWorld.x, y: rawWorld.y };
     var magnet = findExistingVertexNear(rawWorld, magnetRadiusWorld());
     if(magnet) return magnet;
     if(!state.snap) return { x: rawWorld.x, y: rawWorld.y };
@@ -1287,7 +1312,59 @@
     var rawAngle = Math.atan2(dy,dx);
     var snappedAngle = Math.round(rawAngle / (Math.PI/2)) * (Math.PI/2);
     var pt = { x: prevPoint.x + Math.cos(snappedAngle)*dLen, y: prevPoint.y + Math.sin(snappedAngle)*dLen };
+    var align = startPointAlignment(pt, snappedAngle);
+    if(align){
+      pt[align.axis] = align.value;
+      var otherAxis = align.axis==="x" ? "y" : "x";
+      pt[otherAxis] = Math.round(pt[otherAxis]/state.gridStep)*state.gridStep;
+      return pt;
+    }
     return snapToGridPoint(pt);
+  }
+
+  // Dragging an existing corner should keep it square, the same way a
+  // freshly-drawn point already snaps to a clean 90°/180° angle
+  // (computeNextPoint) - without this, only the fresh-drawing path had any
+  // orthogonal protection, so reshaping a room by dragging one of its
+  // corners even slightly could quietly turn a rectangle into a
+  // trapezoid.
+  //
+  // Pinning the dragged point onto lines through its neighbours' FAR
+  // (non-dragged) endpoints was the first thing tried here, and it's
+  // wrong: for a plain two-wall corner, "stay vertical" (x = far point A's
+  // x) and "stay horizontal" (y = far point B's y) would both be locking
+  // the SAME moving point, over-constraining it to a single spot - the
+  // corner literally couldn't be dragged anywhere at all. Real box-resize
+  // handles do it the other way around: each connected wall keeps its OWN
+  // orientation (a wall that's currently horizontal keeps its far end's Y
+  // matching, a vertical one keeps its far end's X matching) by carrying
+  // that far endpoint along too, not by pinning the dragged one. That
+  // still cascades through moveVertexAndConnected exactly like the
+  // dragged vertex itself does, so an L-shaped room's other corners slide
+  // to follow, same as a plain rectangle's would.
+  function dragVertexOrthogonally(oldVertex, rawWorld){
+    var newV = (state.snap && !state.altHeld) ? snapToGridPoint(rawWorld) : { x: rawWorld.x, y: rawWorld.y };
+    if(state.snap && !state.altHeld){
+      var connected = state.walls.filter(function(w){
+        var atStart = Math.round(w.x1)===Math.round(oldVertex.x) && Math.round(w.y1)===Math.round(oldVertex.y);
+        var atEnd = Math.round(w.x2)===Math.round(oldVertex.x) && Math.round(w.y2)===Math.round(oldVertex.y);
+        return atStart || atEnd;
+      });
+      connected.forEach(function(w){
+        var atStart = Math.round(w.x1)===Math.round(oldVertex.x) && Math.round(w.y1)===Math.round(oldVertex.y);
+        var opp = atStart ? { x:w.x2, y:w.y2 } : { x:w.x1, y:w.y1 };
+        var dx = oldVertex.x-opp.x, dy = oldVertex.y-opp.y;
+        if(Math.hypot(dx,dy) < 1) return;
+        var isHoriz = Math.abs(dy) < Math.abs(dx); // wall's OWN current orientation, not the cursor's
+        if(isHoriz && Math.round(opp.y)!==Math.round(newV.y)){
+          moveVertexAndConnected(opp, { x:opp.x, y:newV.y });
+        } else if(!isHoriz && Math.round(opp.x)!==Math.round(newV.x)){
+          moveVertexAndConnected(opp, { x:newV.x, y:opp.y });
+        }
+      });
+    }
+    moveVertexAndConnected(oldVertex, newV);
+    return newV;
   }
 
   function angleBetween(prev2, prev1, cur){
@@ -2028,9 +2105,33 @@
     }
     var last = pts[pts.length-1];
     var cursorPt = computeNextPoint(last, state.pointer.world);
+
+    // start-point alignment guide: computeNextPoint silently locks the
+    // live point onto the start point's own x or y once the cursor gets
+    // close (see startPointAlignment) - draw the line that explains why,
+    // so closing a rectangle's last side reads as "snapped to the corner
+    // I started at" instead of a mysterious jump.
+    if(pts.length >= 2){
+      var startPt = pts[0];
+      var alignedOnStart = Math.abs(cursorPt.x-startPt.x) < 0.01 || Math.abs(cursorPt.y-startPt.y) < 0.01;
+      if(alignedOnStart && !state.altHeld){
+        var sStart = worldToScreen(startPt.x, startPt.y);
+        var sCursor = worldToScreen(cursorPt.x, cursorPt.y);
+        ctx.save();
+        ctx.strokeStyle = "#f59e0b";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4,4]);
+        ctx.beginPath(); ctx.moveTo(sStart.x,sStart.y); ctx.lineTo(sCursor.x,sCursor.y); ctx.stroke();
+        ctx.restore();
+        ctx.fillStyle = "#f59e0b";
+        ctx.beginPath(); ctx.arc(sStart.x,sStart.y,4,0,Math.PI*2); ctx.fill();
+      }
+    }
+
     var a2 = worldToScreen(last.x,last.y), b2 = worldToScreen(cursorPt.x,cursorPt.y);
     ctx.save();
     ctx.setLineDash([6,5]);
+    ctx.strokeStyle = dark ? "#93c5fd" : "#2f6feb";
     ctx.beginPath(); ctx.moveTo(a2.x,a2.y); ctx.lineTo(b2.x,b2.y); ctx.stroke();
     ctx.restore();
 
@@ -2046,15 +2147,43 @@
     var mid = { x:(last.x+cursorPt.x)/2, y:(last.y+cursorPt.y)/2 };
     if(len > 1) drawFloatingLabel(mid, fmtM(len), dark);
 
-    // angle label at the joint if not a clean 0/90/180/270
+    // angle at the joint: a small square "haaks" tick confirms a clean
+    // 0/90/180/270 snap, a floating label calls out anything else
+    // (freehand via Alt, or a magnet-snap onto an unrelated vertex).
     if(pts.length >= 2){
       var prev2 = pts[pts.length-2];
       var ang = angleBetween(prev2, last, cursorPt);
       var nearMultiple = Math.min(ang%90, 90-(ang%90));
       if(nearMultiple > 0.5){
         drawFloatingLabel(last, ang.toFixed(1)+"°", dark, true);
+      } else {
+        drawRightAngleMarker(last, prev2, cursorPt, dark);
       }
     }
+  }
+
+  // Small square "haaks" tick at `corner`, its two legs following the
+  // directions to `from` and `to` - the standard CAD right-angle
+  // confirmation glyph, drawn in screen space so it stays a constant size
+  // regardless of zoom.
+  function drawRightAngleMarker(corner, from, to, dark){
+    var s = worldToScreen(corner.x, corner.y);
+    var v1 = { x: from.x-corner.x, y: from.y-corner.y };
+    var v2 = { x: to.x-corner.x, y: to.y-corner.y };
+    var l1 = Math.hypot(v1.x,v1.y), l2 = Math.hypot(v2.x,v2.y);
+    if(l1 < 1 || l2 < 1) return;
+    var size = 14 / state.camera.scale;
+    var p1 = worldToScreen(corner.x + (v1.x/l1)*size, corner.y + (v1.y/l1)*size);
+    var p2 = worldToScreen(corner.x + (v2.x/l2)*size, corner.y + (v2.y/l2)*size);
+    var pDiag = { x: p1.x + (p2.x-s.x), y: p1.y + (p2.y-s.y) };
+    ctx.save();
+    ctx.strokeStyle = dark ? "#4ade80" : "#16a34a";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(p1.x,p1.y); ctx.lineTo(pDiag.x,pDiag.y); ctx.lineTo(p2.x,p2.y);
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawFloatingLabel(worldPos, text, dark, accent){
@@ -4042,7 +4171,7 @@
     canvas.className = "tool-"+tool;
     var hints = {
       select: "Klik op een muur, deur of raam om te selecteren. Sleep ankerpunten of muren om te verplaatsen. Delete om te verwijderen.",
-      wall: "Klik om muurpunten te plaatsen. Klik dicht bij het startpunt om een ruimte te sluiten.",
+      wall: "Klik om muurpunten te plaatsen (snapt naar 90°). Klik dicht bij het startpunt om een ruimte te sluiten. Houd Alt ingedrukt om vrij te tekenen.",
       door: "Klik op een muur om een deur toe te voegen.",
       window: "Klik op een muur om een raam toe te voegen.",
       zone: "Trek een lijn dwars door een ruimte om deze in twee zones met eigen hoogte te splitsen."
@@ -4303,8 +4432,7 @@
       if(state.dragState.type === "vertex"){
         markMovedAndMaybeUndo(state.dragState, world);
         var v = state.dragState.vertex;
-        var np = state.snap ? snapToGridPoint(world) : world;
-        moveVertexAndConnected(v, np);
+        var np = dragVertexOrthogonally(v, world);
         state.dragState.vertex = np;
         render();
         return;
@@ -4423,6 +4551,10 @@
       state.spaceHeld = true;
       e.preventDefault(); // stop the page from scrolling on spacebar
     }
+    if(e.key === "Alt" && !inField){
+      state.altHeld = true;
+      if(state.tool==="wall" && state.drawing) render(); // live-update the drawing preview
+    }
     if(e.key === "Escape"){
       state.drawing = null; state.zoneDraw = null; render();
     }
@@ -4435,7 +4567,15 @@
   });
   window.addEventListener("keyup", function(e){
     if(e.code === "Space") state.spaceHeld = false;
+    if(e.key === "Alt"){
+      state.altHeld = false;
+      if(state.tool==="wall" && state.drawing) render();
+    }
   });
+  // Alt is also readable as a held modifier via the browser's own
+  // event.altKey on mousemove - covers the case where focus left the
+  // window while Alt was down and the keyup never fired here.
+  window.addEventListener("blur", function(){ state.altHeld = false; });
   // right-click-drag also pans (in addition to space+drag and middle-click-
   // drag), so the browser's own context menu must not appear over the canvas
   canvas.addEventListener("contextmenu", function(e){ e.preventDefault(); });
