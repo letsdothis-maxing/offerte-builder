@@ -186,13 +186,13 @@ function buildFlatPolygonMesh(polygon, yM, material) {
 // looking down into the room - confirmed live (the floor was fully
 // invisible, backface-culled, before this was added). Cheap here since
 // each is a single flat plane, not extruded/thin geometry.
-var wallMaterial = new THREE.MeshStandardMaterial({ color: 0xf5f5f2, roughness: 0.9, metalness: 0 });
-var floorMaterial = new THREE.MeshStandardMaterial({ color: 0xf0efe9, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
+var wallMaterial = new THREE.MeshStandardMaterial({ color: 0xfafaf8, roughness: 0.9, metalness: 0 });
+var floorMaterial = new THREE.MeshStandardMaterial({ color: 0xf8f7f4, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
 var ceilingMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
 var riserMaterial = new THREE.MeshStandardMaterial({ color: 0xe9e5f5, roughness: 0.85, metalness: 0 });
 // Same color as the scene background (kept in sync in applyBackground) -
 // no visible ground/sky seam, it's just there to catch shadows.
-var groundMaterial = new THREE.MeshStandardMaterial({ color: 0xf7f8fa, roughness: 1, metalness: 0 });
+var groundMaterial = new THREE.MeshStandardMaterial({ color: 0xfafbfc, roughness: 1, metalness: 0 });
 
 // ---------------------------------------------------------------------
 // Scene lifecycle
@@ -240,7 +240,7 @@ function fitSunToRoom(roomSpanM) {
 function applyBackground() {
   if (!scene) return;
   var dark = !!(darkModeQuery && darkModeQuery.matches);
-  var bg = dark ? 0x11151c : 0xf7f8fa;
+  var bg = dark ? 0x11151c : 0xfafbfc;
   scene.background = new THREE.Color(bg);
   groundMaterial.color.set(bg);
 }
@@ -308,7 +308,13 @@ function rebuildScene(data) {
     var floorMesh = buildFlatPolygonMesh(z.polygon, 0, floorMaterial);
     if (floorMesh) { floorMesh.receiveShadow = true; floorGroup.add(floorMesh); }
     var ceilMesh = buildFlatPolygonMesh(z.polygon, toM(z.height), ceilingMaterial);
-    if (ceilMesh) ceilingGroup.add(ceilMesh);
+    // castShadow so toggling "Toon plafond" on actually blocks the sun from
+    // the room below (it didn't - the sun passed straight through the
+    // ceiling plane onto the floor regardless). ceilingGroup.visible
+    // already gates this correctly: Three.js skips shadow casting for
+    // invisible objects, so with the ceiling toggled off this is a no-op,
+    // same as today.
+    if (ceilMesh) { ceilMesh.castShadow = true; ceilingGroup.add(ceilMesh); }
   });
 
   walls.forEach(function (w) {

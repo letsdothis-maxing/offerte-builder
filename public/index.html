@@ -3131,6 +3131,13 @@
       btn.classList.toggle("active", btn.dataset.page==="projects");
     });
     setTool("select");
+    // Leaving a project mid-3D (e.g. via the sidebar, straight back to the
+    // list) never unmounts the 3D view - it's just hidden along with the
+    // rest of #app. Force back to 2D on every entry so a project never
+    // silently reopens already in 3D, and so the 2D canvas - which was
+    // sized to 0 while #stage sat hidden - gets a real resize+repaint
+    // instead of showing blank (see setPlanViewMode's own "2d" branch).
+    setPlanViewMode("2d");
     showPTab(defaultTab || "grondplan");
   }
   function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
@@ -4072,6 +4079,14 @@
       window.Floorplan3D.mount(document.getElementById("stage3d")).then(render);
     } else if(mode==="2d" && window.Floorplan3D){
       window.Floorplan3D.unmount();
+      // #stage was just display:none (under 3D, or hidden entirely while
+      // the user was away on another sidebar page) - clientWidth/Height
+      // read 0 while hidden, so any resizeCanvas() that ran during that
+      // window sized the 2D canvas down to nothing. Now that #stage is
+      // visible again, re-measure and repaint immediately rather than
+      // leaving a blank canvas until some unrelated resize/render happens
+      // to fire.
+      resizeCanvas();
     }
   }
   document.getElementById("view-mode-2d-btn").addEventListener("click", function(){ setPlanViewMode("2d"); });
