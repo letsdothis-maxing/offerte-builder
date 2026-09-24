@@ -190,7 +190,9 @@ var wallMaterial = new THREE.MeshStandardMaterial({ color: 0xf5f5f2, roughness: 
 var floorMaterial = new THREE.MeshStandardMaterial({ color: 0xf0efe9, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
 var ceilingMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
 var riserMaterial = new THREE.MeshStandardMaterial({ color: 0xe9e5f5, roughness: 0.85, metalness: 0 });
-var groundMaterial = new THREE.MeshStandardMaterial({ color: 0xdedad2, roughness: 1, metalness: 0 });
+// Same color as the scene background (kept in sync in applyBackground) -
+// no visible ground/sky seam, it's just there to catch shadows.
+var groundMaterial = new THREE.MeshStandardMaterial({ color: 0xf7f8fa, roughness: 1, metalness: 0 });
 
 // ---------------------------------------------------------------------
 // Scene lifecycle
@@ -238,8 +240,9 @@ function fitSunToRoom(roomSpanM) {
 function applyBackground() {
   if (!scene) return;
   var dark = !!(darkModeQuery && darkModeQuery.matches);
-  scene.background = new THREE.Color(dark ? 0x11151c : 0xf7f8fa);
-  groundMaterial.color.set(dark ? 0x232a36 : 0xdedad2);
+  var bg = dark ? 0x11151c : 0xf7f8fa;
+  scene.background = new THREE.Color(bg);
+  groundMaterial.color.set(bg);
 }
 
 // A large flat plane standing in for "infinite ground" - the room's own
