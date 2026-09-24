@@ -176,6 +176,36 @@ function buildFlatPolygonMesh(polygon, yM, material) {
   return mesh;
 }
 
+// A single-pitch slanted ceiling: same flat-polygon triangulation, but
+// each vertex's height is interpolated along the polygon's own 2D-y span
+// (-> 3D z) instead of held at one constant y - low end sits at
+// baseHeightM (index.html's own "H x.xx m", the eave), high end at
+// peakHeightM. Matches the same "slope runs along the zone's own depth
+// axis" assumption computeCeilingZonePlan's slantedCeilingFactor makes on
+// the 2D/material-calc side - this is just that same convention, drawn.
+function buildSlantedCeilingMesh(polygon, baseHeightM, peakHeightM, material) {
+  if (!polygon || polygon.length < 3) return null;
+  var points2D = polygon.map(function (p) { return new THREE.Vector2(toM(p.x), toM(p.y)); });
+  var triangles = THREE.ShapeUtils.triangulateShape(points2D, []);
+  if (!triangles.length) return null;
+  var ys = polygon.map(function (p) { return p.y; });
+  var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+  var span = maxY - minY || 1;
+  var positions = [];
+  polygon.forEach(function (p) {
+    var t = (p.y - minY) / span;
+    var yM = baseHeightM + (peakHeightM - baseHeightM) * t;
+    positions.push(toM(p.x), yM, toM(p.y));
+  });
+  var indices = [];
+  triangles.forEach(function (t) { indices.push(t[0], t[1], t[2]); });
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, material);
+}
+
 // ---------------------------------------------------------------------
 // Materials (created once, reused across rebuilds)
 // ---------------------------------------------------------------------
@@ -307,7 +337,9 @@ function rebuildScene(data) {
   zones.forEach(function (z) {
     var floorMesh = buildFlatPolygonMesh(z.polygon, 0, floorMaterial);
     if (floorMesh) { floorMesh.receiveShadow = true; floorGroup.add(floorMesh); }
-    var ceilMesh = buildFlatPolygonMesh(z.polygon, toM(z.height), ceilingMaterial);
+    var ceilMesh = z.slant
+      ? buildSlantedCeilingMesh(z.polygon, toM(z.height), toM(z.slant.maxHeightMm), ceilingMaterial)
+      : buildFlatPolygonMesh(z.polygon, toM(z.height), ceilingMaterial);
     // castShadow so toggling "Toon plafond" on actually blocks the sun from
     // the room below (it didn't - the sun passed straight through the
     // ceiling plane onto the floor regardless). ceilingGroup.visible

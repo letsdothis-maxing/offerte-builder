@@ -1789,6 +1789,11 @@
     if(window.Floorplan3D && window.Floorplan3D.isActive()){
       var wallHeightProfiles = {};
       state.walls.forEach(function(w){ wallHeightProfiles[w.id] = computeWallHeightProfile(w, zones, resolvedCuts); });
+      // Annotate each zone with its slant config (if any) so the 3D module
+      // can tilt that zone's ceiling plane instead of drawing it flat -
+      // state.slantedRoofs is keyed the same way roomHeights is, but zones
+      // themselves don't otherwise carry it.
+      zones.forEach(function(z){ z.slant = state.slantedRoofs[z.key] || null; });
       window.Floorplan3D.sync({ walls: state.walls, openings: state.openings, zones: zones, resolvedCuts: resolvedCuts, wallHeightProfiles: wallHeightProfiles });
     }
   }
