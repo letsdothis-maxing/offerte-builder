@@ -27,6 +27,7 @@ function toM(mm) { return mm / 1000; }
 
 var renderer = null, scene = null, camera = null, controls = null;
 var wallsGroup, floorGroup, ceilingGroup, risersGroup;
+var groundMesh = null;
 var sunLight = null;
 var mountEl = null;
 var resizeObserver = null;
@@ -189,6 +190,7 @@ var wallMaterial = new THREE.MeshStandardMaterial({ color: 0xf5f5f2, roughness: 
 var floorMaterial = new THREE.MeshStandardMaterial({ color: 0xf0efe9, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
 var ceilingMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
 var riserMaterial = new THREE.MeshStandardMaterial({ color: 0xe9e5f5, roughness: 0.85, metalness: 0 });
+var groundMaterial = new THREE.MeshStandardMaterial({ color: 0xdedad2, roughness: 1, metalness: 0 });
 
 // ---------------------------------------------------------------------
 // Scene lifecycle
@@ -237,11 +239,31 @@ function applyBackground() {
   if (!scene) return;
   var dark = !!(darkModeQuery && darkModeQuery.matches);
   scene.background = new THREE.Color(dark ? 0x11151c : 0xf7f8fa);
+  groundMaterial.color.set(dark ? 0x232a36 : 0xdedad2);
+}
+
+// A large flat plane standing in for "infinite ground" - the room's own
+// per-zone floor (buildFlatPolygonMesh, added in rebuildScene) only covers
+// its exact polygon, so with nothing beyond a room's walls the sun's
+// shadows just vanished past the wall edges (nothing there to catch them)
+// instead of falling naturally outside the footprint the way a real
+// building's surroundings would show them. Sits a hair below y=0 so it
+// never z-fights with the actual room floor drawn right on top of it.
+// Fixed large size (not tied to room bounds) since it only ever needs to
+// be bigger than whatever's plausibly visible in frame, not truly infinite.
+function buildGround() {
+  var geo = new THREE.PlaneGeometry(400, 400);
+  geo.rotateX(-Math.PI / 2);
+  var mesh = new THREE.Mesh(geo, groundMaterial);
+  mesh.position.y = -0.01;
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
 function ensureScene() {
   if (scene) return;
   scene = new THREE.Scene();
+  groundMesh = buildGround(); scene.add(groundMesh);
   wallsGroup = new THREE.Group(); scene.add(wallsGroup);
   floorGroup = new THREE.Group(); scene.add(floorGroup);
   ceilingGroup = new THREE.Group(); ceilingGroup.visible = showCeiling; scene.add(ceilingGroup);
@@ -404,6 +426,7 @@ function unmount() {
   if (floorGroup) disposeGroupChildren(floorGroup);
   if (ceilingGroup) disposeGroupChildren(ceilingGroup);
   if (risersGroup) disposeGroupChildren(risersGroup);
+  if (groundMesh) { groundMesh.geometry.dispose(); groundMesh = null; }
   if (controls) { controls.dispose(); controls = null; }
   if (renderer) {
     renderer.dispose();
