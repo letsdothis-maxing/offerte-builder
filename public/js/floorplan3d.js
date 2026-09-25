@@ -8,14 +8,19 @@
 //   unmount()   - stop the render loop, dispose the renderer/scene, detach
 //                 from the DOM. Safe to call even if never mounted.
 //   sync(data)  - data: { walls, openings, zones, resolvedCuts,
-//                 wallHeightProfiles }, all in the SAME mm world-space
-//                 coordinates index.html's own 2D state uses.
+//                 wallHeightProfiles, wallSlants }, all in the SAME mm
+//                 world-space coordinates index.html's own 2D state uses.
 //                 wallHeightProfiles is { [wallId]: computeWallHeightProfile()
 //                 result }, precomputed by the caller so this module never
 //                 has to re-derive wall-height-vs-zone logic - see the
 //                 index.html call site for why (keeps 2D/3D wall heights
 //                 byte-for-byte identical by construction, not by
-//                 coincidence).
+//                 coincidence). wallSlants is { [wallId]: {widthMm,
+//                 maxHeightMm} } for any wall with a sloped ceiling -
+//                 combined per zone the same MIN-of-every-slanted-wall way
+//                 index.html's own ceilingHeightAt does (a second copy of
+//                 that small algorithm, not a shared import, since this
+//                 module is intentionally its own ES module).
 //   isActive()  - whether the 3D view is the one currently visible, so the
 //                 caller can skip building wallHeightProfiles/calling
 //                 sync() at all while the user is only looking at 2D.
@@ -176,34 +181,134 @@ function buildFlatPolygonMesh(polygon, yM, material) {
   return mesh;
 }
 
-// A single-pitch slanted ceiling: same flat-polygon triangulation, but
-// each vertex's height is interpolated along the polygon's own 2D-y span
-// (-> 3D z) instead of held at one constant y - low end sits at
-// baseHeightM (index.html's own "H x.xx m", the eave), high end at
-// peakHeightM. Matches the same "slope runs along the zone's own depth
-// axis" assumption computeCeilingZonePlan's slantedCeilingFactor makes on
-// the 2D/material-calc side - this is just that same convention, drawn.
-function buildSlantedCeilingMesh(polygon, baseHeightM, peakHeightM, material) {
-  if (!polygon || polygon.length < 3) return null;
-  var points2D = polygon.map(function (p) { return new THREE.Vector2(toM(p.x), toM(p.y)); });
-  var triangles = THREE.ShapeUtils.triangulateShape(points2D, []);
-  if (!triangles.length) return null;
-  var ys = polygon.map(function (p) { return p.y; });
-  var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
-  var span = maxY - minY || 1;
-  var positions = [];
-  polygon.forEach(function (p) {
-    var t = (p.y - minY) / span;
-    var yM = baseHeightM + (peakHeightM - baseHeightM) * t;
-    positions.push(toM(p.x), yM, toM(p.y));
+// ---------------------------------------------------------------------
+// Per-wall slanted ceilings (state.wallSlants, from index.html)
+// ---------------------------------------------------------------------
+
+function pointInPolygon2D(x, y, polygon) {
+  var inside = false;
+  for (var i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    var xi = polygon[i].x, yi = polygon[i].y;
+    var xj = polygon[j].x, yj = polygon[j].y;
+    var hit = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi);
+    if (hit) inside = !inside;
+  }
+  return inside;
+}
+
+function polygonCentroidMm(polygon) {
+  var sx = 0, sy = 0;
+  polygon.forEach(function (p) { sx += p.x; sy += p.y; });
+  return { x: sx / polygon.length, y: sy / polygon.length };
+}
+
+// Same algorithm as index.html's own perpendicularDistanceIntoRoom -
+// signed perpendicular distance from (px,py) to wall's infinite line,
+// positive moving into the room (resolved against the zone centroid so
+// it works for a wall at any angle).
+function perpendicularDistanceIntoRoom(wall, px, py, centroid) {
+  var dx = wall.x2 - wall.x1, dy = wall.y2 - wall.y1;
+  var len = Math.hypot(dx, dy) || 1;
+  var nx = -dy / len, ny = dx / len;
+  var mx = (wall.x1 + wall.x2) / 2, my = (wall.y1 + wall.y2) / 2;
+  if (nx * (centroid.x - mx) + ny * (centroid.y - my) < 0) { nx = -nx; ny = -ny; }
+  return (px - wall.x1) * nx + (py - wall.y1) * ny;
+}
+
+// Same MIN-of-every-slanted-wall's-own-constraint combination as
+// index.html's ceilingHeightAt - see that function's doc comment for why
+// MIN is what produces a shared ridge/hip, or a flat strip between two
+// slopes that don't reach each other.
+function ceilingHeightAtMm(zone, px, py, wallsById, wallSlants, centroid) {
+  var h = null;
+  zone.wallIds.forEach(function (wid) {
+    var slant = wallSlants[wid];
+    if (!slant) return;
+    var wall = wallsById[wid];
+    if (!wall) return;
+    var d = perpendicularDistanceIntoRoom(wall, px, py, centroid);
+    var t = Math.max(0, Math.min(1, d / slant.widthMm));
+    var localH = zone.height + (slant.maxHeightMm - zone.height) * t;
+    if (h === null || localH < h) h = localH;
   });
-  var indices = [];
-  triangles.forEach(function (t) { indices.push(t[0], t[1], t[2]); });
-  var geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geo.setIndex(indices);
-  geo.computeVertexNormals();
-  return new THREE.Mesh(geo, material);
+  return h === null ? zone.height : h;
+}
+
+var CEILING_GRID_MM = 300;
+
+// Builds the ceiling as two parallel tessellated surfaces (bottom at the
+// real height field, top offset by thicknessM) instead of one infinitely
+// thin plane - a fine regular grid, sampled at CEILING_GRID_MM and
+// clipped to the zone's own polygon, since the real surface can be
+// creased (a ridge/hip where two slanted walls meet) rather than one flat
+// plane once more than one wall in the zone slopes. Cells with any corner
+// outside the polygon are dropped rather than clipped, which loses a
+// sliver of coverage right at a non-rectangular edge - an accepted
+// simplification given this app's walls are themselves 90°-snapped, so
+// real rooms are rectangular (or rectilinear) in the first place. Pushes
+// its meshes straight into `group` (not a sub-group) so the caller's
+// existing disposeGroupChildren(ceilingGroup) - which only disposes
+// direct children - keeps working without also having to recurse.
+function buildCeilingSurfaces(zone, wallsById, wallSlants, thicknessM, material, group) {
+  var polygon = zone.polygon;
+  if (!polygon || polygon.length < 3) return;
+  var hasSlant = zone.wallIds.some(function (wid) { return !!wallSlants[wid]; });
+  if (!hasSlant) {
+    var flatBottom = buildFlatPolygonMesh(polygon, toM(zone.height), material);
+    var flatTop = buildFlatPolygonMesh(polygon, toM(zone.height) + thicknessM, material);
+    if (flatBottom) { flatBottom.castShadow = true; group.add(flatBottom); }
+    if (flatTop) { flatTop.castShadow = true; group.add(flatTop); }
+    return;
+  }
+  var centroid = polygonCentroidMm(polygon);
+  var xs = polygon.map(function (p) { return p.x; }), ys = polygon.map(function (p) { return p.y; });
+  var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+  var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+  var cols = Math.max(1, Math.ceil((maxX - minX) / CEILING_GRID_MM));
+  var rows = Math.max(1, Math.ceil((maxY - minY) / CEILING_GRID_MM));
+  var heights = [];
+  for (var r = 0; r <= rows; r++) {
+    var rowH = [];
+    var py = minY + (r * (maxY - minY)) / rows;
+    for (var c = 0; c <= cols; c++) {
+      var px = minX + (c * (maxX - minX)) / cols;
+      rowH.push(pointInPolygon2D(px, py, polygon) ? ceilingHeightAtMm(zone, px, py, wallsById, wallSlants, centroid) : null);
+    }
+    heights.push(rowH);
+  }
+  function buildSurface(offsetM) {
+    var positions = [], indices = [], indexGrid = [];
+    for (var r2 = 0; r2 <= rows; r2++) {
+      var rowIdx = [];
+      var py2 = minY + (r2 * (maxY - minY)) / rows;
+      for (var c2 = 0; c2 <= cols; c2++) {
+        var hMm = heights[r2][c2];
+        if (hMm === null) { rowIdx.push(-1); continue; }
+        var px2 = minX + (c2 * (maxX - minX)) / cols;
+        rowIdx.push(positions.length / 3);
+        positions.push(toM(px2), toM(hMm) + offsetM, toM(py2));
+      }
+      indexGrid.push(rowIdx);
+    }
+    for (var r3 = 0; r3 < rows; r3++) {
+      for (var c3 = 0; c3 < cols; c3++) {
+        var a = indexGrid[r3][c3], b = indexGrid[r3][c3 + 1], cc = indexGrid[r3 + 1][c3], d = indexGrid[r3 + 1][c3 + 1];
+        if (a < 0 || b < 0 || cc < 0 || d < 0) continue;
+        indices.push(a, cc, b);
+        indices.push(b, cc, d);
+      }
+    }
+    if (!indices.length) return null;
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return new THREE.Mesh(geo, material);
+  }
+  var bottom = buildSurface(0);
+  var top = buildSurface(thicknessM);
+  if (bottom) { bottom.castShadow = true; group.add(bottom); }
+  if (top) { top.castShadow = true; group.add(top); }
 }
 
 // ---------------------------------------------------------------------
@@ -333,20 +438,29 @@ function rebuildScene(data) {
   var walls = data.walls || [];
   var openings = data.openings || [];
   var profiles = data.wallHeightProfiles || {};
+  var wallSlants = data.wallSlants || {};
+  var wallsById = {};
+  walls.forEach(function (w) { wallsById[w.id] = w; });
 
   zones.forEach(function (z) {
     var floorMesh = buildFlatPolygonMesh(z.polygon, 0, floorMaterial);
     if (floorMesh) { floorMesh.receiveShadow = true; floorGroup.add(floorMesh); }
-    var ceilMesh = z.slant
-      ? buildSlantedCeilingMesh(z.polygon, toM(z.height), toM(z.slant.maxHeightMm), ceilingMaterial)
-      : buildFlatPolygonMesh(z.polygon, toM(z.height), ceilingMaterial);
-    // castShadow so toggling "Toon plafond" on actually blocks the sun from
-    // the room below (it didn't - the sun passed straight through the
-    // ceiling plane onto the floor regardless). ceilingGroup.visible
-    // already gates this correctly: Three.js skips shadow casting for
-    // invisible objects, so with the ceiling toggled off this is a no-op,
-    // same as today.
-    if (ceilMesh) { ceilMesh.castShadow = true; ceilingGroup.add(ceilMesh); }
+    // The ceiling always gets the same thickness as the walls holding it
+    // up - the max thickness among this zone's own walls, so a project
+    // with a genuinely uniform wall thickness (the normal case) just
+    // reads as that value. castShadow on each surface so toggling "Toon
+    // plafond" on actually blocks the sun from the room below (it didn't
+    // - the sun passed straight through the ceiling plane onto the floor
+    // regardless). ceilingGroup.visible already gates this correctly:
+    // Three.js skips shadow casting for invisible objects, so with the
+    // ceiling toggled off this is a no-op, same as today.
+    var thicknessMm = null;
+    z.wallIds.forEach(function (wid) {
+      var w = wallsById[wid];
+      if (w && (thicknessMm === null || w.thickness > thicknessMm)) thicknessMm = w.thickness;
+    });
+    if (thicknessMm === null) thicknessMm = 150;
+    buildCeilingSurfaces(z, wallsById, wallSlants, toM(thicknessMm), ceilingMaterial, ceilingGroup);
   });
 
   walls.forEach(function (w) {
