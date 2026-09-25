@@ -234,6 +234,67 @@ function ceilingHeightAtMm(zone, px, py, wallsById, wallSlants, centroid) {
   return h === null ? zone.height : h;
 }
 
+// The flat, per-segment height computeWallHeightProfile already gives a
+// wall at parameter t (0..1 along its own length) - same step lookup
+// computeWallColumns uses, kept as its own function so both that and the
+// gable-infill ribbon below can look up "this wall's own flat top here"
+// without duplicating the loop inline.
+function profileHeightAt(heightProfile, t) {
+  var profile = heightProfile && heightProfile.length ? heightProfile : [{ t0: 0, t1: 1, height: 2500 }];
+  for (var i = 0; i < profile.length; i++) {
+    if (t >= profile[i].t0 - 1e-6 && t <= profile[i].t1 + 1e-6) return profile[i].height;
+  }
+  return profile[0].height;
+}
+
+// A thin vertical ribbon of quads following the line from (x1,y1) to
+// (x2,y2), sampled at a fine step, between a bottom and a top height
+// curve (mm, either can vary along the line - both are called as
+// fn(t, px, py)). Shared by two different gaps this module used to leave
+// open:
+//   - a gable-end wall's real top follows the sloped ceiling above it
+//     rather than being flat (bottomFn = the wall's own flat profile
+//     height, topFn = the ceiling height field) - without this, a wall
+//     bordering a slanted zone stopped at its own flat height with a
+//     visible empty gap up to the roof.
+//   - the ceiling's own bottom/bottom+thickness surfaces used to be two
+//     entirely disconnected floating sheets with an open border all
+//     around the zone polygon - closing that border with a skirt
+//     (bottomFn/topFn both walk the ceiling height field, offset by
+//     thickness) makes the roof read as one solid slab, and from a
+//     grazing angle stops it looking "torn" where you could previously
+//     see straight through the open edge between the two sheets.
+// Returns null (nothing built) when bottom and top coincide everywhere
+// along the line - e.g. a slanted wall's own gable "infill" against
+// itself, where the ceiling height already equals the wall's own height
+// by construction (see ceilingHeightAtMm's doc comment).
+function buildRibbonMesh(x1, y1, x2, y2, bottomFn, topFn, material) {
+  var lenMm = Math.hypot(x2 - x1, y2 - y1);
+  if (lenMm < 1) return null;
+  var steps = Math.max(1, Math.ceil(lenMm / 200));
+  var positions = [], indices = [];
+  var any = false;
+  for (var i = 0; i <= steps; i++) {
+    var t = i / steps;
+    var px = x1 + (x2 - x1) * t, py = y1 + (y2 - y1) * t;
+    var bH = bottomFn(t, px, py), tH = topFn(t, px, py);
+    if (Math.abs(tH - bH) > 1) any = true;
+    positions.push(toM(px), toM(Math.min(bH, tH)), toM(py));
+    positions.push(toM(px), toM(Math.max(bH, tH)), toM(py));
+  }
+  if (!any) return null;
+  for (var i2 = 0; i2 < steps; i2++) {
+    var a = i2 * 2, b = i2 * 2 + 1, c = (i2 + 1) * 2, d = (i2 + 1) * 2 + 1;
+    indices.push(a, c, b);
+    indices.push(b, c, d);
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, material);
+}
+
 var CEILING_GRID_MM = 300;
 
 // Builds the ceiling as two parallel tessellated surfaces (bottom at the
@@ -249,15 +310,35 @@ var CEILING_GRID_MM = 300;
 // its meshes straight into `group` (not a sub-group) so the caller's
 // existing disposeGroupChildren(ceilingGroup) - which only disposes
 // direct children - keeps working without also having to recurse.
+// Closes the open border a zone's own two ceiling surfaces (bottom at the
+// height field, top offset by thickness) would otherwise leave all
+// around the polygon - see buildRibbonMesh's doc comment for why.
+// heightAtFn(px,py) is the same height field buildCeilingSurfaces itself
+// used to build the bottom surface (flat zone.height, or the slanted
+// grid's ceilingHeightAtMm), so the skirt's own bottom edge always lines
+// up exactly with whichever surface is actually there.
+function addCeilingSkirt(polygon, heightAtFn, thicknessMm, material, group) {
+  for (var i = 0; i < polygon.length; i++) {
+    var a = polygon[i], b = polygon[(i + 1) % polygon.length];
+    var mesh = buildRibbonMesh(a.x, a.y, b.x, b.y,
+      function (t, px, py) { return heightAtFn(px, py); },
+      function (t, px, py) { return heightAtFn(px, py) + thicknessMm; },
+      material);
+    if (mesh) { mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); }
+  }
+}
+
 function buildCeilingSurfaces(zone, wallsById, wallSlants, thicknessM, material, group) {
   var polygon = zone.polygon;
   if (!polygon || polygon.length < 3) return;
   var hasSlant = zone.wallIds.some(function (wid) { return !!wallSlants[wid]; });
+  var thicknessMm = thicknessM * 1000;
   if (!hasSlant) {
     var flatBottom = buildFlatPolygonMesh(polygon, toM(zone.height), material);
     var flatTop = buildFlatPolygonMesh(polygon, toM(zone.height) + thicknessM, material);
     if (flatBottom) { flatBottom.castShadow = true; group.add(flatBottom); }
     if (flatTop) { flatTop.castShadow = true; group.add(flatTop); }
+    addCeilingSkirt(polygon, function () { return zone.height; }, thicknessMm, material, group);
     return;
   }
   var centroid = polygonCentroidMm(polygon);
@@ -309,6 +390,7 @@ function buildCeilingSurfaces(zone, wallsById, wallSlants, thicknessM, material,
   var top = buildSurface(thicknessM);
   if (bottom) { bottom.castShadow = true; group.add(bottom); }
   if (top) { top.castShadow = true; group.add(top); }
+  addCeilingSkirt(polygon, function (px, py) { return ceilingHeightAtMm(zone, px, py, wallsById, wallSlants, centroid); }, thicknessMm, material, group);
 }
 
 // ---------------------------------------------------------------------
@@ -322,6 +404,12 @@ function buildCeilingSurfaces(zone, wallsById, wallSlants, thicknessM, material,
 // invisible, backface-culled, before this was added). Cheap here since
 // each is a single flat plane, not extruded/thin geometry.
 var wallMaterial = new THREE.MeshStandardMaterial({ color: 0xfafaf8, roughness: 0.9, metalness: 0 });
+// Same color as wallMaterial but DoubleSide, for the thin gable-infill
+// ribbon (buildRibbonMesh) that closes the gap above a wall bordering a
+// slanted ceiling - a zero-thickness sheet needs DoubleSide or it
+// disappears entirely from whichever side happens to face away from the
+// camera, unlike wallMaterial's real box geometry where that never mattered.
+var wallInfillMaterial = new THREE.MeshStandardMaterial({ color: 0xfafaf8, roughness: 0.9, metalness: 0, side: THREE.DoubleSide });
 var floorMaterial = new THREE.MeshStandardMaterial({ color: 0xf8f7f4, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
 var ceilingMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
 var riserMaterial = new THREE.MeshStandardMaterial({ color: 0xe9e5f5, roughness: 0.85, metalness: 0 });
@@ -467,6 +555,32 @@ function rebuildScene(data) {
     var wallOpenings = openings.filter(function (o) { return o.wallId === w.id; });
     var mesh = buildWallMesh(w, profiles[w.id], wallOpenings, wallMaterial);
     if (mesh) wallsGroup.add(mesh);
+    // Gable-infill: a wall bordering a slanted zone (most visibly the
+    // end walls running perpendicular to the slope) has a real top edge
+    // that follows the rising ceiling, not the wall's own flat height -
+    // without this a wall stopped flat and left a wedge-shaped empty gap
+    // up to the roof (this is what the reported screenshot showed). Only
+    // built where the two curves actually diverge (buildRibbonMesh
+    // returns null otherwise), so a wall in a flat-ceiling zone, or the
+    // slanted wall itself (flat along its own length by construction -
+    // see ceilingHeightAtMm's doc comment), never gets one. A wall
+    // shared between more than one zone uses whichever zone is found
+    // first for its whole length - an accepted simplification, same
+    // spirit as buildCeilingSurfaces' own grid-edge one, since real
+    // wall-slant use is a single room's eaves, not a party wall between
+    // two independently-sloped rooms.
+    zones.some(function (z) {
+      if (z.wallIds.indexOf(w.id) < 0) return false;
+      var hasSlant = z.wallIds.some(function (wid) { return !!wallSlants[wid]; });
+      if (!hasSlant) return true;
+      var centroid = polygonCentroidMm(z.polygon);
+      var infill = buildRibbonMesh(w.x1, w.y1, w.x2, w.y2,
+        function (t) { return profileHeightAt(profiles[w.id], t); },
+        function (t, px, py) { return ceilingHeightAtMm(z, px, py, wallsById, wallSlants, centroid); },
+        wallInfillMaterial);
+      if (infill) { infill.castShadow = true; infill.receiveShadow = true; wallsGroup.add(infill); }
+      return true;
+    });
   });
 
   resolvedCuts.forEach(function (rc) {
