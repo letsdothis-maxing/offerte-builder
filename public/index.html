@@ -1911,7 +1911,8 @@
 
   function updateSelectionUI(){
     var show = !!state.selection;
-    document.getElementById("selection-actions").classList.toggle("show", show);
+    var panel = document.getElementById("selection-actions");
+    panel.classList.toggle("show", show);
     if(show){
       var labels = { wall:"Muur verwijderen", opening:"Verwijderen", zoneCut:"Splitlijn verwijderen" };
       document.getElementById("delete-selection-label").textContent = labels[state.selection.type] || "Verwijderen";
@@ -1921,6 +1922,74 @@
     slantBtn.classList.toggle("show", isWall);
     if(isWall){
       slantBtn.classList.toggle("active", !!state.wallSlants[state.selection.id]);
+    }
+    if(show) positionSelectionActions(panel);
+  }
+
+  // World-space midpoint of whatever is currently selected - the point the
+  // floating delete/wall-slant toolbar should hover near. Returns null if
+  // the selected id no longer resolves to anything (e.g. deleted from
+  // under it), so the caller can fall back to a safe default spot instead
+  // of anchoring to garbage.
+  function selectionAnchorWorld(){
+    if(!state.selection) return null;
+    if(state.selection.type === "wall"){
+      var w = state.walls.find(function(ww){ return ww.id===state.selection.id; });
+      return w ? { x:(w.x1+w.x2)/2, y:(w.y1+w.y2)/2 } : null;
+    }
+    if(state.selection.type === "opening"){
+      var o = state.openings.find(function(oo){ return oo.id===state.selection.id; });
+      var g = o && openingWallGeom(o);
+      return g ? { x:g.cx, y:g.cy } : null;
+    }
+    if(state.selection.type === "zoneCut"){
+      var rc = (state._lastResolvedCuts||[]).find(function(r){ return r.id===state.selection.id; });
+      return rc ? { x:(rc.p1.x+rc.p2.x)/2, y:(rc.p1.y+rc.p2.y)/2 } : null;
+    }
+    return null;
+  }
+
+  // Anchors the delete/wall-slant toolbar to the actual selected element's
+  // on-screen position (instead of a fixed spot unrelated to what's
+  // selected - a wall at the bottom of a large room used to leave the
+  // toolbar stranded near the top, far from what it acts on), then clamps
+  // the result to stay fully inside the visible canvas: a wall running
+  // along a screen edge would otherwise push the toolbar half off-screen.
+  function positionSelectionActions(panel){
+    var stageRect = stage.getBoundingClientRect();
+    var anchor = selectionAnchorWorld();
+    var sx, sy;
+    if(anchor){
+      var s = worldToScreen(anchor.x, anchor.y);
+      sx = s.x; sy = s.y;
+    } else {
+      sx = stageRect.width/2; sy = 78; // couldn't resolve an anchor - old fixed fallback spot
+    }
+    // safeTop leaves room for the floating vloer/muur/plafond stat pills
+    // (~16px top + ~50px tall) instead of just clamping flush against the
+    // stage edge, which would otherwise sit the toolbar half-under them.
+    var margin = 8, safeTop = 72, safeBottom = stageRect.height - 8;
+    panel.style.left = sx+"px";
+    panel.style.top = sy+"px";
+    panel.style.transform = "translate(-50%, -130%)"; // default: float above, centered on the anchor
+    var rect = panel.getBoundingClientRect();
+    if(rect.top - stageRect.top < safeTop){
+      // not enough headroom above the anchor - flip below it instead of
+      // clamping in place, which would otherwise bury the toolbar behind
+      // the very wall/opening it acts on
+      panel.style.transform = "translate(-50%, 16px)";
+      rect = panel.getBoundingClientRect();
+    }
+    var dx = 0, dy = 0;
+    var left = rect.left - stageRect.left, right = rect.right - stageRect.left;
+    var top = rect.top - stageRect.top, bottom = rect.bottom - stageRect.top;
+    if(left < margin) dx = margin - left;
+    else if(right > stageRect.width - margin) dx = (stageRect.width - margin) - right;
+    if(top < safeTop) dy = safeTop - top;
+    else if(bottom > safeBottom) dy = safeBottom - bottom;
+    if(dx || dy){
+      panel.style.left = (sx+dx)+"px";
+      panel.style.top = (sy+dy)+"px";
     }
   }
 
@@ -4766,20 +4835,22 @@
     var sy = btnRect.top - stageRect.top;
     var div = document.createElement("div");
     div.className = "pill-editor wall-order-editor";
-    div.style.left = sx+"px";
-    div.style.top = sy+"px";
     div.innerHTML = ''
       + '<label><input type="checkbox" class="ws-toggle"'+(slant?' checked':'')+'> Hellend plafond</label>'
       + '<div class="woe-row ws-field" style="display:'+(slant?'flex':'none')+'"><span>Breedte hellend vlak</span><input type="text" inputmode="decimal" class="ws-width" value="'+(slant?(slant.widthMm/10).toFixed(0):"150")+'"><span>cm</span></div>'
       + '<div class="woe-row ws-field" style="display:'+(slant?'flex':'none')+'"><span>Max. hoogte</span><input type="text" inputmode="decimal" class="ws-maxheight" value="'+(slant?(slant.maxHeightMm/10).toFixed(0):"320")+'"><span>cm</span></div>'
       + '<button>OK</button>';
-    document.body.appendChild(div);
+    placePillEditor(div, sx, sy);
     var toggle = div.querySelector(".ws-toggle");
     var fields = div.querySelectorAll(".ws-field");
     var widthInput = div.querySelector(".ws-width");
     var maxHeightInput = div.querySelector(".ws-maxheight");
     toggle.addEventListener("change", function(){
       fields.forEach(function(f){ f.style.display = toggle.checked ? "flex" : "none"; });
+      // the toggle changes how tall the menu is (fields show/hide) - redo
+      // the clamp against the same anchor so revealing the width/height
+      // fields can't push the bottom of the menu off-screen
+      placePillEditor(div, sx, sy);
     });
     function commit(){
       pushUndo();
@@ -4937,6 +5008,45 @@
   ===================================================================== */
   var activeEditor = null;
   var activeOutsideHandler = null, activeOutsideTimer = null;
+
+  // Every .pill-editor's sx/sy anchor is a canvas-local screen coordinate
+  // (from canvas.getBoundingClientRect(), the same box as #stage). They
+  // used to get appended to document.body, whose positioning context is
+  // the page/viewport, not the canvas - so an anchor computed as "80px
+  // from the canvas's own left edge" was rendered as "80px from the
+  // PAGE's left edge" instead, landing the whole editor off in the
+  // sidebar/topbar gutter, sometimes even off-screen. Appending inside
+  // #stage (which the anchor coords are actually relative to) fixes the
+  // coordinate space; the clamp below then keeps the result fully inside
+  // the visible canvas regardless of how close to an edge the anchor is.
+  function placePillEditor(div, sx, sy){
+    div.style.left = sx+"px";
+    div.style.top = sy+"px";
+    stage.appendChild(div);
+    var stageRect = stage.getBoundingClientRect();
+    // topMargin leaves room for the floating vloer/muur/plafond stat pills
+    // (~16px top + ~50px tall); the other edges just need a small gutter.
+    var margin = 8, topMargin = 72;
+    var rect = div.getBoundingClientRect();
+    if(rect.top - stageRect.top < topMargin){
+      // not enough headroom above the anchor (e.g. a wall near the top of
+      // the canvas) - flip to float below it instead of clamping in
+      // place, which would otherwise bury the menu behind the anchor
+      div.style.transform = "translate(-50%, 16px)";
+      rect = div.getBoundingClientRect();
+    }
+    var dx = 0, dy = 0;
+    var left = rect.left - stageRect.left, right = rect.right - stageRect.left;
+    var top = rect.top - stageRect.top, bottom = rect.bottom - stageRect.top;
+    if(left < margin) dx = margin - left;
+    else if(right > stageRect.width - margin) dx = (stageRect.width - margin) - right;
+    if(top < topMargin) dy = topMargin - top;
+    else if(bottom > stageRect.height - margin) dy = (stageRect.height - margin) - bottom;
+    if(dx || dy){
+      div.style.left = (sx+dx)+"px";
+      div.style.top = (sy+dy)+"px";
+    }
+  }
   function closePillEditor(){
     // the outside-click listener re-arms itself asynchronously (see below)
     // whenever a click lands inside the editor - without explicitly
@@ -4969,11 +5079,9 @@
     if(pill.type === "zone-height"){ openZoneHeightEditor(pill, sx, sy); return; }
     var div = document.createElement("div");
     div.className = "pill-editor";
-    div.style.left = sx+"px";
-    div.style.top = sy+"px";
     var currentMm = wallLength(state.walls.find(function(ww){return ww.id===pill.id;}));
     div.innerHTML = '<input type="text" inputmode="decimal" value="'+(currentMm/10).toFixed(0)+'"><span>cm</span><button>OK</button>';
-    document.body.appendChild(div);
+    placePillEditor(div, sx, sy);
     var input = div.querySelector("input");
     input.focus(); input.select();
     function commit(){
@@ -5010,12 +5118,10 @@
     var heightMm = state.roomHeights[key] != null ? state.roomHeights[key] : state.defaultRoomHeight;
     var div = document.createElement("div");
     div.className = "pill-editor wall-order-editor";
-    div.style.left = sx+"px";
-    div.style.top = sy+"px";
     div.innerHTML = ''
       + '<div class="woe-row"><span>Hoogte</span><input type="text" inputmode="decimal" class="zh-height" value="'+(heightMm/10).toFixed(0)+'"><span>cm</span></div>'
       + '<button>OK</button>';
-    document.body.appendChild(div);
+    placePillEditor(div, sx, sy);
     var heightInput = div.querySelector(".zh-height");
     heightInput.focus(); heightInput.select();
     function commit(){
@@ -5049,13 +5155,11 @@
     if(!w) return;
     var div = document.createElement("div");
     div.className = "pill-editor wall-order-editor";
-    div.style.left = sx+"px";
-    div.style.top = sy+"px";
     div.innerHTML = ''
       + '<div class="woe-row"><span>Volgorde</span><input type="text" inputmode="decimal" value="'+(w.order||1)+'"></div>'
       + '<label><input type="checkbox"'+(w.excludeFromCalc?' checked':'')+'> Uitsluiten van berekening</label>'
       + '<button>OK</button>';
-    document.body.appendChild(div);
+    placePillEditor(div, sx, sy);
     var orderInput = div.querySelector('.woe-row input');
     var excludeCheckbox = div.querySelector('input[type="checkbox"]');
     orderInput.focus(); orderInput.select();
